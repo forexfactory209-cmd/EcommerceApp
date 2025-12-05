@@ -1,3 +1,30 @@
+# My App
+
+A modern ecommerce mobile app built with React Native and Expo.
+
+## 🚀 Features
+- Full Ecommerce App
+- Browse products
+- Compare items
+- View details
+- Add to favorites
+- Smooth UI
+- customers sees product
+
+## 🛠️ Tech Stack
+- React Native
+- Expo
+- TypeScript
+- TailwindCSS
+- Supabase (for backend and storage usage in one place)
+
+
+
+
+
+
+
+
 # Welcome to your Expo app 👋
 
 This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
