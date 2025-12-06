@@ -49,6 +49,11 @@ const COLORS = {
     fontSize: 12,
     marginTop: 2,
   },
+  orderListHint: {
+    fontSize: 11,
+    marginTop: 4,
+    color: '#9CA3AF',
+  },
   orderListStatusPill: {
     paddingHorizontal: 10,
     paddingVertical: 4,
@@ -147,21 +152,23 @@ const TrackOrderScreen = () => {
     const pill = mapStatusToPill(item.status || 'Pending');
     return (
       <TouchableOpacity
-        style={[styles.orderListRow, { borderColor: COLORS.primary + '22' }]}
+        style={[styles.orderListRow, { borderColor: COLORS.primary + '15' }]}
         activeOpacity={0.8}
         onPress={() => navigation.navigate('TrackOrderDetails', { orderId: item.id })}
       >
-        <View>
+        <View style={styles.orderListLeft}>
           <Text style={[styles.orderListTitle, { color: palette.textPrimary }]}>Order #{item.id}</Text>
           <Text style={[styles.orderListMeta, { color: palette.textMuted }]}>{item.placedAt}</Text>
+          <Text style={styles.orderListHint}>Tap to see tracking</Text>
         </View>
-        <View style={{ alignItems: 'flex-end' }}>
+        <View style={styles.orderListRight}>
           <View
             style={[styles.orderListStatusPill, { backgroundColor: pill.gradient[0] }]}
           >
             <Text style={styles.orderListStatusText}>{pill.label}</Text>
           </View>
           <Text style={[styles.orderListAmount, { color: palette.textPrimary }]}>${item.total.toFixed(2)}</Text>
+          <Text style={styles.orderListChevron}>›</Text>
         </View>
       </TouchableOpacity>
     );
@@ -631,6 +638,59 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
     color: '#FFFFFF',
+  },
+  orderListRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 14,
+    paddingHorizontal: 14,
+    marginBottom: 12,
+    borderRadius: 18,
+    borderWidth: 1,
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#000000',
+    shadowOpacity: 0.05,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 3,
+  },
+  orderListLeft: {
+    flex: 1,
+  },
+  orderListRight: {
+    alignItems: 'flex-end',
+    justifyContent: 'center',
+    marginLeft: 12,
+  },
+  orderListTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  orderListMeta: {
+    fontSize: 12,
+    marginTop: 2,
+  },
+  orderListStatusPill: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 999,
+    marginBottom: 4,
+  },
+  orderListStatusText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#FFFFFF',
+    textTransform: 'capitalize',
+  },
+  orderListAmount: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  orderListChevron: {
+    fontSize: 16,
+    marginTop: 4,
+    color: '#9CA3AF',
   },
 });
 

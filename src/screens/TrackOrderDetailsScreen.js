@@ -9,7 +9,10 @@ import {
   ScrollView,
   Animated,
   Easing,
+  Linking,
 } from 'react-native';
+import * as Print from 'expo-print';
+import * as Sharing from 'expo-sharing';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useRoute, useNavigation } from '@react-navigation/native';
 import { supabase } from '../lib/supabase';
@@ -76,6 +79,7 @@ const TrackOrderDetailsScreen = () => {
   const [order, setOrder] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [supportVisible, setSupportVisible] = useState(false);
 
   const headerAnim = useRef(new Animated.Value(0)).current;
   const currentStepPulse = useRef(new Animated.Value(1)).current;
@@ -126,6 +130,8 @@ const TrackOrderDetailsScreen = () => {
         shippingMethod: data.shipping_method || 'Standard Shipping',
         packageWeight: data.package_weight || 'N/A',
         sellerName: data.seller_name || null,
+        sellerEmail: data.seller_email || null,
+        sellerPhone: data.seller_phone || null,
       };
 
       setOrder(mapped);
@@ -277,6 +283,280 @@ const TrackOrderDetailsScreen = () => {
 
   const statusPill = mapStatusToPill(order?.status || 'Pending');
 
+  const handleOpenSupport = () => {
+    setSupportVisible(true);
+  };
+
+  const handleCloseSupport = () => {
+    setSupportVisible(false);
+  };
+
+  const handleCallSeller = () => {
+    if (!order?.sellerPhone) return;
+    const phone = String(order.sellerPhone).replace(/\s+/g, '');
+    Linking.openURL(`tel:${phone}`).catch(() => {});
+  };
+
+  const handleEmailSeller = () => {
+    if (!order?.sellerEmail) return;
+    const subject = encodeURIComponent(`Order #${order.code} support`);
+    const body = encodeURIComponent('Hi, I need help with my order.');
+    Linking.openURL(`mailto:${order.sellerEmail}?subject=${subject}&body=${body}`).catch(() => {});
+  };
+
+  const handleDownloadInvoice = async () => {
+    if (!order) return;
+
+    try {
+      const itemsRows = Array.isArray(order.items)
+        ? order.items
+            .map((item, index) => {
+              const name = item.name || `Item ${index + 1}`;
+              const qty = item.quantity || 1;
+              const price = Number(item.price) || 0;
+              const lineTotal = price * qty;
+              return `
+                <tr>
+                  <td style="padding: 4px 8px; border-bottom: 1px solid #E5E7EB;">${name}</td>
+                  <td style="padding: 4px 8px; border-bottom: 1px solid #E5E7EB; text-align: center;">${qty}</td>
+                  <td style="padding: 4px 8px; border-bottom: 1px solid #E5E7EB; text-align: right;">${price ? `$${price.toFixed(2)}` : '-'}</td>
+                  <td style="padding: 4px 8px; border-bottom: 1px solid #E5E7EB; text-align: right;">${lineTotal ? `$${lineTotal.toFixed(2)}` : '-'}</td>
+                </tr>
+              `;
+            })
+            .join('')
+        : '';
+
+      const placedAtText = order.placedAt ? order.placedAt.toLocaleString() : '';
+
+      const html = `
+        <html>
+          <head>
+            <meta charset="utf-8" />
+            <title>Invoice ${order.code}</title>
+            <style>
+              :root {
+                --primary: #246BFD;
+                --text-main: #0F172A;
+                --muted: #6B7280;
+                --border: #E5E7EB;
+                --bg-soft: #F9FAFB;
+              }
+
+              body {
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+                padding: 0;
+                margin: 0;
+                color: var(--text-main);
+                background-color: #FFFFFF;
+              }
+
+              .page {
+                padding: 20px 18px 24px;
+              }
+
+              .header-bar {
+                background: linear-gradient(90deg, #1D4ED8, #246BFD);
+                padding: 14px 18px;
+                color: #FFFFFF;
+              }
+
+              .brand-title {
+                font-size: 18px;
+                font-weight: 700;
+                margin: 0 0 2px 0;
+              }
+
+              .brand-subtitle {
+                font-size: 11px;
+                opacity: 0.9;
+                margin: 0;
+              }
+
+              .section-card {
+                background-color: #FFFFFF;
+                border-radius: 10px;
+                border: 1px solid var(--border);
+                padding: 12px 12px 10px;
+                margin-top: 12px;
+              }
+
+              .section-title {
+                font-size: 13px;
+                font-weight: 600;
+                margin: 0 0 6px 0;
+              }
+
+              p {
+                font-size: 11px;
+                margin: 2px 0;
+              }
+
+              .meta-row {
+                display: flex;
+                justify-content: space-between;
+                font-size: 11px;
+              }
+
+              .meta-label {
+                color: var(--muted);
+              }
+
+              .meta-value {
+                font-weight: 500;
+              }
+
+              .status-pill {
+                display: inline-block;
+                padding: 2px 8px;
+                border-radius: 999px;
+                font-size: 10px;
+                font-weight: 600;
+                color: #FFFFFF;
+                background-color: var(--primary);
+              }
+
+              table {
+                width: 100%;
+                border-collapse: collapse;
+                margin-top: 4px;
+              }
+
+              th {
+                font-size: 11px;
+                text-align: left;
+                padding: 4px 8px;
+                background-color: var(--bg-soft);
+                border-bottom: 1px solid var(--border);
+              }
+
+              td {
+                font-size: 11px;
+              }
+
+              .totals-row {
+                display: flex;
+                justify-content: space-between;
+                font-size: 11px;
+                margin-top: 2px;
+              }
+
+              .totals-label {
+                color: var(--muted);
+              }
+
+              .totals-value {
+                font-weight: 600;
+              }
+            </style>
+          </head>
+          <body>
+            <div class="header-bar">
+              <p class="brand-title">${order.sellerName || 'Your Store'}</p>
+              <p class="brand-subtitle">Order invoice and payment summary</p>
+            </div>
+
+            <div class="page">
+              <div class="section-card">
+                <p class="section-title">Order Summary</p>
+                <div class="meta-row">
+                  <span class="meta-label">Order ID</span>
+                  <span class="meta-value">${order.code}</span>
+                </div>
+                ${
+                  placedAtText
+                    ? `<div class="meta-row"><span class="meta-label">Date</span><span class="meta-value">${placedAtText}</span></div>`
+                    : ''
+                }
+                <div class="meta-row" style="margin-top:4px;">
+                  <span class="meta-label">Status</span>
+                  <span class="status-pill">${order.status}</span>
+                </div>
+              </div>
+
+              <div class="section-card">
+                <p class="section-title">Customer</p>
+                ${order.deliveryAddress ? `<p>${order.deliveryAddress}</p>` : '<p>No address provided</p>'}
+              </div>
+
+              <div class="section-card">
+                <p class="section-title">Items</p>
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Item</th>
+                      <th style="text-align:center;">Qty</th>
+                      <th style="text-align:right;">Price</th>
+                      <th style="text-align:right;">Total</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    ${itemsRows || '<tr><td colspan="4" style="padding: 8px;">No items found</td></tr>'}
+                  </tbody>
+                </table>
+              </div>
+
+              <div class="section-card">
+                <p class="section-title">Payment & Shipping</p>
+                <p><strong>Payment Method:</strong> ${order.paymentMethod}</p>
+                <p><strong>Shipping Method:</strong> ${order.shippingMethod}</p>
+                <p><strong>Tracking No.:</strong> ${order.trackingNumber}</p>
+                ${order.courier ? `<p><strong>Courier:</strong> ${order.courier}</p>` : ''}
+                ${order.packageWeight ? `<p><strong>Package:</strong> ${order.packageWeight}</p>` : ''}
+              </div>
+
+              <div class="section-card">
+                <p class="section-title">Totals</p>
+                <div class="totals-row">
+                  <span class="totals-label">Subtotal</span>
+                  <span class="totals-value">$${order.subtotal.toFixed(2)}</span>
+                </div>
+                <div class="totals-row">
+                  <span class="totals-label">Shipping</span>
+                  <span class="totals-value">$${order.shipping.toFixed(2)}</span>
+                </div>
+                <div class="totals-row" style="margin-top:4px;">
+                  <span class="totals-label">Total</span>
+                  <span class="totals-value">$${order.total.toFixed(2)}</span>
+                </div>
+              </div>
+
+              ${
+                order.sellerName || order.sellerEmail || order.sellerPhone
+                  ? `
+                    <div class="section-card">
+                      <p class="section-title">Seller</p>
+                      ${order.sellerName ? `<p><strong>Name:</strong> ${order.sellerName}</p>` : ''}
+                      ${order.sellerEmail ? `<p><strong>Email:</strong> ${order.sellerEmail}</p>` : ''}
+                      ${order.sellerPhone ? `<p><strong>Phone:</strong> ${order.sellerPhone}</p>` : ''}
+                    </div>
+                  `
+                  : ''
+              }
+            </div>
+          </body>
+        </html>
+      `;
+
+      const { uri } = await Print.printToFileAsync({
+        html,
+        base64: false,
+      });
+
+      if (!uri) return;
+
+      const canShare = await Sharing.isAvailableAsync();
+      if (!canShare) return;
+
+      await Sharing.shareAsync(uri, {
+        dialogTitle: `Invoice for ${order.code}`,
+        mimeType: 'application/pdf',
+      });
+    } catch (e) {
+      // Swallow PDF/share errors to avoid crashing the screen
+    }
+  };
+
   const Header = () => (
     <Animated.View
       style={[
@@ -402,13 +682,13 @@ const TrackOrderDetailsScreen = () => {
     <View style={styles.actionsRow}>
       <TouchableOpacity
         style={[styles.actionButton, styles.actionButtonSecondary]}
-        onPress={() => {}}
+        onPress={handleOpenSupport}
       >
         <Text style={styles.actionButtonSecondaryText}>Contact Support</Text>
       </TouchableOpacity>
       <TouchableOpacity
         style={[styles.actionButton, styles.actionButtonPrimary]}
-        onPress={() => {}}
+        onPress={handleDownloadInvoice}
       >
         <Text style={styles.actionButtonPrimaryText}>Download Invoice</Text>
       </TouchableOpacity>
@@ -491,6 +771,34 @@ const TrackOrderDetailsScreen = () => {
 
         {order && <ActionsBar />}
       </ScrollView>
+      {supportVisible && (
+        <View style={styles.supportOverlay}>
+          <View style={styles.supportCard}>
+            <Text style={styles.supportTitle}>Contact Support</Text>
+            <Text style={styles.supportSubtitle}>
+              {order?.sellerName || 'Seller'} will assist you about this order.
+            </Text>
+            <View style={styles.supportButtonsRow}>
+              <TouchableOpacity
+                style={[styles.supportButton, styles.supportButtonCall]}
+                onPress={handleCallSeller}
+              >
+                <Text style={styles.supportButtonText}>Call</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.supportButton, styles.supportButtonEmail]}
+                onPress={handleEmailSeller}
+              >
+                <Text style={styles.supportButtonText}>Email</Text>
+              </TouchableOpacity>
+            </View>
+            <TouchableOpacity onPress={handleCloseSupport} style={styles.supportCloseTouch}
+            >
+              <Text style={styles.supportCloseText}>Close</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
     </SafeAreaView>
   );
 };
@@ -740,6 +1048,69 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
     color: '#FFFFFF',
+  },
+  supportOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  supportCard: {
+    width: '86%',
+    borderRadius: 20,
+    paddingVertical: 20,
+    paddingHorizontal: 18,
+    backgroundColor: '#020617',
+    borderWidth: 1,
+    borderColor: '#1F2937',
+  },
+  supportTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#F9FAFB',
+    marginBottom: 6,
+  },
+  supportSubtitle: {
+    fontSize: 13,
+    color: '#9CA3AF',
+    marginBottom: 16,
+  },
+  supportButtonsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  supportButton: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 999,
+    alignItems: 'center',
+  },
+  supportButtonCall: {
+    marginRight: 6,
+    backgroundColor: '#22C55E',
+  },
+  supportButtonEmail: {
+    marginLeft: 6,
+    backgroundColor: '#2563EB',
+  },
+  supportButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  supportCloseTouch: {
+    marginTop: 4,
+    paddingVertical: 6,
+    alignItems: 'center',
+  },
+  supportCloseText: {
+    fontSize: 13,
+    color: '#9CA3AF',
   },
 });
 

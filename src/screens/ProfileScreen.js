@@ -17,6 +17,7 @@ const ProfileScreen = ({ navigation }) => {
   const [brandId, setBrandId] = useState(null);
   const [brandLoading, setBrandLoading] = useState(true);
   const [showOrderHistory, setShowOrderHistory] = useState(false);
+  const [activeSectionKey, setActiveSectionKey] = useState(null);
 
   useEffect(() => {
     const loadBrandForProfile = async () => {
@@ -165,70 +166,79 @@ const ProfileScreen = ({ navigation }) => {
 
         <View style={styles.sectionList}>
           <TouchableOpacity
-            style={styles.sectionItem}
+            style={activeSectionKey === 'EditProfile' ? styles.sectionItemHighlighted : styles.sectionItem}
             onPress={() => {
+              setActiveSectionKey('EditProfile');
               navigation.navigate('EditProfile');
             }}
           >
-            <Text style={styles.sectionItemLabel}>Edit Profile</Text>
+            <Text style={activeSectionKey === 'EditProfile' ? styles.sectionItemHighlightedLabel : styles.sectionItemLabel}>Edit Profile</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={styles.sectionItem}
+            style={activeSectionKey === 'Addresses' ? styles.sectionItemHighlighted : styles.sectionItem}
             onPress={() => {
+              setActiveSectionKey('Addresses');
               navigation.navigate('Addresses');
             }}
           >
-            <Text style={styles.sectionItemLabel}>Saved Addresses</Text>
+            <Text style={activeSectionKey === 'Addresses' ? styles.sectionItemHighlightedLabel : styles.sectionItemLabel}>Saved Addresses</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={styles.sectionItem}
+            style={activeSectionKey === 'Billing' ? styles.sectionItemHighlighted : styles.sectionItem}
             onPress={() => {
+              setActiveSectionKey('Billing');
               navigation.navigate('Billing');
             }}
           >
-            <Text style={styles.sectionItemLabel}>Payment Methods</Text>
+            <Text style={activeSectionKey === 'Billing' ? styles.sectionItemHighlightedLabel : styles.sectionItemLabel}>Payment Methods</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={styles.sectionItem}
+            style={activeSectionKey === 'Wishlist' ? styles.sectionItemHighlighted : styles.sectionItem}
             onPress={() => {
+              setActiveSectionKey('Wishlist');
               navigation.navigate('Wishlist');
             }}
           >
-            <Text style={styles.sectionItemLabel}>Favorites</Text>
+            <Text style={activeSectionKey === 'Wishlist' ? styles.sectionItemHighlightedLabel : styles.sectionItemLabel}>Favorites</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={styles.sectionItem}
+            style={activeSectionKey === 'Notifications' ? styles.sectionItemHighlighted : styles.sectionItem}
             onPress={() => {
+              setActiveSectionKey('Notifications');
               navigation.navigate('Notifications');
             }}
           >
-            <Text style={styles.sectionItemLabel}>Notifications</Text>
+            <Text style={activeSectionKey === 'Notifications' ? styles.sectionItemHighlightedLabel : styles.sectionItemLabel}>Notifications</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={styles.sectionItem}
+            style={activeSectionKey === 'HelpSupport' ? styles.sectionItemHighlighted : styles.sectionItem}
             onPress={() => {
+              setActiveSectionKey('HelpSupport');
             }}
           >
-            <Text style={styles.sectionItemLabel}>Help & Support</Text>
+            <Text style={activeSectionKey === 'HelpSupport' ? styles.sectionItemHighlightedLabel : styles.sectionItemLabel}>Help & Support</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={styles.sectionItem}
-            onPress={() => navigation.navigate('TrackOrder')}
+            style={activeSectionKey === 'TrackOrder' ? styles.sectionItemHighlighted : styles.sectionItem}
+            onPress={() => {
+              setActiveSectionKey('TrackOrder');
+              navigation.navigate('TrackOrder');
+            }}
           >
-            <Text style={styles.sectionItemLabel}>Track Orders</Text>
+            <Text style={activeSectionKey === 'TrackOrder' ? styles.sectionItemHighlightedLabel : styles.sectionItemLabel}>Track Orders</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={styles.sectionItemHighlighted}
+            style={activeSectionKey === 'BecomeSeller' ? styles.sectionItemHighlighted : styles.sectionItem}
             onPress={() => navigation.navigate('BrandOnboarding')}
           >
-            <Text style={styles.sectionItemHighlightedLabel}>Become a Seller</Text>
+            <Text style={activeSectionKey === 'BecomeSeller' ? styles.sectionItemHighlightedLabel : styles.sectionItemLabel}>Become a Seller</Text>
           </TouchableOpacity>
         </View>
 
