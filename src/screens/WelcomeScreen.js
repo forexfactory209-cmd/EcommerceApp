@@ -74,10 +74,10 @@ const WelcomeScreen = ({ navigation }) => {
         const { data: profile, error: profileError } = await supabase
           .from('profiles')
           .select('*')
-          .eq('id', user.id)
+          .eq('user_id', user.id)
           .maybeSingle();
 
-        if (profileError) {
+        if (profileError && profileError.code !== 'PGRST116') {
           Alert.alert('Error', profileError.message || 'Failed to load profile.');
           return;
         }

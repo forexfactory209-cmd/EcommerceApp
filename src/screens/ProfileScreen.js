@@ -218,6 +218,13 @@ const ProfileScreen = ({ navigation }) => {
           </TouchableOpacity>
 
           <TouchableOpacity
+            style={styles.sectionItem}
+            onPress={() => navigation.navigate('TrackOrder')}
+          >
+            <Text style={styles.sectionItemLabel}>Track Orders</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
             style={styles.sectionItemHighlighted}
             onPress={() => navigation.navigate('BrandOnboarding')}
           >
@@ -334,6 +341,12 @@ const ProfileScreen = ({ navigation }) => {
             onPress={() => navigation.navigate('AdminProducts')}
           >
             <Text style={styles.adminButtonText}>Admin: Manage Products</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.adminButton}
+            onPress={() => navigation.navigate('AdminCustomers')}
+          >
+            <Text style={styles.adminButtonText}>Admin: Manage Customers</Text>
           </TouchableOpacity>
         </>
       )}

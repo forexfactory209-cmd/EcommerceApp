@@ -46,6 +46,7 @@ const BillingScreen = ({ navigation }) => {
         0,
       );
 
+      let brandShippingMethod = null;
       const brandShipping = items.reduce((sum, item) => {
         const options = Array.isArray(item.deliveryOptions)
           ? item.deliveryOptions
@@ -55,6 +56,10 @@ const BillingScreen = ({ navigation }) => {
 
         const chosen = options.find((opt) => opt.id === item.selectedDeliveryId);
         const price = typeof chosen?.price === 'number' ? chosen.price : 0;
+
+        if (chosen && !brandShippingMethod) {
+          brandShippingMethod = chosen.name || chosen.label || null;
+        }
 
         return sum + price;
       }, 0);
@@ -78,6 +83,7 @@ const BillingScreen = ({ navigation }) => {
         brand_user_id: brandKey === 'unassigned' ? null : brandKey,
         payment_method: paymentMethod,
         delivery_address: deliveryAddress,
+        shipping_method: brandShippingMethod,
       };
 
       addOrder(order);
@@ -96,6 +102,7 @@ const BillingScreen = ({ navigation }) => {
               placed_at: new Date().toISOString(),
               payment_method: order.payment_method,
               delivery_address: order.delivery_address,
+              shipping_method: order.shipping_method,
             },
           ])
           .select()

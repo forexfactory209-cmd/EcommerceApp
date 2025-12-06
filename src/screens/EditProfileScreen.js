@@ -7,6 +7,7 @@ import { useStore } from '../store/store';
 const EditProfileScreen = ({ navigation }) => {
   const authUserId = useStore((state) => state.authUserId);
   const authEmail = useStore((state) => state.authEmail);
+  const authRole = useStore((state) => state.authRole) || 'customer';
   const setUserProfile = useStore((state) => state.setUserProfile);
 
   const [fullName, setFullName] = useState('');
@@ -45,10 +46,15 @@ const EditProfileScreen = ({ navigation }) => {
     if (!authUserId) return;
     setSaving(true);
     try {
+      const payload = {
+        user_id: authUserId,
+        name: fullName || null,
+        role: authRole || 'customer',
+      };
+
       const { error } = await supabase
         .from('profiles')
-        .update({ name: fullName || null })
-        .eq('user_id', authUserId);
+        .upsert(payload, { onConflict: 'user_id' });
       if (error) {
         console.warn('Error updating profile', error.message || error);
         Alert.alert('Error', 'Could not update profile, please try again.');
