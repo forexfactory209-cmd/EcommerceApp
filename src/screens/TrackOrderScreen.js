@@ -105,7 +105,7 @@ const TrackOrderScreen = () => {
       setOrdersListLoading(true);
       const { data, error } = await supabase
         .from('orders')
-        .select('*')
+        .select('id, status, total, placed_at, items')
         .eq('customer_user_id', authUserId)
         .order('placed_at', { ascending: false });
 
@@ -121,6 +121,10 @@ const TrackOrderScreen = () => {
             status: row.status || 'Pending',
             total: Number(row.total) || 0,
             placedAt: row.placed_at ? new Date(row.placed_at).toLocaleDateString() : '',
+            items: Array.isArray(row.items) ? row.items : [],
+            trackingNumber: null,
+            sellerName: null,
+            shippingMethod: null,
           }))
         : [];
 
@@ -150,6 +154,8 @@ const TrackOrderScreen = () => {
 
   const renderOrderListRow = ({ item }) => {
     const pill = mapStatusToPill(item.status || 'Pending');
+    const itemCount = Array.isArray(item.items) ? item.items.length : 0;
+    const firstItems = Array.isArray(item.items) ? item.items.slice(0, 2) : [];
     return (
       <TouchableOpacity
         style={[styles.orderListRow, { borderColor: COLORS.primary + '15' }]}
@@ -159,8 +165,43 @@ const TrackOrderScreen = () => {
         <View style={styles.orderListLeft}>
           <Text style={[styles.orderListTitle, { color: palette.textPrimary }]}>Order #{item.id}</Text>
           <Text style={[styles.orderListMeta, { color: palette.textMuted }]}>{item.placedAt}</Text>
-          <Text style={styles.orderListHint}>Tap to see tracking</Text>
+
+          {/* Items preview */}
+          {firstItems.length > 0 && (
+            <View style={styles.orderItemsList}>
+              {firstItems.map((prod, idx) => (
+                <Text key={idx} style={styles.orderItemLine}>
+                  {prod.quantity || 1}x {prod.name || 'Item'}
+                </Text>
+              ))}
+              {itemCount > 2 && (
+                <Text style={styles.orderItemMore}>+{itemCount - 2} more</Text>
+              )}
+            </View>
+          )}
+
+          {/* Seller & shipping */}
+          {item.sellerName && (
+            <Text style={[styles.orderListMeta, { color: palette.textSecondary }]}>
+              Seller: {item.sellerName}
+            </Text>
+          )}
+          {item.shippingMethod && (
+            <Text style={[styles.orderListHint, { color: palette.textMuted }]}>
+              {item.shippingMethod}
+            </Text>
+          )}
+
+          {/* Tracking */}
+          {item.trackingNumber ? (
+            <Text style={[styles.orderListHint, { color: COLORS.primary }]}>
+              Tracking: {item.trackingNumber}
+            </Text>
+          ) : (
+            <Text style={styles.orderListHint}>Tap to see tracking</Text>
+          )}
         </View>
+
         <View style={styles.orderListRight}>
           <View
             style={[styles.orderListStatusPill, { backgroundColor: pill.gradient[0] }]}
@@ -691,6 +732,18 @@ const styles = StyleSheet.create({
     fontSize: 16,
     marginTop: 4,
     color: '#9CA3AF',
+  },
+  orderItemsList: {
+    marginTop: 8,
+  },
+  orderItemLine: {
+    fontSize: 13,
+    color: '#4B5563',
+  },
+  orderItemMore: {
+    fontSize: 12,
+    color: '#9CA3AF',
+    marginTop: 2,
   },
 });
 

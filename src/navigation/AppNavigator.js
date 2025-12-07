@@ -2,7 +2,7 @@ import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { NavigationContainer } from '@react-navigation/native';
-import { Home, ShoppingBag, User, Store, Heart, Zap } from 'lucide-react-native';
+import { Home, ShoppingBag, User, Store, Heart, Zap, Tag } from 'lucide-react-native';
 import { View, Text, StyleSheet } from 'react-native';
 
 // Import Screens
@@ -36,6 +36,7 @@ import AdminCustomersScreen from '../screens/AdminCustomersScreen';
 import AdminCustomerDetailsScreen from '../screens/AdminCustomerDetailsScreen';
 import TrackOrderScreen from '../screens/TrackOrderScreen';
 import TrackOrderDetailsScreen from '../screens/TrackOrderDetailsScreen';
+import PromoCodesScreen from '../screens/PromoCodesScreen';
 import { useStore } from '../store/store';
 
 const Stack = createNativeStackNavigator();
@@ -101,27 +102,36 @@ const TabNavigator = () => {
         />
       )}
       {userType === 'brand' && authRole !== 'admin' && (
-        <Tab.Screen 
-          name="Vendor" 
-          component={VendorScreen} 
-          options={{
-              tabBarIcon: ({color}) => (
-                  <View style={{ alignItems: 'center' }}>
-                    <Store color={color} size={24} />
-                    {pendingOrders > 0 && (
-                      <>
-                        <View style={styles.vendorBadge}>
-                          <Text style={styles.vendorBadgeText}>{pendingOrders}</Text>
-                        </View>
-                        <Text style={styles.vendorHintText} numberOfLines={1}>
-                          {pendingOrders === 1 ? '1 order waiting' : `${pendingOrders} orders`}
-                        </Text>
-                      </>
-                    )}
-                  </View>
-              )
-          }}
-        />
+        <>
+          <Tab.Screen 
+            name="Vendor" 
+            component={VendorScreen} 
+            options={{
+                tabBarIcon: ({color}) => (
+                    <View style={{ alignItems: 'center' }}>
+                      <Store color={color} size={24} />
+                      {pendingOrders > 0 && (
+                        <>
+                          <View style={styles.vendorBadge}>
+                            <Text style={styles.vendorBadgeText}>{pendingOrders}</Text>
+                          </View>
+                          <Text style={styles.vendorHintText} numberOfLines={1}>
+                            {pendingOrders === 1 ? '1 order waiting' : `${pendingOrders} orders`}
+                          </Text>
+                        </>
+                      )}
+                    </View>
+                )
+            }}
+          />
+          <Tab.Screen
+            name="PromoCodes"
+            component={PromoCodesScreen}
+            options={{
+              tabBarIcon: ({ color }) => <Tag color={color} size={24} />,
+            }}
+          />
+        </>
       )}
       {userType !== 'brand' && authRole !== 'admin' && (
         <Tab.Screen 

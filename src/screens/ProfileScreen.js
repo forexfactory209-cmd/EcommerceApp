@@ -156,11 +156,9 @@ const ProfileScreen = ({ navigation }) => {
 
           <TouchableOpacity
             style={styles.orderHistoryButton}
-            onPress={() => setShowOrderHistory((prev) => !prev)}
+            onPress={() => navigation.navigate('TrackOrder')}
           >
-            <Text style={styles.orderHistoryButtonText}>
-              {showOrderHistory ? 'Hide Order History' : 'View Order History'}
-            </Text>
+            <Text style={styles.orderHistoryButtonText}>View Order History</Text>
           </TouchableOpacity>
         </View>
 
@@ -242,22 +240,7 @@ const ProfileScreen = ({ navigation }) => {
           </TouchableOpacity>
         </View>
 
-        {showOrderHistory && (
-          <View style={styles.orderHistorySection}>
-            <Text style={styles.sectionTitle}>Order History</Text>
-            {myOrders.length === 0 ? (
-              <Text style={styles.emptyText}>You have no orders yet.</Text>
-            ) : (
-              <FlatList
-                data={myOrders}
-                keyExtractor={(item) => item.id.toString()}
-                renderItem={renderItem}
-                contentContainerStyle={{ paddingBottom: 24 }}
-              />
-            )}
-          </View>
-        )}
-
+        
         <TouchableOpacity
           style={styles.logoutButton}
           onPress={async () => {

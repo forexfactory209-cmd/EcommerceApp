@@ -110,6 +110,7 @@ const VendorScreen = ({ navigation }) => {
               brand_user_id: row.brand_user_id,
               payment_method: row.payment_method || 'cash_on_delivery',
               delivery_address: row.delivery_address || '',
+              promo_code: row.promo_code || null,
             }));
             setOrders(mapped);
           }
@@ -139,6 +140,7 @@ const VendorScreen = ({ navigation }) => {
   const netRevenue = grossRevenue - commissionAmount;
   const deliveredOrdersCount = myOrders.filter((o) => o.status === 'Delivered').length;
   const pendingOrdersCount = myOrders.length - deliveredOrdersCount;
+
 
   const handleApplyDiscount = async () => {
     if (!authUserId) return;
@@ -448,6 +450,7 @@ const VendorScreen = ({ navigation }) => {
         </View>
       )}
 
+
       {/* Internal Tabs */}
       <View style={styles.tabsRow}>
         <TabButton title="My Products" value="products" />
@@ -539,6 +542,11 @@ const VendorScreen = ({ navigation }) => {
                   • Total: ${item.total.toFixed(2)}
                 </Text>
               </Text>
+              {item.promo_code ? (
+                <Text style={styles.orderPromoMeta}>
+                  Promo code used: <Text style={styles.orderPromoCode}>{item.promo_code}</Text>
+                </Text>
+              ) : null}
 
               {Array.isArray(item.items) && item.items.length > 0 && (
                 <View style={styles.orderItemsList}>
@@ -867,6 +875,15 @@ const styles = StyleSheet.create({
   orderMeta: {
     marginTop: 4,
     color: '#6b7280',
+  },
+  orderPromoMeta: {
+    marginTop: 2,
+    fontSize: 12,
+    color: '#4b5563',
+  },
+  orderPromoCode: {
+    fontWeight: '700',
+    color: '#111827',
   },
   orderItemsList: {
     marginTop: 8,

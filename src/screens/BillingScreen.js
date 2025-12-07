@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, FlatList, TextInput, ScrollView } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, FlatList, TextInput, ScrollView, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useStore } from '../store/store';
 import { supabase } from '../lib/supabase';
@@ -9,6 +9,12 @@ const BillingScreen = ({ navigation }) => {
 
   const [paymentMethod, setPaymentMethod] = useState('cash_on_delivery');
   const [deliveryAddress, setDeliveryAddress] = useState('');
+
+  // Promo code state
+  const [promoCodeInput, setPromoCodeInput] = useState('');
+  const [appliedPromo, setAppliedPromo] = useState(null); // { id, code, discountAmount, brand_user_id }
+  const [promoFeedback, setPromoFeedback] = useState('');
+  const [promoApplying, setPromoApplying] = useState(false);
 
   const subtotal = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
   const shipping = cart.reduce((sum, item) => {
@@ -25,8 +31,138 @@ const BillingScreen = ({ navigation }) => {
   }, 0);
   const total = subtotal + shipping;
 
+  const promoDiscount = appliedPromo?.discountAmount || 0;
+  const grandTotal = Math.max(0, total - promoDiscount);
+
+  const handleApplyPromo = async () => {
+    const raw = (promoCodeInput || '').trim();
+    if (!raw) {
+      setPromoFeedback('Enter a promo code to apply.');
+      setAppliedPromo(null);
+      return;
+    }
+
+    if (!cart || cart.length === 0) {
+      setPromoFeedback('Your cart is empty.');
+      setAppliedPromo(null);
+      return;
+    }
+
+    // For now, promo codes apply only when all items belong to a single brand.
+    const brandIds = Array.from(
+      new Set(
+        cart
+          .map((item) => item.brand_user_id)
+          .filter((id) => typeof id === 'string' && id.length > 0),
+      ),
+    );
+
+    if (brandIds.length !== 1) {
+      setPromoFeedback('Promo codes can be used when your cart is from a single brand.');
+      setAppliedPromo(null);
+      return;
+    }
+
+    const brandId = brandIds[0];
+    const normalizedCode = raw.toUpperCase();
+
+    try {
+      setPromoApplying(true);
+      setPromoFeedback('');
+
+      const { data: promoRow, error } = await supabase
+        .from('promo_codes')
+        .select('id, code, brand_user_id, discount_percentage, is_active, expires_at')
+        .eq('code', normalizedCode)
+        .eq('brand_user_id', brandId)
+        .eq('is_active', true)
+        .maybeSingle();
+
+      if (error) {
+        console.warn('Billing: failed to validate promo code', error.message || error);
+        setPromoFeedback('Could not validate promo code. Please try again.');
+        setAppliedPromo(null);
+        return;
+      }
+
+      if (!promoRow) {
+        setPromoFeedback('Promo code is invalid or expired.');
+        setAppliedPromo(null);
+        return;
+      }
+
+      if (promoRow.expires_at) {
+        try {
+          const expiryDate = new Date(promoRow.expires_at);
+          if (!Number.isNaN(expiryDate.getTime())) {
+            const nowDate = new Date();
+
+            const expiryDay = new Date(
+              expiryDate.getFullYear(),
+              expiryDate.getMonth(),
+              expiryDate.getDate(),
+              0,
+              0,
+              0,
+              0,
+            );
+            const today = new Date(
+              nowDate.getFullYear(),
+              nowDate.getMonth(),
+              nowDate.getDate(),
+              0,
+              0,
+              0,
+              0,
+            );
+
+            if (expiryDay.getTime() < today.getTime()) {
+              setPromoFeedback('Promo code has expired.');
+              setAppliedPromo(null);
+              return;
+            }
+          }
+        } catch (e) {
+        }
+      }
+
+      const discountValue = Number(promoRow.discount_percentage) || 0;
+      if (discountValue <= 0 || discountValue >= 100) {
+        setPromoFeedback('Promo code is not configured with a valid discount percentage.');
+        setAppliedPromo(null);
+        return;
+      }
+
+      const discountAmount = Math.max(0, total * (discountValue / 100));
+
+      if (discountAmount <= 0) {
+        setPromoFeedback('Promo code does not apply to this order.');
+        setAppliedPromo(null);
+        return;
+      }
+
+      setAppliedPromo({
+        id: promoRow.id,
+        code: promoRow.code,
+        discountAmount,
+        brand_user_id: promoRow.brand_user_id,
+      });
+      setPromoFeedback(`Promo code applied: -${discountValue.toFixed(0)}% off your order.`);
+    } catch (e) {
+      console.warn('Billing: unexpected error while applying promo', e.message || e);
+      setPromoFeedback('Something went wrong while applying the promo code.');
+      setAppliedPromo(null);
+    } finally {
+      setPromoApplying(false);
+    }
+  };
+
   const handleConfirm = async () => {
     const now = Date.now();
+
+    const promoBrandId = appliedPromo?.brand_user_id || null;
+    const promoPercent = appliedPromo ? Number(appliedPromo.discountAmount / total) : 0;
+    const promoCodeValue = appliedPromo?.code || null;
 
     // Group cart items by brand_user_id so each brand/store gets its own order
     const groupsByBrand = cart.reduce((groups, item) => {
@@ -66,6 +202,20 @@ const BillingScreen = ({ navigation }) => {
 
       const brandTotal = brandSubtotal + brandShipping;
 
+      let appliedDiscountForOrder = 0;
+      let promoCodeForOrder = null;
+      if (
+        promoPercent > 0 &&
+        promoBrandId &&
+        brandKey !== 'unassigned' &&
+        brandKey === promoBrandId
+      ) {
+        appliedDiscountForOrder = Math.max(0, brandTotal * promoPercent);
+        promoCodeForOrder = promoCodeValue;
+      }
+
+      const finalBrandTotal = Math.max(0, brandTotal - appliedDiscountForOrder);
+
       const order = {
         id: now + index,
         items: items.map((item) => ({
@@ -77,13 +227,14 @@ const BillingScreen = ({ navigation }) => {
         })),
         subtotal: brandSubtotal,
         shipping: brandShipping,
-        total: brandTotal,
+        total: finalBrandTotal,
         status: 'Pending',
         date: new Date().toLocaleDateString(),
         brand_user_id: brandKey === 'unassigned' ? null : brandKey,
         payment_method: paymentMethod,
         delivery_address: deliveryAddress,
         shipping_method: brandShippingMethod,
+        promo_code: promoCodeForOrder,
       };
 
       addOrder(order);
@@ -103,6 +254,7 @@ const BillingScreen = ({ navigation }) => {
               payment_method: order.payment_method,
               delivery_address: order.delivery_address,
               shipping_method: order.shipping_method,
+              promo_code: order.promo_code,
             },
           ])
           .select()
@@ -209,12 +361,10 @@ const BillingScreen = ({ navigation }) => {
     clearWishlistByProductIds(purchasedIds);
 
     clearCart();
+    setAppliedPromo(null);
+    setPromoCodeInput('');
+    setPromoFeedback('');
     navigation.navigate('Success');
-    
-    // Optional: ensure flash sale lists refresh on next focus
-    setTimeout(() => {
-      navigation.navigate('Main', { screen: 'FlashSaleTab' });
-    }, 100);
   };
 
   return (
@@ -246,12 +396,46 @@ const BillingScreen = ({ navigation }) => {
             <Text style={styles.summaryLabel}>Shipping</Text>
             <Text style={styles.summaryValue}>${shipping.toFixed(2)}</Text>
           </View>
+          {promoDiscount > 0 && (
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabel}>
+                Promo discount{appliedPromo?.code ? ` (${appliedPromo.code})` : ''}
+              </Text>
+              <Text style={styles.summaryValue}>- ${promoDiscount.toFixed(2)}</Text>
+            </View>
+          )}
           <View style={styles.summaryDivider} />
           <View style={styles.summaryRow}>
             <Text style={styles.summaryTotalLabel}>Total</Text>
-            <Text style={styles.summaryTotalValue}>${total.toFixed(2)}</Text>
+            <Text style={styles.summaryTotalValue}>${grandTotal.toFixed(2)}</Text>
           </View>
         </View>
+
+        <Text style={styles.sectionTitle}>Promo Code</Text>
+        <View style={styles.promoRow}>
+          <TextInput
+            style={styles.promoInput}
+            placeholder="Enter promo code"
+            autoCapitalize="characters"
+            value={promoCodeInput}
+            onChangeText={(text) => {
+              setPromoCodeInput(text);
+              setPromoFeedback('');
+            }}
+          />
+          <TouchableOpacity
+            style={styles.promoButton}
+            onPress={handleApplyPromo}
+            disabled={promoApplying}
+          >
+            <Text style={styles.promoButtonText}>
+              {promoApplying ? 'Applying...' : appliedPromo ? 'Re-apply' : 'Apply'}
+            </Text>
+          </TouchableOpacity>
+        </View>
+        {!!promoFeedback && (
+          <Text style={styles.promoFeedback}>{promoFeedback}</Text>
+        )}
 
         <Text style={styles.sectionTitle}>Payment Method</Text>
         <View style={styles.paymentRow}>
@@ -416,6 +600,40 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600',
     color: '#111827',
+  },
+  promoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 8,
+    marginBottom: 4,
+  },
+  promoInput: {
+    flex: 1,
+    backgroundColor: '#ffffff',
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    fontSize: 14,
+    color: '#111827',
+    marginRight: 8,
+  },
+  promoButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 999,
+    backgroundColor: '#111827',
+  },
+  promoButtonText: {
+    color: '#ffffff',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  promoFeedback: {
+    marginTop: 4,
+    fontSize: 12,
+    color: '#16a34a',
   },
   paymentRow: {
     flexDirection: 'row',
