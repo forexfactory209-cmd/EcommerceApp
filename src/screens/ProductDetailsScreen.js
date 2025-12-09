@@ -42,20 +42,28 @@ const ProductDetailsScreen = ({ route, navigation }) => {
     const brandName = product.brand || '';
     const brandUserId = product.brand_user_id || null;
 
-    if (!brandName) return [];
+    if (!Array.isArray(baseProducts) || baseProducts.length === 0) return [];
 
-    return baseProducts
-      .filter((p) => {
-        if (p.id === product.id) return false;
+    const scored = baseProducts
+      .filter((p) => p && p.id !== product.id)
+      .map((p) => {
+        let score = 0;
 
-        const sameBrand = (p.brand || '') === brandName;
+        const sameBrand = brandName && (p.brand || '') === brandName;
         const sameStore = brandUserId && p.brand_user_id === brandUserId;
 
-        // Prefer same store + same brand when store id exists,
-        // otherwise just match on brand.
-        return brandUserId ? sameBrand && sameStore : sameBrand;
+        if (sameBrand) score += 3;
+        if (sameStore) score += 1;
+
+        // Light boost for products with images and price defined
+        if (p.image || (Array.isArray(p.images) && p.images.length > 0)) score += 0.5;
+        if (p.price != null) score += 0.5;
+
+        return { product: p, score };
       })
-      .slice(0, 6);
+      .sort((a, b) => b.score - a.score);
+
+    return scored.map((row) => row.product);
   }, [baseProducts, product]);
 
   const handleCopyCode = async () => {
@@ -119,6 +127,7 @@ const ProductDetailsScreen = ({ route, navigation }) => {
   const [answerDrafts, setAnswerDrafts] = useState({});
   const [submittingQuestion, setSubmittingQuestion] = useState(false);
   const [submittingAnswerIds, setSubmittingAnswerIds] = useState({});
+  const [showAllSimilar, setShowAllSimilar] = useState(false);
 
   const currentPrice = Number(product.price) || 0;
   const flashPriceRaw =
@@ -158,6 +167,12 @@ const ProductDetailsScreen = ({ route, navigation }) => {
     const sold = Number(product.flash_sold) || 0;
     return sold >= product.flash_quantity;
   })();
+
+  const VISIBLE_SIMILAR_COUNT = 8;
+  const visibleSimilarProducts = showAllSimilar
+    ? similarProducts
+    : similarProducts.slice(0, VISIBLE_SIMILAR_COUNT);
+  const hasMoreSimilar = similarProducts.length > VISIBLE_SIMILAR_COUNT;
 
   const formatTimeAgo = (dateString) => {
     if (!dateString) return '';
@@ -560,41 +575,6 @@ const ProductDetailsScreen = ({ route, navigation }) => {
                   )}
                 </TouchableOpacity>
               ))}
-            </View>
-          )}
-
-          {similarProducts.length > 0 && (
-            <View style={styles.section}>
-              <Text style={styles.sectionLabel}>Similar products</Text>
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.similarList}
-              >
-                {similarProducts.map((item) => (
-                  <TouchableOpacity
-                    key={item.id}
-                    style={styles.similarCard}
-                    onPress={() => navigation.push('ProductDetails', { product: item })}
-                    activeOpacity={0.9}
-                  >
-                    <View style={styles.similarImageWrapper}>
-                      {item.image ? (
-                        <Image
-                          source={{ uri: item.image }}
-                          style={styles.similarImage}
-                          resizeMode="cover"
-                        />
-                      ) : null}
-                    </View>
-                    <Text style={styles.similarBrand}>{item.brand}</Text>
-                    <Text style={styles.similarName} numberOfLines={1}>
-                      {item.name}
-                    </Text>
-                    <Text style={styles.similarPrice}>${item.price}</Text>
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
             </View>
           )}
 
@@ -1265,6 +1245,65 @@ const ProductDetailsScreen = ({ route, navigation }) => {
               </TouchableOpacity>
             ) : null}
           </View>
+
+          {similarProducts.length > 0 && (
+            <View style={styles.section}>
+              <Text style={styles.sectionLabel}>Similar products</Text>
+              <View style={styles.similarGrid}>
+                {visibleSimilarProducts.map((item) => {
+                  const coverImage =
+                    (Array.isArray(item.images) && item.images[0]) || item.image || null;
+                  const priceValue =
+                    typeof item.price === 'number'
+                      ? item.price
+                      : Number(item.price) || 0;
+
+                  return (
+                    <TouchableOpacity
+                      key={item.id}
+                      style={styles.similarCard}
+                      onPress={() => navigation.push('ProductDetails', { product: item })}
+                      activeOpacity={0.9}
+                    >
+                      <View style={styles.similarImageWrapper}>
+                        {coverImage ? (
+                          <Image
+                            source={{ uri: coverImage }}
+                            style={styles.similarImage}
+                            resizeMode="cover"
+                          />
+                        ) : (
+                          <View style={styles.similarImagePlaceholder}>
+                            <Text style={styles.similarImagePlaceholderText}>No image</Text>
+                          </View>
+                        )}
+                      </View>
+                      {item.brand ? (
+                        <Text style={styles.similarBrand} numberOfLines={1}>
+                          {item.brand}
+                        </Text>
+                      ) : null}
+                      <Text style={styles.similarName} numberOfLines={2}>
+                        {item.name}
+                      </Text>
+                      <Text style={styles.similarPrice}>
+                        {priceValue > 0 ? `$${priceValue.toFixed(2)}` : ''}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+
+              {hasMoreSimilar && !showAllSimilar && (
+                <TouchableOpacity
+                  style={styles.loadMoreButton}
+                  onPress={() => setShowAllSimilar(true)}
+                >
+                  <Text style={styles.loadMoreButtonText}>Show more</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          )}
         </ScrollView>
 
         <Modal
@@ -2003,5 +2042,68 @@ const styles = StyleSheet.create({
     color: '#111827',
     lineHeight: 20,
     marginTop: 2,
+  },
+  similarList: {
+    paddingVertical: 4,
+  },
+  similarGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginHorizontal: -6,
+  },
+  similarCard: {
+    width: '48%',
+    marginHorizontal: 6,
+    marginBottom: 12,
+    borderRadius: 18,
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 3,
+  },
+  similarImageWrapper: {
+    width: '100%',
+    height: 120,
+    backgroundColor: '#f3f4f6',
+  },
+  similarImage: {
+    width: '100%',
+    height: '100%',
+  },
+  similarImagePlaceholder: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  similarImagePlaceholderText: {
+    fontSize: 11,
+    color: '#9ca3af',
+  },
+  similarBrand: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#6b7280',
+    marginTop: 8,
+    marginHorizontal: 10,
+  },
+  similarName: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#111827',
+    marginTop: 2,
+    marginHorizontal: 10,
+  },
+  similarPrice: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#111827',
+    marginTop: 6,
+    marginBottom: 10,
+    marginHorizontal: 10,
   },
 });
