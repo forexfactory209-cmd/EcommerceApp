@@ -37,6 +37,8 @@ import AdminCustomerDetailsScreen from '../screens/AdminCustomerDetailsScreen';
 import TrackOrderScreen from '../screens/TrackOrderScreen';
 import TrackOrderDetailsScreen from '../screens/TrackOrderDetailsScreen';
 import PromoCodesScreen from '../screens/PromoCodesScreen';
+import ProductReviewsScreen from '../screens/ProductReviewsScreen';
+import ProductWriteReviewScreen from '../screens/ProductWriteReviewScreen';
 import { useStore } from '../store/store';
 
 const Stack = createNativeStackNavigator();
@@ -194,6 +196,8 @@ export default function AppNavigator() {
         <Stack.Screen name="AdminCustomerDetails" component={AdminCustomerDetailsScreen} />
         <Stack.Screen name="TrackOrder" component={TrackOrderScreen} />
         <Stack.Screen name="TrackOrderDetails" component={TrackOrderDetailsScreen} />
+        <Stack.Screen name="ProductReviews" component={ProductReviewsScreen} />
+        <Stack.Screen name="ProductWriteReview" component={ProductWriteReviewScreen} />
       </Stack.Navigator>
     </NavigationContainer>
   );
