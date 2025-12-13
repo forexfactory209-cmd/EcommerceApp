@@ -209,6 +209,33 @@ const ProductDetailsScreen = ({ route, navigation }) => {
     });
   };
 
+  const getFeaturedReviews = (allReviews) => {
+    if (!allReviews || allReviews.length === 0) return [];
+    const byRating = {
+      5: allReviews.filter((r) => r.rating === 5),
+      4: allReviews.filter((r) => r.rating === 4),
+      3: allReviews.filter((r) => r.rating === 3),
+    };
+
+    const picks = [];
+    [5, 4, 3].forEach((score) => {
+      if (byRating[score] && byRating[score].length > 0 && picks.length < 3) {
+        picks.push(byRating[score][0]);
+      }
+    });
+
+    if (picks.length < 3) {
+      allReviews.forEach((r) => {
+        if (picks.length >= 3) return;
+        if (!picks.find((p) => p.id === r.id)) {
+          picks.push(r);
+        }
+      });
+    }
+
+    return picks;
+  };
+
   const loadReviews = async (resetPage = true) => {
     if (!product?.id) return;
     setReviewsLoading(true);
@@ -300,43 +327,19 @@ const ProductDetailsScreen = ({ route, navigation }) => {
     }, [authUserId, product?.id, setProductRating])
   );
 
+  const featuredReviews = getFeaturedReviews(reviews);
+
   return (
     <View style={styles.container}>
-      {/* Image Header with simple slider */}
+      {/* Image Header - single hero image */}
       <View style={styles.imageHeader}>
         {images.length > 0 && (
-          <ScrollView
-            ref={imageScrollRef}
-            horizontal
-            pagingEnabled
-            showsHorizontalScrollIndicator={false}
-            onScroll={(e) => {
-              const width = Dimensions.get('window').width;
-              const index = Math.round(e.nativeEvent.contentOffset.x / width);
-              if (index !== selectedImageIndex) {
-                setSelectedImageIndex(index);
-              }
-            }}
-            scrollEventThrottle={16}
-          >
-            {images.map((uri, index) => (
-              <View key={index} style={styles.slideWrapper}>
-                <Image source={{ uri }} style={styles.headerImage} resizeMode="cover" />
-              </View>
-            ))}
-          </ScrollView>
-        )}
-        {images.length > 1 && (
-          <View style={styles.dotsRow}>
-            {images.map((_, index) => (
-              <View
-                key={index}
-                style={[
-                  styles.dot,
-                  index === selectedImageIndex && styles.dotActive,
-                ]}
-              />
-            ))}
+          <View style={styles.slideWrapper}>
+            <Image
+              source={{ uri: images[selectedImageIndex] }}
+              style={styles.headerImage}
+              resizeMode="cover"
+            />
           </View>
         )}
         <SafeAreaView style={styles.headerOverlay}>
@@ -375,8 +378,58 @@ const ProductDetailsScreen = ({ route, navigation }) => {
           contentContainerStyle={styles.scrollContent}
         >
           <View style={styles.titleRow}>
-             <View>
+            <View>
               <Text style={styles.productName}>{product.name}</Text>
+              <View style={styles.ratingRow}>
+                {[1, 2, 3, 4, 5].map((star) => {
+                  const active = currentRating ? currentRating >= star : avgRating >= star;
+
+                  // For normal customers: interactive rating
+                  if (!isBrandUser && !isAdminUser) {
+                    return (
+                      <TouchableOpacity
+                        key={star}
+                        onPress={async () => {
+                          setProductRating(product.id, star);
+                          try {
+                            if (authUserId) {
+                              await upsertUserProductRating(product.id, authUserId, star);
+                            }
+                          } catch (e) {
+                            console.warn('Failed to save product rating', e.message || e);
+                          }
+                        }}
+                        style={styles.ratingStarButton}
+                      >
+                        <Star
+                          size={20}
+                          color={active ? '#FBBF24' : '#D1D5DB'}
+                          fill={active ? '#FBBF24' : 'transparent'}
+                        />
+                      </TouchableOpacity>
+                    );
+                  }
+
+                  // For brand/admin: read-only stars (no onPress)
+                  return (
+                    <View key={star} style={styles.ratingStarButton}>
+                      <Star
+                        size={20}
+                        color={active ? '#FBBF24' : '#D1D5DB'}
+                        fill={active ? '#FBBF24' : 'transparent'}
+                      />
+                    </View>
+                  );
+                })}
+                <Text style={styles.ratingText}>
+                  {currentRating
+                    ? currentRating.toFixed(1)
+                    : avgRating != null
+                    ? avgRating.toFixed(1)
+                    : '0.0'}
+                  {ratingCount > 0 ? ` (${ratingCount})` : ''}
+                </Text>
+              </View>
               <Text style={styles.productBrand}>{product.brand}</Text>
               {isFlashActive && (
                 <View style={styles.flashBadgeDetail}>
@@ -388,62 +441,35 @@ const ProductDetailsScreen = ({ route, navigation }) => {
                   <Text style={styles.flashSoldOutBadgeText}>Sold out</Text>
                 </View>
               )}
-             </View>
-             <View style={styles.ratingRow}>
-             {[1, 2, 3, 4, 5].map((star) => {
-                const active = currentRating ? currentRating >= star : avgRating >= star;
-
-                // For normal customers: interactive rating
-                if (!isBrandUser && !isAdminUser) {
-                  return (
-                    <TouchableOpacity
-                      key={star}
-                      onPress={async () => {
-                        setProductRating(product.id, star);
-                        try {
-                          if (authUserId) {
-                            await upsertUserProductRating(product.id, authUserId, star);
-                          }
-                        } catch (e) {
-                          console.warn('Failed to save product rating', e.message || e);
-                        }
-                      }}
-                      style={styles.ratingStarButton}
-                    >
-                      <Star
-                        size={20}
-                        color={active ? '#FBBF24' : '#D1D5DB'}
-                        fill={active ? '#FBBF24' : 'transparent'}
-                      />
-                    </TouchableOpacity>
-                  );
-                }
-
-                // For brand/admin: read-only stars (no onPress)
-                return (
-                  <View key={star} style={styles.ratingStarButton}>
-                    <Star
-                      size={20}
-                      color={active ? '#FBBF24' : '#D1D5DB'}
-                      fill={active ? '#FBBF24' : 'transparent'}
-                    />
-                  </View>
-                );
-              })}
-              <Text style={styles.ratingText}>
-                {currentRating
-                  ? currentRating.toFixed(1)
-                  : avgRating != null
-                  ? avgRating.toFixed(1)
-                  : '0.0'}
-                {ratingCount > 0 ? ` (${ratingCount})` : ''}
-              </Text>
-             </View>
+            </View>
           </View>
 
-          <Text style={styles.description}>
-            {product.description}
-          </Text>
+          {/* Thumbnails */}
+          {images.length > 1 && (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              style={styles.thumbRow}
+              contentContainerStyle={styles.thumbRowContent}
+            >
+              {images.map((uri, index) => (
+                <TouchableOpacity
+                  key={uri + index}
+                  style={[styles.thumbWrapper, index === selectedImageIndex && styles.thumbWrapperActive]}
+                  onPress={() => setSelectedImageIndex(index)}
+                  activeOpacity={0.85}
+                >
+                  <Image
+                    source={{ uri }}
+                    style={styles.thumbImage}
+                    resizeMode="cover"
+                  />
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          )}
+
+          <Text style={styles.description}>{product.description}</Text>
 
           {product.code ? (
             <View style={styles.section}>
@@ -502,13 +528,6 @@ const ProductDetailsScreen = ({ route, navigation }) => {
                     onPress={() => {
                       setSelectedColor(color);
                       setSelectedImageIndex(index);
-                      const width = Dimensions.get('window').width;
-                      if (imageScrollRef.current && images.length > index) {
-                        imageScrollRef.current.scrollTo({
-                          x: width * index,
-                          animated: true,
-                        });
-                      }
                     }}
                   >
                     <Text
@@ -579,503 +598,70 @@ const ProductDetailsScreen = ({ route, navigation }) => {
           )}
 
           <View style={styles.section}>
-            <Text style={styles.sectionLabel}>Reviews</Text>
-            <View style={styles.filtersRow}>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                {[null, 5, 4, 3, 2, 1].map((val) => (
-                  <TouchableOpacity
-                    key={val === null ? 'all' : val}
-                    style={[
-                      styles.filterChip,
-                      ratingFilter === val && styles.filterChipActive,
-                    ]}
-                    onPress={() => {
-                      setRatingFilter(val);
-                      loadReviews(true);
-                    }}
-                  >
-                    <Text
-                      style={[
-                        styles.filterChipText,
-                        ratingFilter === val && styles.filterChipTextActive,
-                      ]}
-                    >
-                      {val === null ? 'All' : `${val}★`}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-                <TouchableOpacity
-                  style={[
-                    styles.filterChip,
-                    withPhotosFilter && styles.filterChipActive,
-                  ]}
-                  onPress={() => {
-                    setWithPhotosFilter(!withPhotosFilter);
-                    loadReviews(true);
-                  }}
-                >
-                  <Text
-                    style={[
-                      styles.filterChipText,
-                      withPhotosFilter && styles.filterChipTextActive,
-                    ]}
-                  >
-                    With photos
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[
-                    styles.filterChip,
-                    withSizeInfoFilter && styles.filterChipActive,
-                  ]}
-                  onPress={() => {
-                    setWithSizeInfoFilter(!withSizeInfoFilter);
-                    loadReviews(true);
-                  }}
-                >
-                  <Text
-                    style={[
-                      styles.filterChipText,
-                      withSizeInfoFilter && styles.filterChipTextActive,
-                    ]}
-                  >
-                    With size info
-                  </Text>
-                </TouchableOpacity>
-              </ScrollView>
-            </View>
-
-            <View style={styles.sortRow}>
-              <TouchableOpacity
-                style={[
-                  styles.sortOption,
-                  reviewsSortBy === 'recent' && styles.sortOptionActive,
-                ]}
-                onPress={() => {
-                  setReviewsSortBy('recent');
-                  loadReviews(true);
-                }}
-              >
-                <Text
-                  style={[
-                    styles.sortOptionText,
-                    reviewsSortBy === 'recent' && styles.sortOptionTextActive,
-                  ]}
-                >
-                  Most recent
+            <View style={styles.reviewsHeaderRow}>
+              <View>
+                <Text style={styles.sectionLabel}>Reviews</Text>
+                <Text style={styles.reviewsSummaryText}>
+                  {ratingCount} Reviews · {avgRating != null ? avgRating.toFixed(1) : '0.0'} ★
                 </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[
-                  styles.sortOption,
-                  reviewsSortBy === 'helpful' && styles.sortOptionActive,
-                ]}
-                onPress={() => {
-                  setReviewsSortBy('helpful');
-                  loadReviews(true);
-                }}
-              >
-                <Text
-                  style={[
-                    styles.sortOptionText,
-                    reviewsSortBy === 'helpful' && styles.sortOptionTextActive,
-                  ]}
-                >
-                  Most helpful
-                </Text>
-              </TouchableOpacity>
-            </View>
-
-            {!isAdminUser && !isBrandUser && authUserId && (
-              <View style={styles.reviewForm}>
-                <Text style={styles.reviewFormTitle}>
-                  {editingReviewId ? 'Edit your review' : 'Write a review'}
-                </Text>
-                <View style={styles.reviewStarsRow}>
-                  {[1, 2, 3, 4, 5].map((star) => (
-                    <TouchableOpacity
-                      key={star}
-                      onPress={() => setReviewRating(star)}
-                      style={styles.ratingStarButton}
-                    >
-                      <Star
-                        size={20}
-                        color={reviewRating >= star ? '#FBBF24' : '#D1D5DB'}
-                        fill={reviewRating >= star ? '#FBBF24' : 'transparent'}
-                      />
-                    </TouchableOpacity>
-                  ))}
-                </View>
-                <View style={styles.sizeRow}>
-                  {['true_to_size', 'smaller', 'bigger'].map((val) => (
-                    <TouchableOpacity
-                      key={val}
-                      style={[
-                        styles.filterChip,
-                        reviewSizeFeedback === val && styles.filterChipActive,
-                      ]}
-                      onPress={() =>
-                        setReviewSizeFeedback(
-                          reviewSizeFeedback === val ? null : val,
-                        )
-                      }
-                    >
-                      <Text
-                        style={[
-                          styles.filterChipText,
-                          reviewSizeFeedback === val && styles.filterChipTextActive,
-                        ]}
-                      >
-                        {val === 'true_to_size'
-                          ? 'True to size'
-                          : val === 'smaller'
-                          ? 'Smaller'
-                          : 'Bigger'}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-                <View style={styles.tagsRow}>
-                  {['Good quality', 'Fast delivery', 'Recommended', 'Not same as picture'].map(
-                    (tag) => (
-                      <TouchableOpacity
-                        key={tag}
-                        style={[
-                          styles.filterChip,
-                          reviewTags.includes(tag) && styles.filterChipActive,
-                        ]}
-                        onPress={() => toggleTag(tag)}
-                      >
-                        <Text
-                          style={[
-                            styles.filterChipText,
-                            reviewTags.includes(tag) && styles.filterChipTextActive,
-                          ]}
-                        >
-                          {tag}
-                        </Text>
-                      </TouchableOpacity>
-                    ),
-                  )}
-                </View>
-                <TextInput
-                  style={styles.textArea}
-                  placeholder="Share your experience..."
-                  value={reviewText}
-                  onChangeText={setReviewText}
-                  multiline
-                />
-                <View style={styles.photoPickerRow}>
-                  <TouchableOpacity
-                    style={styles.photoPickerButton}
-                    onPress={async () => {
-                      try {
-                        const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-                        if (status !== 'granted') {
-                          Alert.alert('Permission needed', 'Please allow access to your photos to upload review images.');
-                          return;
-                        }
-                        const result = await ImagePicker.launchImageLibraryAsync({
-                          allowsMultipleSelection: true,
-                          quality: 0.8,
-                          mediaTypes: ImagePicker.MediaTypeOptions.Images,
-                        });
-                        if (result.canceled) return;
-                        const picked = result.assets || [];
-                        setReviewPhotos((prev) => {
-                          const existing = prev || [];
-                          const next = [...existing, ...picked.map((a) => a.uri)].slice(0, 5);
-                          return next;
-                        });
-                      } catch (e) {
-                        Alert.alert('Error', 'Failed to open photo library.');
-                      }
-                    }}
-                  >
-                    <Text style={styles.photoPickerButtonText}>Add photos (up to 5)</Text>
-                  </TouchableOpacity>
-                </View>
-                {reviewPhotos.length > 0 && (
-                  <ScrollView
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    style={styles.reviewPhotosRow}
-                  >
-                    {reviewPhotos.map((uri, idx) => (
-                      <View key={uri + idx} style={styles.reviewPhotoWrapper}>
-                        <Image source={{ uri }} style={styles.reviewPhoto} resizeMode="cover" />
-                        <TouchableOpacity
-                          style={styles.removePhotoBadge}
-                          onPress={() =>
-                            setReviewPhotos((prev) => prev.filter((p, i) => i !== idx))
-                          }
-                        >
-                          <Text style={styles.removePhotoBadgeText}>×</Text>
-                        </TouchableOpacity>
-                      </View>
-                    ))}
-                  </ScrollView>
-                )}
-                <TouchableOpacity
-                  style={styles.submitButton}
-                  disabled={submittingReview || !reviewRating || !reviewText}
-                  onPress={async () => {
-                    try {
-                      setSubmittingReview(true);
-                      const uploadedUrls = [];
-                      for (let i = 0; i < (reviewPhotos || []).length; i += 1) {
-                        const uri = reviewPhotos[i];
-                        if (!uri) continue;
-                        try {
-                          const response = await fetch(uri);
-                          const arrayBuffer = await response.arrayBuffer();
-                          const bytes = new Uint8Array(arrayBuffer);
-                          const extMatch = uri.split('.').pop();
-                          const ext = extMatch && extMatch.length <= 5 ? extMatch : 'jpg';
-                          const filePath = `reviews/${authUserId || 'guest'}/${product.id}-${Date.now()}-${i}.${ext}`;
-
-                          const { error: uploadError } = await supabase
-                            .storage
-                            .from('review-photos')
-                            .upload(filePath, bytes, {
-                              contentType: 'image/jpeg',
-                              upsert: false,
-                            });
-
-                          if (uploadError) {
-                            console.warn('Failed to upload review photo', uploadError.message || uploadError);
-                            Alert.alert(
-                              'Photo upload error',
-                              uploadError.message || JSON.stringify(uploadError),
-                            );
-                            continue;
-                          }
-
-                          const { data: publicData } = supabase
-                            .storage
-                            .from('review-photos')
-                            .getPublicUrl(filePath);
-
-                          if (publicData?.publicUrl) {
-                            uploadedUrls.push(publicData.publicUrl);
-                          }
-                        } catch (e) {
-                          console.warn('Error processing review photo', e?.message || e);
-                          Alert.alert('Photo upload error (catch)', e?.message || String(e));
-                        }
-                      }
-
-                      const photos = uploadedUrls;
-                      const deviceLang =
-                        typeof Intl !== 'undefined' && Intl.DateTimeFormat
-                          ? Intl.DateTimeFormat().resolvedOptions().locale
-                          : null;
-                      if (editingReviewId) {
-                        await updateProductReview({
-                          reviewId: editingReviewId,
-                          userId: authUserId,
-                          rating: reviewRating,
-                          text: reviewText,
-                          sizeFeedback: reviewSizeFeedback,
-                          tags: reviewTags,
-                          photos,
-                        });
-                      } else {
-                        await createProductReview({
-                          productId: product.id,
-                          userId: authUserId,
-                          userDisplayName: userName,
-                          rating: reviewRating,
-                          text: reviewText,
-                          sizeFeedback: reviewSizeFeedback,
-                          tags: reviewTags,
-                          photos,
-                          countryCode: null,
-                          deviceLang,
-                        });
-                      }
-                      setReviewText('');
-                      setReviewRating(0);
-                      setReviewSizeFeedback(null);
-                      setReviewTags([]);
-                      setReviewPhotos([]);
-                      setEditingReviewId(null);
-                      loadReviews(true);
-                    } catch (e) {
-                      Alert.alert('Error', 'Failed to submit review.');
-                    } finally {
-                      setSubmittingReview(false);
-                    }
-                  }}
-                >
-                  {submittingReview ? (
-                    <ActivityIndicator color="#ffffff" />
-                  ) : (
-                    <Text style={styles.submitButtonText}>Submit review</Text>
-                  )}
-                </TouchableOpacity>
               </View>
-            )}
+              <TouchableOpacity
+                style={styles.seeAllButton}
+                onPress={() =>
+                  navigation.navigate('ProductReviews', {
+                    productId: product.id,
+                    productName: product.name,
+                  })
+                }
+              >
+                <Text style={styles.seeAllButtonText}>See all</Text>
+              </TouchableOpacity>
+            </View>
 
-            {reviewsLoading && reviews.length === 0 ? (
+            {reviewsLoading && featuredReviews.length === 0 ? (
               <ActivityIndicator style={{ marginTop: 12 }} />
             ) : null}
 
-            {reviews.map((review) => {
-              const replies = reviewRepliesMap[review.id] || [];
-              const sizeLabel =
-                review.size_feedback === 'true_to_size'
-                  ? 'True to size'
-                  : review.size_feedback === 'smaller'
-                  ? 'Smaller'
-                  : review.size_feedback === 'bigger'
-                  ? 'Bigger'
-                  : null;
-              return (
-                <View key={review.id} style={styles.reviewCard}>
-                  <View style={styles.reviewHeaderRow}>
-                    <View>
-                      <Text style={styles.reviewUserName}>
-                        {review.user_display_name || 'Customer'}
+            {featuredReviews.slice(0, 3).map((review) => (
+              <View key={review.id} style={styles.reviewPreviewRow}>
+                <View style={styles.reviewAvatarCircle}>
+                  <Text style={styles.reviewAvatarInitial}>
+                    {(review.user_display_name || 'C').charAt(0).toUpperCase()}
+                  </Text>
+                </View>
+                <View style={styles.reviewPreviewContent}>
+                  <View style={styles.reviewPreviewHeaderRow}>
+                    <Text style={styles.reviewUserName} numberOfLines={1}>
+                      {review.user_display_name || 'Customer'}
+                    </Text>
+                    <View style={styles.reviewPreviewRatingBlock}>
+                      <Text style={styles.reviewPreviewRatingValue}>
+                        {review.rating.toFixed(1)}
                       </Text>
-                      <View style={styles.reviewMetaRow}>
-                        <Text style={styles.reviewDateText}>
-                          {formatTimeAgo(review.created_at)}
-                        </Text>
-                        {review.country_code ? (
-                          <View style={styles.countryBadge}>
-                            <Text style={styles.countryBadgeText}>
-                              {review.country_code}
-                            </Text>
-                          </View>
-                        ) : null}
-                      </View>
-                    </View>
-                    <View style={styles.reviewStarsRowStatic}>
-                      {[1, 2, 3, 4, 5].map((star) => (
-                        <Star
-                          key={star}
-                          size={16}
-                          color={review.rating >= star ? '#FBBF24' : '#D1D5DB'}
-                          fill={review.rating >= star ? '#FBBF24' : 'transparent'}
-                        />
-                      ))}
+                      <Text style={styles.reviewPreviewRatingLabel}> rating</Text>
                     </View>
                   </View>
-                  {sizeLabel || (review.tags && review.tags.length > 0) ? (
-                    <View style={styles.reviewChipsRow}>
-                      {sizeLabel ? (
-                        <View style={styles.sizeChip}>
-                          <Text style={styles.sizeChipText}>{sizeLabel}</Text>
-                        </View>
-                      ) : null}
-                      {(review.tags || []).map((tag) => (
-                        <View key={tag} style={styles.sizeChip}>
-                          <Text style={styles.sizeChipText}>{tag}</Text>
-                        </View>
-                      ))}
-                    </View>
-                  ) : null}
-                  <Text style={styles.reviewText}>{review.text}</Text>
-                  {review.photos && review.photos.length > 0 ? (
-                    <ScrollView
-                      horizontal
-                      showsHorizontalScrollIndicator={false}
-                      style={styles.reviewPhotosRow}
-                    >
-                      {review.photos.map((uri, idx) => (
-                        <TouchableOpacity
-                          key={uri + idx}
-                          activeOpacity={0.9}
-                          onPress={() => {
-                            setPreviewImageUri(uri);
-                            setPreviewVisible(true);
-                          }}
-                        >
-                          <Image
-                            source={{ uri }}
-                            style={styles.reviewPhoto}
-                            resizeMode="cover"
-                          />
-                        </TouchableOpacity>
-                      ))}
-                    </ScrollView>
-                  ) : null}
-
-                  {replies.map((reply) => (
-                    <View
-                      key={reply.id}
-                      style={
-                        reply.is_brand_owner
-                          ? styles.brandReplyBubble
-                          : styles.userReplyBubble
-                      }
-                    >
-                      <View style={styles.replyHeaderRow}>
-                        <Text style={styles.replyUserName}>
-                          {reply.is_brand_owner ? 'Brand Owner' : 'User'}
-                        </Text>
-                        {reply.is_brand_owner ? (
-                          <View style={styles.brandBadge}>
-                            <Text style={styles.brandBadgeText}>Brand Owner</Text>
-                          </View>
-                        ) : null}
-                      </View>
-                      <Text style={styles.replyText}>{reply.text}</Text>
-                      <Text style={styles.replyDateText}>
-                        {formatTimeAgo(reply.created_at)}
-                      </Text>
-                    </View>
-                  ))}
-
-                  {ownsProduct && (isBrandUser || isAdminUser) && authUserId ? (
-                    <View style={styles.replyFormRow}>
-                      <TextInput
-                        style={styles.textInput}
-                        placeholder="Reply as brand owner..."
-                        value={replyDrafts[review.id] || ''}
-                        onChangeText={(text) =>
-                          setReplyDrafts((prev) => ({ ...prev, [review.id]: text }))
-                        }
+                  <View style={styles.reviewMetaRow}>
+                    <Text style={styles.reviewDateText}>
+                      {formatTimeAgo(review.created_at)}
+                    </Text>
+                  </View>
+                  <View style={styles.reviewStarsRowStatic}>
+                    {[1, 2, 3, 4, 5].map((star) => (
+                      <Star
+                        key={star}
+                        size={14}
+                        color={review.rating >= star ? '#FBBF24' : '#D1D5DB'}
+                        fill={review.rating >= star ? '#FBBF24' : 'transparent'}
                       />
-                      <TouchableOpacity
-                        style={styles.smallSubmitButton}
-                        onPress={async () => {
-                          const text = replyDrafts[review.id];
-                          if (!text) return;
-                          try {
-                            const created = await addReviewReply({
-                              reviewId: review.id,
-                              userId: authUserId,
-                              text,
-                              isBrandOwner: true,
-                            });
-                            setReviewRepliesMap((prev) => ({
-                              ...prev,
-                              [review.id]: [...(prev[review.id] || []), created],
-                            }));
-                            setReplyDrafts((prev) => ({ ...prev, [review.id]: '' }));
-                          } catch (e) {
-                            Alert.alert('Error', 'Failed to send reply.');
-                          }
-                        }}
-                      >
-                        <Text style={styles.smallSubmitButtonText}>Send</Text>
-                      </TouchableOpacity>
-                    </View>
-                  ) : null}
+                    ))}
+                  </View>
+                  <Text style={styles.reviewPreviewText} numberOfLines={2}>
+                    {review.text}
+                  </Text>
                 </View>
-              );
-            })}
-
-            {reviewsHasMore && !reviewsLoading ? (
-              <TouchableOpacity
-                style={styles.loadMoreButton}
-                onPress={() => loadReviews(false)}
-              >
-                <Text style={styles.loadMoreButtonText}>Load more reviews</Text>
-              </TouchableOpacity>
-            ) : null}
+              </View>
+            ))}
           </View>
 
           <View style={styles.section}>
@@ -1335,6 +921,56 @@ const ProductDetailsScreen = ({ route, navigation }) => {
             </View>
           </View>
         </Modal>
+        {/* Sticky bottom bar is rendered outside ScrollView */}
+      </View>
+
+      <View style={styles.bottomBar}>
+        <View style={styles.bottomPriceRow}>
+          <View>
+            <Text style={styles.bottomPriceLabel}>Total Price</Text>
+            <Text style={styles.bottomPriceMeta}>incl. VAT, SD</Text>
+          </View>
+          <View style={styles.bottomPriceValueCol}>
+            {isFlashActive && flashPrice != null ? (
+              <>
+                <Text style={styles.bottomPriceOld}>${currentPrice.toFixed(2)}</Text>
+                <Text style={styles.bottomPriceValue}>${flashPrice.toFixed(2)}</Text>
+              </>
+            ) : (
+              <Text style={styles.bottomPriceValue}>${currentPrice.toFixed(2)}</Text>
+            )}
+          </View>
+        </View>
+        <View style={styles.bottomButtonsRow}>
+          <TouchableOpacity
+            style={[
+              styles.bottomSecondaryButton,
+              (quantity <= 0 || isAdminUser || isBrandUser) && styles.bottomButtonDisabled,
+            ]}
+            activeOpacity={0.9}
+            disabled={quantity <= 0 || isAdminUser || isBrandUser}
+            onPress={() => {
+              addToCart(product);
+              navigation.navigate('Billing');
+            }}
+          >
+            <Text style={styles.bottomSecondaryText}>Buy Now</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[
+              styles.bottomPrimaryButton,
+              (quantity <= 0 || isAdminUser || isBrandUser) && styles.bottomButtonDisabled,
+            ]}
+            activeOpacity={0.9}
+            disabled={quantity <= 0 || isAdminUser || isBrandUser}
+            onPress={() => {
+              addToCart(product);
+              navigation.navigate('Main', { screen: 'Cart' });
+            }}
+          >
+            <Text style={styles.bottomPrimaryText}>Add to Cart</Text>
+          </TouchableOpacity>
+        </View>
       </View>
     </View>
   );
@@ -1415,7 +1051,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
   imageHeader: {
-    height: '45%',
+    height: '48%',
     backgroundColor: '#f3f4f6',
     position: 'relative',
   },
@@ -1531,6 +1167,30 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingBottom: 24,
   },
+  thumbRow: {
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  thumbRowContent: {
+    paddingHorizontal: 2,
+  },
+  thumbWrapper: {
+    width: 72,
+    height: 72,
+    borderRadius: 16,
+    marginRight: 8,
+    overflow: 'hidden',
+    backgroundColor: '#f3f4f6',
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+  },
+  thumbWrapperActive: {
+    borderColor: '#2563EB',
+  },
+  thumbImage: {
+    width: '100%',
+    height: '100%',
+  },
   titleRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -1581,22 +1241,24 @@ const styles = StyleSheet.create({
     marginHorizontal: -4,
   },
   chip: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    minWidth: 56,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
     borderRadius: 999,
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
+    borderWidth: 0,
     marginHorizontal: 4,
     marginBottom: 8,
-    backgroundColor: '#ffffff',
+    backgroundColor: '#f3f4f6',
+    alignItems: 'center',
   },
   chipActive: {
-    backgroundColor: '#2563EB',
-    borderColor: '#2563EB',
+    backgroundColor: '#111827',
   },
   chipText: {
     color: '#111827',
     fontWeight: '600',
+    fontSize: 14,
+    textAlign: 'center',
   },
   chipTextActive: {
     color: '#ffffff',
@@ -1632,49 +1294,83 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#111827',
   },
-  footer: {
-    marginTop: 'auto',
-    marginBottom: 32,
-    paddingTop: 16,
+  bottomBar: {
     borderTopWidth: 1,
-    borderTopColor: '#f3f4f6',
+    borderTopColor: '#e5e7eb',
+    backgroundColor: '#ffffff',
+    paddingHorizontal: 20,
+    paddingTop: 10,
+    paddingBottom: 20,
   },
-  priceSection: {
+  bottomPriceRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    marginBottom: 10,
   },
-  footerButtonsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  priceLabel: {
-    color: '#9ca3af',
+  bottomPriceLabel: {
     fontSize: 14,
+    fontWeight: '600',
+    color: '#111827',
   },
-  priceValue: {
-    fontSize: 28,
+  bottomPriceMeta: {
+    fontSize: 11,
+    color: '#9ca3af',
+    marginTop: 2,
+  },
+  bottomPriceValueCol: {
+    alignItems: 'flex-end',
+  },
+  bottomPriceOld: {
+    fontSize: 12,
+    color: '#9ca3af',
+    textDecorationLine: 'line-through',
+  },
+  bottomPriceValue: {
+    fontSize: 18,
     fontWeight: '700',
     color: '#111827',
   },
-  addButton: {
-    backgroundColor: '#2563EB',
-    // paddingHorizontal: 32,
-    paddingVertical: 16,
-    borderRadius: 16,
+  bottomButtonsRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    shadowColor: '#3b82f6',
-    shadowOpacity: 0.45,
-    shadowRadius: 12,
+    columnGap: 10,
+  },
+  bottomSecondaryButton: {
+    flex: 1,
+    height: 48,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#8b5cf6',
+    backgroundColor: '#f5f3ff',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  bottomSecondaryText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#4c1d95',
+  },
+  bottomPrimaryButton: {
+    flex: 1,
+    height: 48,
+    borderRadius: 999,
+    backgroundColor: '#8b5cf6',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#8b5cf6',
+    shadowOpacity: 0.4,
+    shadowRadius: 10,
     shadowOffset: { width: 0, height: 4 },
     elevation: 6,
   },
-  addButtonText: {
-    color: '#ffffff',
+  bottomPrimaryText: {
+    fontSize: 15,
     fontWeight: '700',
-    fontSize: 18,
-    marginLeft: 8,
+    color: '#ffffff',
+  },
+  bottomButtonDisabled: {
+    opacity: 0.5,
   },
   flashSoldOutBadge: {
     marginTop: 6,
@@ -2007,6 +1703,77 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
     color: '#111827',
+  },
+  reviewsHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 20,
+  },
+  reviewsSummaryText: {
+    marginTop: 2,
+    fontSize: 12,
+    color: '#6b7280',
+  },
+  seeAllButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: '#111827',
+  },
+  seeAllButtonText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#ffffff',
+  },
+  reviewPreviewRow: {
+    flexDirection: 'row',
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f3f4f6',
+    marginBottom: 15,
+  },
+  reviewAvatarCircle: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: '#e5e7eb',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
+  },
+  reviewAvatarInitial: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#4b5563',
+  },
+  reviewPreviewContent: {
+    flex: 1,
+  },
+  reviewPreviewHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 2,
+  },
+  reviewPreviewRatingBlock: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  reviewPreviewRatingValue: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#111827',
+  },
+  reviewPreviewRatingLabel: {
+    fontSize: 11,
+    color: '#6b7280',
+  },
+  reviewPreviewText: {
+    marginTop: 4,
+    fontSize: 12,
+    color: '#4b5563',
+    lineHeight: 18,
   },
   qaForm: {
     marginTop: 4,

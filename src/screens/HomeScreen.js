@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import { View, Text, ScrollView, Image, TouchableOpacity, TextInput, FlatList, StyleSheet, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Search, ShoppingBag, Heart, Bell, Star } from 'lucide-react-native';
+import { Search, ShoppingBag, Heart, Bell, Star, Mic } from 'lucide-react-native';
 import { useStore } from '../store/store';
 import { fetchManyProductRatingSummaries } from '../services/ratings';
 import { fetchApprovedBrandsFromSupabase } from '../services/brands';
@@ -19,6 +19,7 @@ const HomeScreen = ({ navigation }) => {
   const authRole = useStore((state) => state.authRole);
   const brandLogoUrl = useStore((state) => state.brandLogoUrl);
   const authUserId = useStore((state) => state.authUserId);
+  const cartCount = useStore((state) => state.cart.length || 0);
   const setBrandLogoUrl = useStore((state) => state.setBrandLogoUrl);
   const loadFollowedBrands = useStore((state) => state.loadFollowedBrands);
   const [searchCode, setSearchCode] = useState('');
@@ -429,15 +430,17 @@ const HomeScreen = ({ navigation }) => {
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false}>
-        {/* Header */}
-        <View style={styles.headerRow}>
-          <View>
-            <Text style={styles.welcomeText}>Welcome back,</Text>
-            <Text style={styles.titleText}>{userName || 'Discover Store'}</Text>
-          </View>
-          <View style={styles.headerActions}>
+        {/* Top Bar */}
+        <View style={styles.topBarRow}>
+          <TouchableOpacity style={styles.roundIconButton} activeOpacity={0.85}>
+            <View style={styles.menuLines}>
+              <View style={styles.menuLine} />
+              <View style={[styles.menuLine, styles.menuLineShort]} />
+            </View>
+          </TouchableOpacity>
+          <View style={styles.topBarActions}>
             <TouchableOpacity
-              style={styles.iconButton}
+              style={styles.roundIconButton}
               onPress={() => {
                 // Optimistically clear badge, NotificationsScreen will mark as read
                 setUnreadNotifications(0);
@@ -456,26 +459,47 @@ const HomeScreen = ({ navigation }) => {
               </View>
             </TouchableOpacity>
             <TouchableOpacity
-              style={styles.avatarWrapper}
-              onPress={() => navigation.navigate('Profile')}
+              style={styles.roundIconButton}
+              onPress={() => navigation.navigate('Cart')}
+              activeOpacity={0.85}
             >
-              <Image
-                source={{
-                  uri:
-                    authRole === 'brand' && brandLogoUrl
-                      ? brandLogoUrl
-                      : 'https://randomuser.me/api/portraits/men/32.jpg',
-                }}
-                style={styles.avatarImage}
-              />
+              <View>
+                <ShoppingBag color="#111827" size={20} />
+                {cartCount > 0 && (
+                  <View style={styles.topCartBadge}>
+                    <Text style={styles.topCartBadgeText}>
+                      {cartCount > 9 ? '9+' : cartCount}
+                    </Text>
+                  </View>
+                )}
+              </View>
             </TouchableOpacity>
           </View>
         </View>
 
-        {/* Supabase debug info */}
-        <Text style={{ color: '#6b7280', marginBottom: 8, fontSize: 12 }}>
-          Supabase products: {remoteProducts.length} (loading: {loading ? 'yes' : 'no'})
-        </Text>
+        {/* Greeting */}
+        <View style={styles.headerRow}>
+          <View>
+            <Text style={styles.helloTitle}>Hello</Text>
+            <Text style={styles.helloSubtitle}>
+              Welcome to Laza{userName ? `, ${userName}` : '.'}
+            </Text>
+          </View>
+          <TouchableOpacity
+            style={styles.avatarWrapper}
+            onPress={() => navigation.navigate('Profile')}
+          >
+            <Image
+              source={{
+                uri:
+                  authRole === 'brand' && brandLogoUrl
+                    ? brandLogoUrl
+                    : 'https://randomuser.me/api/portraits/men/32.jpg',
+              }}
+              style={styles.avatarImage}
+            />
+          </TouchableOpacity>
+        </View>
 
         {/* Code Search */}
         <View style={styles.codeSearchRow}>
@@ -492,14 +516,19 @@ const HomeScreen = ({ navigation }) => {
         </View>
 
         {/* Search Bar */}
-        <View style={styles.searchBar}>
-          <Search color="gray" size={20} />
-          <TextInput
-            placeholder="Search products..."
-            style={styles.searchInput}
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-          />
+        <View style={styles.searchRow}>
+          <View style={styles.searchBar}>
+            <Search color="gray" size={20} />
+            <TextInput
+              placeholder="Search..."
+              style={styles.searchInput}
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+            />
+          </View>
+          <TouchableOpacity style={styles.micButton} activeOpacity={0.85}>
+            <Mic color="#ffffff" size={20} />
+          </TouchableOpacity>
         </View>
 
         {/* Categories */}
@@ -587,14 +616,19 @@ const HomeScreen = ({ navigation }) => {
         {userType !== 'brand' && authRole !== 'admin' && brands.length > 0 && (
           <>
             <View style={styles.productsHeader}>
-              <Text style={styles.sectionTitle}>Popular Brands</Text>
+              <Text style={styles.sectionTitle}>Choose Brand</Text>
               {brands.length > 8 && (
                 <TouchableOpacity onPress={() => navigation.navigate('AllBrands')}>
-                  <Text style={styles.seeAllText}>See All</Text>
+                  <Text style={styles.seeAllText}>View All</Text>
                 </TouchableOpacity>
               )}
             </View>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.brandsScroll}>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              style={styles.brandsScroll}
+              contentContainerStyle={styles.brandsRow}
+            >
               {brands.slice(0, 8).map((brand) => (
                 <TouchableOpacity
                   key={brand.id}
@@ -665,30 +699,64 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: 16,
   },
-  headerRow: {
+  topBarRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginTop: 16,
-    marginBottom: 24,
+    marginTop: 8,
+    marginBottom: 12,
   },
-  headerActions: {
+  topBarActions: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 8,
   },
-  iconButton: {
-    marginRight: 8,
-    width: 36,
-    height: 36,
+  roundIconButton: {
+    width: 40,
+    height: 40,
     borderRadius: 999,
     backgroundColor: '#ffffff',
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: '#000',
-    shadowOpacity: 0.08,
+    shadowOpacity: 0.05,
     shadowRadius: 6,
     shadowOffset: { width: 0, height: 2 },
     elevation: 2,
+    marginLeft: 2,
+    marginRight: 8,
+  },
+  menuLines: {
+    width: 18,
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+  },
+  menuLine: {
+    height: 2,
+    borderRadius: 999,
+    backgroundColor: '#111827',
+    width: 18,
+    marginVertical: 2,
+  },
+  menuLineShort: {
+    width: 12,
+  },
+  headerRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 12,
+    marginBottom: 20,
+  },
+  helloTitle: {
+    fontSize: 28,
+    fontWeight: '700',
+    color: '#111827',
+  },
+  helloSubtitle: {
+    marginTop: 4,
+    color: '#9ca3af',
+    fontSize: 14,
   },
   notificationBadge: {
     position: 'absolute',
@@ -705,6 +773,23 @@ const styles = StyleSheet.create({
     borderColor: '#ffffff',
   },
   notificationBadgeText: {
+    color: '#ffffff',
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  topCartBadge: {
+    position: 'absolute',
+    top: -6,
+    right: -6,
+    backgroundColor: '#ef4444',
+    minWidth: 16,
+    height: 16,
+    paddingHorizontal: 3,
+    borderRadius: 999,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  topCartBadgeText: {
     color: '#ffffff',
     fontSize: 10,
     fontWeight: '700',
@@ -759,6 +844,11 @@ const styles = StyleSheet.create({
     height: 40,
     borderRadius: 999,
   },
+  searchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
   searchBar: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -766,7 +856,6 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     paddingHorizontal: 16,
     paddingVertical: 12,
-    marginBottom: 24,
     borderWidth: 1,
     borderColor: '#f3f4f6', // gray-100
     shadowColor: '#000',
@@ -774,6 +863,21 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     shadowOffset: { width: 0, height: 2 },
     elevation: 1,
+    flex: 1,
+  },
+  micButton: {
+    marginLeft: 12,
+    width: 52,
+    height: 52,
+    borderRadius: 18,
+    backgroundColor: '#8b5cf6',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#8b5cf6',
+    shadowOpacity: 0.4,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 3,
   },
   brandLogo: {
     width: 40,
@@ -793,13 +897,18 @@ const styles = StyleSheet.create({
   brandsScroll: {
     marginBottom: 32,
   },
+  brandsRow: {
+    paddingLeft: 2,
+    paddingRight: 8,
+  },
   brandItem: {
-    marginRight: 16,
+    marginRight: 12,
     alignItems: 'center',
   },
   brandIconWrapper: {
-    width: 64,
-    height: 64,
+    minWidth: 72,
+    paddingHorizontal: 14,
+    height: 40,
     backgroundColor: '#ffffff',
     borderRadius: 999,
     alignItems: 'center',
@@ -815,13 +924,14 @@ const styles = StyleSheet.create({
   },
   brandIconText: {
     fontWeight: '700',
-    fontSize: 20,
+    fontSize: 16,
     color: '#111827',
   },
   brandName: {
     fontSize: 12,
     fontWeight: '500',
     color: '#4b5563', // gray-600
+    marginTop: 6,
   },
   productsHeader: {
     flexDirection: 'row',
@@ -840,28 +950,28 @@ const styles = StyleSheet.create({
   },
   productWrapper: {
     width: '48%',
+    marginBottom: 18,
   },
   productCard: {
     width: '100%',
     backgroundColor: '#ffffff',
-    borderRadius: 16,
-    padding: 12,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: '#f3f4f6',
+    borderRadius: 20,
+    padding: 10,
+    borderWidth: 0.5,
+    borderColor: '#e5e7eb',
     shadowColor: '#000',
-    shadowOpacity: 0.06,
-    shadowRadius: 4,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 1,
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 2,
   },
   productImageWrapper: {
-    height: 128,
+    height: 190,
     width: '100%',
-    backgroundColor: '#f9fafb',
-    borderRadius: 12,
+    backgroundColor: '#f3f4f6',
+    borderRadius: 18,
     overflow: 'hidden',
-    marginBottom: 8,
+    marginBottom: 10,
     position: 'relative',
   },
   flashBadge: {
@@ -887,8 +997,8 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 8,
     right: 8,
-    width: 28,
-    height: 28,
+    width: 30,
+    height: 30,
     borderRadius: 999,
     backgroundColor: 'rgba(255,255,255,0.9)',
     alignItems: 'center',
@@ -896,20 +1006,20 @@ const styles = StyleSheet.create({
   },
   productBrand: {
     color: '#9ca3af', // gray-400
-    fontSize: 12,
-    fontWeight: '700',
+    fontSize: 11,
+    fontWeight: '600',
     textTransform: 'uppercase',
   },
   productName: {
     color: '#111827',
-    fontWeight: '700',
-    fontSize: 14,
+    fontWeight: '600',
+    fontSize: 13,
     marginTop: 4,
   },
   productPrice: {
     color: '#2563EB',
     fontWeight: '700',
-    fontSize: 16,
+    fontSize: 15,
   },
   productPriceCol: {
     alignItems: 'flex-end',
@@ -920,12 +1030,12 @@ const styles = StyleSheet.create({
     textDecorationLine: 'line-through',
   },
   productPriceDiscount: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '700',
     color: '#2563EB',
   },
   productFooterRow: {
-    marginTop: 4,
+    marginTop: 8,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
