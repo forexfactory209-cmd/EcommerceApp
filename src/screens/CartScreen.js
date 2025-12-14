@@ -31,6 +31,21 @@ const CartScreen = ({ navigation }) => {
         <Text style={styles.itemName} numberOfLines={1}>{item.name}</Text>
         <Text style={styles.itemBrand}>{item.brand}</Text>
         <Text style={styles.itemPrice}>${item.price}</Text>
+        {(() => {
+          const options = Array.isArray(item.deliveryOptions)
+            ? item.deliveryOptions
+            : Array.isArray(item.delivery_options)
+            ? item.delivery_options
+            : [];
+          const chosen = options.find((opt) => opt.id === item.selectedDeliveryId);
+          if (!chosen) return null;
+          const label = chosen.label || chosen.name;
+          return (
+            <Text style={styles.itemDelivery} numberOfLines={1}>
+              {label}
+            </Text>
+          );
+        })()}
       </View>
       <View style={styles.itemRight}>
         <TouchableOpacity onPress={() => removeFromCart(item.id)}>
@@ -141,6 +156,11 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     fontSize: 18,
     color: '#2563EB',
+  },
+  itemDelivery: {
+    marginTop: 2,
+    color: '#6b7280',
+    fontSize: 13,
   },
   itemRight: {
     alignItems: 'flex-end',

@@ -18,6 +18,7 @@ import AddProductScreen from '../screens/AddProductScreen';
 import ProfileScreen from '../screens/ProfileScreen';
 import EditProfileScreen from '../screens/EditProfileScreen';
 import AddressesScreen from '../screens/AddressesScreen';
+import AddAddressScreen from '../screens/AddAddressScreen';
 import BrandScreen from '../screens/BrandScreen';
 import BrandOnboardingScreen from '../screens/BrandOnboardingScreen';
 import CustomerOnboardingScreen from '../screens/CustomerOnboardingScreen';
@@ -174,6 +175,7 @@ export default function AppNavigator() {
         <Stack.Screen name="Notifications" component={NotificationsScreen} />
         <Stack.Screen name="EditProfile" component={EditProfileScreen} />
         <Stack.Screen name="Addresses" component={AddressesScreen} />
+        <Stack.Screen name="AddAddress" component={AddAddressScreen} />
         <Stack.Screen name="ProductDetails" component={ProductDetailsScreen} />
         <Stack.Screen name="Home" component={HomeScreen} />
         <Stack.Screen name="Vendor" component={VendorScreen} />

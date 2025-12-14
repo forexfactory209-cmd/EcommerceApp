@@ -950,7 +950,14 @@ const ProductDetailsScreen = ({ route, navigation }) => {
             activeOpacity={0.9}
             disabled={quantity <= 0 || isAdminUser || isBrandUser}
             onPress={() => {
-              addToCart(product);
+              const chosenDelivery = deliveryOptions.find((opt) => opt.id === selectedDeliveryId) || null;
+
+              addToCart({
+                ...product,
+                selectedDeliveryId,
+                deliveryOptions: deliveryOptions.length > 0 ? deliveryOptions : product.delivery_options || [],
+                selectedDeliveryOption: chosenDelivery,
+              });
               navigation.navigate('Billing');
             }}
           >
@@ -964,7 +971,14 @@ const ProductDetailsScreen = ({ route, navigation }) => {
             activeOpacity={0.9}
             disabled={quantity <= 0 || isAdminUser || isBrandUser}
             onPress={() => {
-              addToCart(product);
+              const chosenDelivery = deliveryOptions.find((opt) => opt.id === selectedDeliveryId) || null;
+
+              addToCart({
+                ...product,
+                selectedDeliveryId,
+                deliveryOptions: deliveryOptions.length > 0 ? deliveryOptions : product.delivery_options || [],
+                selectedDeliveryOption: chosenDelivery,
+              });
               navigation.navigate('Main', { screen: 'Cart' });
             }}
           >

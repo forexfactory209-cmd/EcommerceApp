@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, FlatList, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { View, Text, FlatList, StyleSheet, TouchableOpacity, ActivityIndicator, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useStore } from '../store/store';
 import { supabase } from '../lib/supabase';
@@ -121,49 +121,50 @@ const ProfileScreen = ({ navigation }) => {
   if (userType === 'customer' && authRole !== 'admin') {
     return (
       <SafeAreaView style={styles.container}>
-        <View style={styles.headerBackground}>
-          <View style={styles.headerContent}>
-            <View style={styles.avatarCircle}>
-              <Text style={styles.avatarInitial}>
-                {authEmail ? authEmail.charAt(0).toUpperCase() : 'U'}
-              </Text>
-            </View>
-            <View style={styles.headerTextBlock}>
-              <Text style={styles.headerName}>My Profile</Text>
-              {authEmail && <Text style={styles.headerEmail}>{authEmail}</Text>}
-              <Text style={styles.headerSubText}>Customer account</Text>
-            </View>
-          </View>
-        </View>
-
-        <View style={styles.profileCardWrapper}>
-          <View style={styles.statsCardRow}>
-            <View style={styles.statsColumn}>
-              <Text style={styles.statsNumberPrimary}>{totalOrders}</Text>
-              <Text style={styles.statsLabel}>Orders</Text>
-            </View>
-            <View style={styles.statsDivider} />
-            <View style={styles.statsColumn}>
-              <Text style={styles.statsNumberSuccess}>{deliveredCount}</Text>
-              <Text style={styles.statsLabel}>Completed</Text>
-            </View>
-            <View style={styles.statsDivider} />
-            <View style={styles.statsColumn}>
-              <Text style={styles.statsNumberWarning}>{pendingCount}</Text>
-              <Text style={styles.statsLabel}>Pending</Text>
+        <ScrollView contentContainerStyle={styles.scrollContent}>
+          <View style={styles.headerBackground}>
+            <View style={styles.headerContent}>
+              <View style={styles.avatarCircle}>
+                <Text style={styles.avatarInitial}>
+                  {authEmail ? authEmail.charAt(0).toUpperCase() : 'U'}
+                </Text>
+              </View>
+              <View style={styles.headerTextBlock}>
+                <Text style={styles.headerName}>My Profile</Text>
+                {authEmail && <Text style={styles.headerEmail}>{authEmail}</Text>}
+                <Text style={styles.headerSubText}>Customer account</Text>
+              </View>
             </View>
           </View>
 
-          <TouchableOpacity
-            style={styles.orderHistoryButton}
-            onPress={() => navigation.navigate('TrackOrder')}
-          >
-            <Text style={styles.orderHistoryButtonText}>View Order History</Text>
-          </TouchableOpacity>
-        </View>
+          <View style={styles.profileCardWrapper}>
+            <View style={styles.statsCardRow}>
+              <View style={styles.statsColumn}>
+                <Text style={styles.statsNumberPrimary}>{totalOrders}</Text>
+                <Text style={styles.statsLabel}>Orders</Text>
+              </View>
+              <View style={styles.statsDivider} />
+              <View style={styles.statsColumn}>
+                <Text style={styles.statsNumberSuccess}>{deliveredCount}</Text>
+                <Text style={styles.statsLabel}>Completed</Text>
+              </View>
+              <View style={styles.statsDivider} />
+              <View style={styles.statsColumn}>
+                <Text style={styles.statsNumberWarning}>{pendingCount}</Text>
+                <Text style={styles.statsLabel}>Pending</Text>
+              </View>
+            </View>
 
-        <View style={styles.sectionList}>
-          <TouchableOpacity
+            <TouchableOpacity
+              style={styles.orderHistoryButton}
+              onPress={() => navigation.navigate('TrackOrder')}
+            >
+              <Text style={styles.orderHistoryButtonText}>View Order History</Text>
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.sectionList}>
+            <TouchableOpacity
             style={activeSectionKey === 'EditProfile' ? styles.sectionItemHighlighted : styles.sectionItem}
             onPress={() => {
               setActiveSectionKey('EditProfile');
@@ -171,9 +172,9 @@ const ProfileScreen = ({ navigation }) => {
             }}
           >
             <Text style={activeSectionKey === 'EditProfile' ? styles.sectionItemHighlightedLabel : styles.sectionItemLabel}>Edit Profile</Text>
-          </TouchableOpacity>
+            </TouchableOpacity>
 
-          <TouchableOpacity
+            <TouchableOpacity
             style={activeSectionKey === 'Addresses' ? styles.sectionItemHighlighted : styles.sectionItem}
             onPress={() => {
               setActiveSectionKey('Addresses');
@@ -181,9 +182,9 @@ const ProfileScreen = ({ navigation }) => {
             }}
           >
             <Text style={activeSectionKey === 'Addresses' ? styles.sectionItemHighlightedLabel : styles.sectionItemLabel}>Saved Addresses</Text>
-          </TouchableOpacity>
+            </TouchableOpacity>
 
-          <TouchableOpacity
+            <TouchableOpacity
             style={activeSectionKey === 'Billing' ? styles.sectionItemHighlighted : styles.sectionItem}
             onPress={() => {
               setActiveSectionKey('Billing');
@@ -191,9 +192,9 @@ const ProfileScreen = ({ navigation }) => {
             }}
           >
             <Text style={activeSectionKey === 'Billing' ? styles.sectionItemHighlightedLabel : styles.sectionItemLabel}>Payment Methods</Text>
-          </TouchableOpacity>
+            </TouchableOpacity>
 
-          <TouchableOpacity
+            <TouchableOpacity
             style={activeSectionKey === 'Wishlist' ? styles.sectionItemHighlighted : styles.sectionItem}
             onPress={() => {
               setActiveSectionKey('Wishlist');
@@ -201,9 +202,9 @@ const ProfileScreen = ({ navigation }) => {
             }}
           >
             <Text style={activeSectionKey === 'Wishlist' ? styles.sectionItemHighlightedLabel : styles.sectionItemLabel}>Favorites</Text>
-          </TouchableOpacity>
+            </TouchableOpacity>
 
-          <TouchableOpacity
+            <TouchableOpacity
             style={activeSectionKey === 'Notifications' ? styles.sectionItemHighlighted : styles.sectionItem}
             onPress={() => {
               setActiveSectionKey('Notifications');
@@ -211,18 +212,18 @@ const ProfileScreen = ({ navigation }) => {
             }}
           >
             <Text style={activeSectionKey === 'Notifications' ? styles.sectionItemHighlightedLabel : styles.sectionItemLabel}>Notifications</Text>
-          </TouchableOpacity>
+            </TouchableOpacity>
 
-          <TouchableOpacity
+            <TouchableOpacity
             style={activeSectionKey === 'HelpSupport' ? styles.sectionItemHighlighted : styles.sectionItem}
             onPress={() => {
               setActiveSectionKey('HelpSupport');
             }}
           >
             <Text style={activeSectionKey === 'HelpSupport' ? styles.sectionItemHighlightedLabel : styles.sectionItemLabel}>Help & Support</Text>
-          </TouchableOpacity>
+            </TouchableOpacity>
 
-          <TouchableOpacity
+            <TouchableOpacity
             style={activeSectionKey === 'TrackOrder' ? styles.sectionItemHighlighted : styles.sectionItem}
             onPress={() => {
               setActiveSectionKey('TrackOrder');
@@ -230,17 +231,159 @@ const ProfileScreen = ({ navigation }) => {
             }}
           >
             <Text style={activeSectionKey === 'TrackOrder' ? styles.sectionItemHighlightedLabel : styles.sectionItemLabel}>Track Orders</Text>
-          </TouchableOpacity>
+            </TouchableOpacity>
 
-          <TouchableOpacity
+            <TouchableOpacity
             style={activeSectionKey === 'BecomeSeller' ? styles.sectionItemHighlighted : styles.sectionItem}
             onPress={() => navigation.navigate('BrandOnboarding')}
           >
             <Text style={activeSectionKey === 'BecomeSeller' ? styles.sectionItemHighlightedLabel : styles.sectionItemLabel}>Become a Seller</Text>
-          </TouchableOpacity>
-        </View>
+            </TouchableOpacity>
+          </View>
 
-        
+          <TouchableOpacity
+          style={styles.logoutButton}
+          onPress={async () => {
+            try {
+              await supabase.auth.signOut();
+            } catch (e) {
+            }
+            clearAuthUser();
+            setUserProfile({ name: '', email: '' });
+            setUserType('customer');
+            navigation.reset({
+              index: 0,
+              routes: [{ name: 'Welcome' }],
+            });
+          }}
+        >
+          <Text style={styles.logoutText}>Logout</Text>
+        </TouchableOpacity>
+        </ScrollView>
+      </SafeAreaView>
+    );
+  }
+
+  return (
+    <SafeAreaView style={styles.container}>
+      <ScrollView contentContainerStyle={styles.scrollContent}>
+        <Text style={styles.title}>My Profile</Text>
+
+        {__DEV__ && (
+          <View style={styles.roleSwitcherRow}>
+            <Text style={styles.roleLabel}>Account type:</Text>
+            <View style={styles.roleButtonsRow}>
+              <Text
+                style={userType === 'customer' ? styles.roleButtonActive : styles.roleButton}
+                onPress={() => setUserType('customer')}
+              >
+                Customer
+              </Text>
+              <Text
+                style={userType === 'brand' ? styles.roleButtonActive : styles.roleButton}
+                onPress={() => setUserType('brand')}
+              >
+                Brand
+              </Text>
+            </View>
+          </View>
+        )}
+
+        {userType !== 'brand' && authRole !== 'admin' && (
+          <TouchableOpacity
+            style={styles.brandButton}
+            onPress={() => navigation.navigate('BrandOnboarding')}
+          >
+            <Text style={styles.brandButtonText}>Become a Brand</Text>
+          </TouchableOpacity>
+        )}
+
+        {authRole === 'brand' && (
+          <>
+            <TouchableOpacity
+              style={styles.brandButton}
+              onPress={() => navigation.navigate('BrandOnboarding')}
+            >
+              <Text style={styles.brandButtonText}>Edit Brand Profile</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.brandButton}
+              disabled={!brandId || brandLoading}
+              onPress={() => {
+                console.log('[ProfileScreen] CreateAnnouncement pressed, brandId:', brandId, typeof brandId);
+                if (!brandId) return;
+                navigation.navigate('CreateAnnouncement', { brandId });
+              }}
+            >
+              <Text style={styles.brandButtonText}>
+                {brandLoading ? 'Loading brand...' : 'Create Announcement'}
+              </Text>
+            </TouchableOpacity>
+          </>
+        )}
+
+        {authEmail === ADMIN_EMAIL && (
+          <>
+            <TouchableOpacity
+              style={styles.adminButton}
+              onPress={() => navigation.navigate('AdminBrands')}
+            >
+              <Text style={styles.adminButtonText}>Admin: Manage Brands</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.adminButton}
+              onPress={() => navigation.navigate('AdminProducts')}
+            >
+              <Text style={styles.adminButtonText}>Admin: Manage Products</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.adminButton}
+              onPress={() => navigation.navigate('AdminCustomers')}
+            >
+              <Text style={styles.adminButtonText}>Admin: Manage Customers</Text>
+            </TouchableOpacity>
+          </>
+        )}
+
+        {authRole !== 'admin' && (
+          <>
+            <View style={styles.statsRow}>
+              <View style={styles.statCard}>
+                <Text style={styles.statLabel}>Total Orders</Text>
+                <Text style={styles.statValue}>{totalOrders}</Text>
+              </View>
+              <View style={styles.statCard}>
+                <Text style={styles.statLabel}>Delivered</Text>
+                <Text style={styles.statValue}>{deliveredCount}</Text>
+              </View>
+            </View>
+
+            <View style={styles.statsRow}>
+              <View style={styles.statCard}>
+                <Text style={styles.statLabel}>Pending</Text>
+                <Text style={styles.statValue}>{pendingCount}</Text>
+              </View>
+              <View style={styles.statCard}>
+                <Text style={styles.statLabel}>Total Spent</Text>
+                <Text style={styles.statValue}>${totalSpent.toFixed(0)}</Text>
+              </View>
+            </View>
+
+            <Text style={styles.sectionTitle}>Order History</Text>
+
+            {myOrders.length === 0 ? (
+              <Text style={styles.emptyText}>You have no orders yet.</Text>
+            ) : (
+              <View style={{ paddingBottom: 24 }}>
+                {myOrders.map((item) => (
+                  <React.Fragment key={item.id}>{renderItem({ item })}</React.Fragment>
+                ))}
+              </View>
+            )}
+          </>
+        )}
+
         <TouchableOpacity
           style={styles.logoutButton}
           onPress={async () => {
@@ -259,148 +402,7 @@ const ProfileScreen = ({ navigation }) => {
         >
           <Text style={styles.logoutText}>Logout</Text>
         </TouchableOpacity>
-      </SafeAreaView>
-    );
-  }
-
-  return (
-    <SafeAreaView style={styles.container}>
-      <Text style={styles.title}>My Profile</Text>
-
-      {__DEV__ && (
-        <View style={styles.roleSwitcherRow}>
-          <Text style={styles.roleLabel}>Account type:</Text>
-          <View style={styles.roleButtonsRow}>
-            <Text
-              style={userType === 'customer' ? styles.roleButtonActive : styles.roleButton}
-              onPress={() => setUserType('customer')}
-            >
-              Customer
-            </Text>
-            <Text
-              style={userType === 'brand' ? styles.roleButtonActive : styles.roleButton}
-              onPress={() => setUserType('brand')}
-            >
-              Brand
-            </Text>
-          </View>
-        </View>
-      )}
-
-      {userType !== 'brand' && authRole !== 'admin' && (
-        <TouchableOpacity
-          style={styles.brandButton}
-          onPress={() => navigation.navigate('BrandOnboarding')}
-        >
-          <Text style={styles.brandButtonText}>Become a Brand</Text>
-        </TouchableOpacity>
-      )}
-
-      {authRole === 'brand' && (
-        <>
-          <TouchableOpacity
-            style={styles.brandButton}
-            onPress={() => navigation.navigate('BrandOnboarding')}
-          >
-            <Text style={styles.brandButtonText}>Edit Brand Profile</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.brandButton}
-            disabled={!brandId || brandLoading}
-            onPress={() => {
-              console.log('[ProfileScreen] CreateAnnouncement pressed, brandId:', brandId, typeof brandId);
-              if (!brandId) return;
-              navigation.navigate('CreateAnnouncement', { brandId });
-            }}
-          >
-            <Text style={styles.brandButtonText}>
-              {brandLoading ? 'Loading brand...' : 'Create Announcement'}
-            </Text>
-          </TouchableOpacity>
-        </>
-      )}
-
-      {authEmail === ADMIN_EMAIL && (
-        <>
-          <TouchableOpacity
-            style={styles.adminButton}
-            onPress={() => navigation.navigate('AdminBrands')}
-          >
-            <Text style={styles.adminButtonText}>Admin: Manage Brands</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.adminButton}
-            onPress={() => navigation.navigate('AdminProducts')}
-          >
-            <Text style={styles.adminButtonText}>Admin: Manage Products</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.adminButton}
-            onPress={() => navigation.navigate('AdminCustomers')}
-          >
-            <Text style={styles.adminButtonText}>Admin: Manage Customers</Text>
-          </TouchableOpacity>
-        </>
-      )}
-
-      {authRole !== 'admin' && (
-        <>
-          <View style={styles.statsRow}>
-            <View style={styles.statCard}>
-              <Text style={styles.statLabel}>Total Orders</Text>
-              <Text style={styles.statValue}>{totalOrders}</Text>
-            </View>
-            <View style={styles.statCard}>
-              <Text style={styles.statLabel}>Delivered</Text>
-              <Text style={styles.statValue}>{deliveredCount}</Text>
-            </View>
-          </View>
-
-          <View style={styles.statsRow}>
-            <View style={styles.statCard}>
-              <Text style={styles.statLabel}>Pending</Text>
-              <Text style={styles.statValue}>{pendingCount}</Text>
-            </View>
-            <View style={styles.statCard}>
-              <Text style={styles.statLabel}>Total Spent</Text>
-              <Text style={styles.statValue}>${totalSpent.toFixed(0)}</Text>
-            </View>
-          </View>
-
-          <Text style={styles.sectionTitle}>Order History</Text>
-
-          {myOrders.length === 0 ? (
-            <Text style={styles.emptyText}>You have no orders yet.</Text>
-          ) : (
-            <FlatList
-              data={myOrders}
-              keyExtractor={(item) => item.id.toString()}
-              renderItem={renderItem}
-              contentContainerStyle={{ paddingBottom: 24 }}
-            />
-          )}
-        </>
-      )}
-
-      <TouchableOpacity
-        style={styles.logoutButton}
-        onPress={async () => {
-          try {
-            await supabase.auth.signOut();
-          } catch (e) {
-          }
-          clearAuthUser();
-          setUserProfile({ name: '', email: '' });
-          setUserType('customer');
-          navigation.reset({
-            index: 0,
-            routes: [{ name: 'Welcome' }],
-          });
-        }}
-      >
-        <Text style={styles.logoutText}>Logout</Text>
-      </TouchableOpacity>
+      </ScrollView>
     </SafeAreaView>
   );
 }
@@ -413,6 +415,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#f9fafb',
     paddingHorizontal: 16,
     paddingTop: 0,
+  },
+  scrollContent: {
+    paddingBottom: 24,
   },
   title: {
     fontSize: 24,

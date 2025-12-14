@@ -105,7 +105,7 @@ const TrackOrderScreen = () => {
       setOrdersListLoading(true);
       const { data, error } = await supabase
         .from('orders')
-        .select('id, status, total, placed_at, items')
+        .select('id, status, total, placed_at, items, shipping_method')
         .eq('customer_user_id', authUserId)
         .order('placed_at', { ascending: false });
 
@@ -124,7 +124,7 @@ const TrackOrderScreen = () => {
             items: Array.isArray(row.items) ? row.items : [],
             trackingNumber: null,
             sellerName: null,
-            shippingMethod: null,
+            shippingMethod: row.shipping_method || null,
           }))
         : [];
 

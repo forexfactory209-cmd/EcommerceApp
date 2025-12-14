@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, FlatList, TextInput, ScrollView, Alert } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, FlatList, TextInput, ScrollView, Alert, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useStore } from '../store/store';
 import { supabase } from '../lib/supabase';
@@ -9,6 +9,10 @@ const BillingScreen = ({ navigation }) => {
 
   const [paymentMethod, setPaymentMethod] = useState('cash_on_delivery');
   const [deliveryAddress, setDeliveryAddress] = useState('');
+
+  const [savedAddresses, setSavedAddresses] = useState([]);
+  const [addressesLoading, setAddressesLoading] = useState(false);
+  const [selectedAddressId, setSelectedAddressId] = useState(null);
 
   // Promo code state
   const [promoCodeInput, setPromoCodeInput] = useState('');
@@ -33,6 +37,48 @@ const BillingScreen = ({ navigation }) => {
 
   const promoDiscount = appliedPromo?.discountAmount || 0;
   const grandTotal = Math.max(0, total - promoDiscount);
+
+  useEffect(() => {
+    const loadAddresses = async () => {
+      if (!authUserId) {
+        setSavedAddresses([]);
+        return;
+      }
+      try {
+        setAddressesLoading(true);
+        const { data, error } = await supabase
+          .from('customer_addresses')
+          .select('id, name, country, city, phone, address_line, is_primary')
+          .eq('user_id', authUserId)
+          .order('is_primary', { ascending: false })
+          .order('created_at', { ascending: false });
+
+        if (error) {
+          console.warn('Billing: failed to load saved addresses', error.message || error);
+          setSavedAddresses([]);
+          return;
+        }
+
+        const list = Array.isArray(data) ? data : [];
+        setSavedAddresses(list);
+
+        const primary = list.find((a) => a.is_primary);
+        const first = primary || list[0];
+        if (first) {
+          setSelectedAddressId(first.id);
+          const composed = `${first.address_line}\n${first.city || ''}${first.city && first.country ? ', ' : ''}${first.country || ''}`;
+          setDeliveryAddress(composed.trim());
+        }
+      } catch (e) {
+        console.warn('Billing: unexpected error loading saved addresses', e.message || e);
+        setSavedAddresses([]);
+      } finally {
+        setAddressesLoading(false);
+      }
+    };
+
+    loadAddresses();
+  }, [authUserId]);
 
   const handleApplyPromo = async () => {
     const raw = (promoCodeInput || '').trim();
@@ -459,16 +505,57 @@ const BillingScreen = ({ navigation }) => {
           })}
         </View>
 
-        <Text style={styles.sectionTitle}>Delivery Address</Text>
-        <TextInput
-          style={styles.addressInput}
-          placeholder="Street, house/apartment, city, phone number..."
-          value={deliveryAddress}
-          onChangeText={setDeliveryAddress}
-          multiline
-          numberOfLines={4}
-          textAlignVertical="top"
-        />
+        {savedAddresses.length > 0 && (
+          <>
+            <Text style={styles.sectionTitle}>Choose saved address</Text>
+            {addressesLoading ? (
+              <ActivityIndicator style={{ marginVertical: 8 }} />
+            ) : (
+              <FlatList
+                data={savedAddresses}
+                keyExtractor={(item) => item.id.toString()}
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.addressCarouselContent}
+                renderItem={({ item }) => {
+                  const isSelected = selectedAddressId === item.id;
+                  return (
+                    <TouchableOpacity
+                      activeOpacity={0.85}
+                      style={[
+                        styles.addressCard,
+                        isSelected && styles.addressCardSelected,
+                        item.is_primary && styles.addressCardPrimary,
+                      ]}
+                      onPress={() => {
+                        setSelectedAddressId(item.id);
+                        const composed = `${item.address_line}\n${item.city || ''}${item.city && item.country ? ', ' : ''}${item.country || ''}`;
+                        setDeliveryAddress(composed.trim());
+                      }}
+                    >
+                      <View style={styles.addressCardHeaderRow}>
+                        <Text style={styles.addressCardName} numberOfLines={1}>
+                          {item.name || 'Recipient'}
+                        </Text>
+                        {item.is_primary && (
+                          <Text style={styles.addressCardBadge}>Primary</Text>
+                        )}
+                      </View>
+                      <Text style={styles.addressCardAddress} numberOfLines={2}>
+                        {item.address_line}
+                      </Text>
+                      <Text style={styles.addressCardMeta} numberOfLines={1}>
+                        {item.city}
+                        {item.city && item.country ? ', ' : ''}
+                        {item.country}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                }}
+              />
+            )}
+          </>
+        )}
 
         <TouchableOpacity style={styles.confirmButton} onPress={handleConfirm}>
           <Text style={styles.confirmText}>Confirm Order</Text>
@@ -662,6 +749,61 @@ const styles = StyleSheet.create({
   },
   paymentChipTextActive: {
     color: '#ffffff',
+  },
+  addressCarouselContent: {
+    paddingVertical: 8,
+  },
+  addressCard: {
+    width: 220,
+    marginRight: 12,
+    padding: 12,
+    borderRadius: 16,
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    shadowColor: '#000',
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 2,
+  },
+  addressCardSelected: {
+    borderColor: '#2563EB',
+  },
+  addressCardPrimary: {
+    borderColor: '#8B5CF6',
+    backgroundColor: '#F5F3FF',
+  },
+  addressCardHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  addressCardName: {
+    flex: 1,
+    marginRight: 8,
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#111827',
+  },
+  addressCardBadge: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#8B5CF6',
+    backgroundColor: '#EDE9FE',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 999,
+  },
+  addressCardAddress: {
+    fontSize: 13,
+    color: '#111827',
+    marginBottom: 2,
+  },
+  addressCardMeta: {
+    fontSize: 12,
+    color: '#6B7280',
   },
   addressInput: {
     backgroundColor: '#ffffff',
