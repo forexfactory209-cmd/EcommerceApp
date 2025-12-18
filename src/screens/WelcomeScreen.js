@@ -116,11 +116,7 @@ const WelcomeScreen = ({ navigation }) => {
           name: effectiveName,
           brandLogoUrl: brandRow?.logo_url || null,
         });
-        if (effectiveRole === 'customer' && !hasSeenCustomerOnboarding) {
-          navigation.replace('CustomerOnboarding');
-        } else {
-          navigation.replace('Main');
-        }
+        navigation.replace('Main');
       }
     } catch (err) {
       Alert.alert('Error', 'Something went wrong with authentication.');

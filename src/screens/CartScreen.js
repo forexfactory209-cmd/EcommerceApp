@@ -1,11 +1,13 @@
 import React from 'react';
 import { View, Text, FlatList, Image, TouchableOpacity, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Trash2, Minus, Plus } from 'lucide-react-native';
+import { Trash2, Minus, Plus, ArrowLeft } from 'lucide-react-native';
 import { useStore } from '../store/store';
 
+const circleColors = ['#FFE5D9', '#E0F2FE', '#E0F7EA', '#FDE68A'];
+
 const CartScreen = ({ navigation }) => {
-  const { cart, removeFromCart, clearCart } = useStore();
+  const { cart, removeFromCart, clearCart, increaseQuantity, decreaseQuantity } = useStore();
 
   const subtotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
 
@@ -24,9 +26,16 @@ const CartScreen = ({ navigation }) => {
 
   const total = subtotal + shipping;
 
-  const renderItem = ({ item }) => (
+  const renderItem = ({ item, index }) => (
     <View style={styles.itemRow}>
-      <Image source={{ uri: item.image }} style={styles.itemImage} />
+      <View
+        style={[
+          styles.itemImageWrapper,
+          { backgroundColor: circleColors[index % circleColors.length] },
+        ]}
+      >
+        <Image source={{ uri: item.image }} style={styles.itemImage} resizeMode="contain" />
+      </View>
       <View style={styles.itemInfo}>
         <Text style={styles.itemName} numberOfLines={1}>{item.name}</Text>
         <Text style={styles.itemBrand}>{item.brand}</Text>
@@ -48,11 +57,25 @@ const CartScreen = ({ navigation }) => {
         })()}
       </View>
       <View style={styles.itemRight}>
-        <TouchableOpacity onPress={() => removeFromCart(item.id)}>
-            <Trash2 size={20} color="#EF4444" />
+        <TouchableOpacity onPress={() => removeFromCart(item.id)} style={styles.removeButton}>
+          <Trash2 size={18} color="#EF4444" />
         </TouchableOpacity>
         <View style={styles.quantityBadge}>
-            <Text style={styles.quantityText}>x{item.quantity}</Text>
+          <TouchableOpacity
+            style={styles.quantityCircleButton}
+            activeOpacity={0.9}
+            onPress={() => decreaseQuantity(item.id)}
+          >
+            <Minus size={14} color="#6B7280" />
+          </TouchableOpacity>
+          <Text style={styles.quantityText}>{item.quantity}</Text>
+          <TouchableOpacity
+            style={[styles.quantityCircleButton, styles.quantityCircleButtonPrimary]}
+            activeOpacity={0.9}
+            onPress={() => increaseQuantity(item.id)}
+          >
+            <Plus size={14} color="#ffffff" />
+          </TouchableOpacity>
         </View>
       </View>
     </View>
@@ -60,7 +83,27 @@ const CartScreen = ({ navigation }) => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <Text style={styles.screenTitle}>My Cart</Text>
+      <View style={styles.headerRow}>
+        <TouchableOpacity
+          style={styles.headerIconButton}
+          activeOpacity={0.85}
+          onPress={() => navigation.goBack()}
+        >
+          <ArrowLeft size={20} color="#111827" />
+        </TouchableOpacity>
+        <Text style={styles.screenTitle}>My Cart</Text>
+        {cart.length > 0 ? (
+          <TouchableOpacity
+            style={styles.headerIconButton}
+            activeOpacity={0.85}
+            onPress={clearCart}
+          >
+            <Trash2 size={18} color="#9CA3AF" />
+          </TouchableOpacity>
+        ) : (
+          <View style={styles.headerIconPlaceholder} />
+        )}
+      </View>
 
       {cart.length === 0 ? (
         <View style={styles.emptyState}>
@@ -108,53 +151,82 @@ export default CartScreen;
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f9fafb',
+    backgroundColor: '#eef2ff',
     paddingHorizontal: 16,
   },
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingTop: 12,
+    paddingBottom: 20,
+  },
+  headerIconButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#ffffff',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOpacity: 0.05,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 2,
+  },
+  headerIconPlaceholder: {
+    width: 36,
+    height: 36,
+  },
   screenTitle: {
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: '700',
     color: '#111827',
-    marginVertical: 24,
   },
   itemRow: {
     flexDirection: 'row',
     backgroundColor: '#ffffff',
-    padding: 12,
-    borderRadius: 16,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: '#f3f4f6',
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderRadius: 20,
+    marginBottom: 14,
     shadowColor: '#000',
-    shadowOpacity: 0.06,
-    shadowRadius: 4,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 1,
+    shadowOpacity: 0.08,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 3,
+  },
+  itemImageWrapper: {
+    width: 70,
+    height: 70,
+    borderRadius: 35,
+    backgroundColor: '#e0f2fe',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 14,
+    overflow: 'hidden',
   },
   itemImage: {
-    width: 80,
-    height: 80,
-    borderRadius: 12,
-    backgroundColor: '#f9fafb',
+    width: 60,
+    height: 60,
+    borderRadius: 30,
   },
   itemInfo: {
     flex: 1,
-    marginLeft: 16,
     justifyContent: 'center',
   },
   itemName: {
     fontWeight: '700',
-    fontSize: 18,
+    fontSize: 16,
     color: '#111827',
   },
   itemBrand: {
     color: '#6b7280',
     fontSize: 14,
-    marginBottom: 4,
   },
   itemPrice: {
     fontWeight: '700',
-    fontSize: 18,
+    fontSize: 16,
     color: '#2563EB',
   },
   itemDelivery: {
@@ -167,17 +239,38 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingVertical: 4,
   },
+  removeButton: {
+    padding: 4,
+  },
   quantityBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#f3f4f6',
-    borderRadius: 8,
+    backgroundColor: '#eef2ff',
+    borderRadius: 999,
     paddingHorizontal: 8,
     paddingVertical: 4,
   },
+  quantityCircleButton: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: '#ffffff',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 2,
+  },
+  quantityCircleButtonPrimary: {
+    backgroundColor: '#4f46e5',
+  },
   quantityText: {
     fontWeight: '700',
-    marginHorizontal: 4,
+    fontSize: 14,
+    color: '#111827',
+    marginHorizontal: 10,
   },
   emptyState: {
     flex: 1,
@@ -190,15 +283,16 @@ const styles = StyleSheet.create({
   },
   summaryPanel: {
     backgroundColor: '#ffffff',
-    padding: 24,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
+    padding: 20,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
     shadowColor: '#000',
-    shadowOpacity: 0.12,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: -2 },
-    elevation: 4,
+    shadowOpacity: 0.14,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: -4 },
+    elevation: 6,
     marginHorizontal: -16,
+    marginTop: 8,
   },
   summaryRow: {
     flexDirection: 'row',
@@ -228,10 +322,10 @@ const styles = StyleSheet.create({
     color: '#2563EB',
   },
   checkoutButton: {
-    backgroundColor: '#111827',
+    backgroundColor: '#4f46e5',
     width: '100%',
-    paddingVertical: 16,
-    borderRadius: 16,
+    paddingVertical: 14,
+    borderRadius: 999,
     alignItems: 'center',
   },
   checkoutText: {

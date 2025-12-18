@@ -420,8 +420,8 @@ const BillingScreen = ({ navigation }) => {
 
         <Text style={styles.sectionTitle}>Order Summary</Text>
         <View style={styles.list}>
-          {cart.map((item) => (
-            <View key={item.id} style={styles.itemRow}>
+          {cart.map((item, index) => (
+            <View key={`${item.id}-${index}`} style={styles.itemRow}>
               <Text style={styles.itemName} numberOfLines={1}>
                 {item.name}
               </Text>

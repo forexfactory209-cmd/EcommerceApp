@@ -30,6 +30,7 @@ import WishlistScreen from '../screens/WishlistScreen';
 import WelcomeScreen from '../screens/WelcomeScreen';
 import EditProductScreen from '../screens/EditProductScreen';
 import AllProductsScreen from '../screens/AllProductsScreen';
+import CategoryProductsScreen from '../screens/CategoryProductsScreen';
 import AdminProductsScreen from '../screens/AdminProductsScreen';
 import AdminDashboardScreen from '../screens/AdminDashboardScreen';
 import AllBrandsScreen from '../screens/AllBrandsScreen';
@@ -58,23 +59,23 @@ const TabNavigator = () => {
     <Tab.Navigator
       screenOptions={{
         headerShown: false,
-        tabBarStyle: { 
-            backgroundColor: '#ffffff', 
-            borderTopWidth: 0,
-            elevation: 0,
-            height: 60,
-            paddingBottom: 10 
+        tabBarStyle: {
+          backgroundColor: '#ffffff',
+          borderTopWidth: 0,
+          elevation: 0,
+          height: 60,
+          paddingBottom: 10
         },
         tabBarActiveTintColor: '#2563EB',
         tabBarInactiveTintColor: '#9CA3AF',
         tabBarShowLabel: false,
       }}
     >
-      <Tab.Screen 
-        name="HomeTab" 
-        component={HomeScreen} 
+      <Tab.Screen
+        name="HomeTab"
+        component={HomeScreen}
         options={{
-            tabBarIcon: ({color}) => <Home color={color} size={24} />
+          tabBarIcon: ({ color }) => <Home color={color} size={24} />
         }}
       />
       {userType !== 'brand' && authRole !== 'admin' && (
@@ -87,44 +88,44 @@ const TabNavigator = () => {
         />
       )}
       {userType !== 'brand' && authRole !== 'admin' && (
-        <Tab.Screen 
-          name="Wishlist" 
-          component={WishlistScreen} 
+        <Tab.Screen
+          name="Wishlist"
+          component={WishlistScreen}
           options={{
-              tabBarIcon: ({color}) => (
-                <View>
-                  <Heart color={color} size={24} />
-                  {wishlistCount > 0 && (
-                    <View style={styles.cartBadge}>
-                      <Text style={styles.cartBadgeText}>{wishlistCount}</Text>
-                    </View>
-                  )}
-                </View>
-              )
+            tabBarIcon: ({ color }) => (
+              <View>
+                <Heart color={color} size={24} />
+                {wishlistCount > 0 && (
+                  <View style={styles.cartBadge}>
+                    <Text style={styles.cartBadgeText}>{wishlistCount}</Text>
+                  </View>
+                )}
+              </View>
+            )
           }}
         />
       )}
       {userType === 'brand' && authRole !== 'admin' && (
         <>
-          <Tab.Screen 
-            name="Vendor" 
-            component={VendorScreen} 
+          <Tab.Screen
+            name="Vendor"
+            component={VendorScreen}
             options={{
-                tabBarIcon: ({color}) => (
-                    <View style={{ alignItems: 'center' }}>
-                      <Store color={color} size={24} />
-                      {pendingOrders > 0 && (
-                        <>
-                          <View style={styles.vendorBadge}>
-                            <Text style={styles.vendorBadgeText}>{pendingOrders}</Text>
-                          </View>
-                          <Text style={styles.vendorHintText} numberOfLines={1}>
-                            {pendingOrders === 1 ? '1 order waiting' : `${pendingOrders} orders`}
-                          </Text>
-                        </>
-                      )}
-                    </View>
-                )
+              tabBarIcon: ({ color }) => (
+                <View style={{ alignItems: 'center' }}>
+                  <Store color={color} size={24} />
+                  {pendingOrders > 0 && (
+                    <>
+                      <View style={styles.vendorBadge}>
+                        <Text style={styles.vendorBadgeText}>{pendingOrders}</Text>
+                      </View>
+                      <Text style={styles.vendorHintText} numberOfLines={1}>
+                        {pendingOrders === 1 ? '1 order waiting' : `${pendingOrders} orders`}
+                      </Text>
+                    </>
+                  )}
+                </View>
+              )
             }}
           />
           <Tab.Screen
@@ -137,28 +138,28 @@ const TabNavigator = () => {
         </>
       )}
       {userType !== 'brand' && authRole !== 'admin' && (
-        <Tab.Screen 
-          name="Cart" 
-          component={CartScreen} 
+        <Tab.Screen
+          name="Cart"
+          component={CartScreen}
           options={{
-              tabBarIcon: ({color}) => (
-                  <View>
-                      <ShoppingBag color={color} size={24} />
-                      {cartItems > 0 && (
-                          <View style={styles.cartBadge}>
-                              <Text style={styles.cartBadgeText}>{cartItems}</Text>
-                          </View>
-                      )}
+            tabBarIcon: ({ color }) => (
+              <View>
+                <ShoppingBag color={color} size={24} />
+                {cartItems > 0 && (
+                  <View style={styles.cartBadge}>
+                    <Text style={styles.cartBadgeText}>{cartItems}</Text>
                   </View>
-              )
+                )}
+              </View>
+            )
           }}
         />
       )}
-      <Tab.Screen 
-        name="Profile" 
-        component={ProfileScreen} 
+      <Tab.Screen
+        name="Profile"
+        component={ProfileScreen}
         options={{
-            tabBarIcon: ({color}) => <User color={color} size={24} />
+          tabBarIcon: ({ color }) => <User color={color} size={24} />
         }}
       />
     </Tab.Navigator>
@@ -168,9 +169,9 @@ const TabNavigator = () => {
 export default function AppNavigator() {
   return (
     <NavigationContainer>
-      <Stack.Navigator initialRouteName="Welcome" screenOptions={{ headerShown: false }}>
-        <Stack.Screen name="Welcome" component={WelcomeScreen} />
+      <Stack.Navigator initialRouteName="CustomerOnboarding" screenOptions={{ headerShown: false }}>
         <Stack.Screen name="CustomerOnboarding" component={CustomerOnboardingScreen} />
+        <Stack.Screen name="Welcome" component={WelcomeScreen} />
         <Stack.Screen name="Main" component={TabNavigator} />
         <Stack.Screen name="Notifications" component={NotificationsScreen} />
         <Stack.Screen name="EditProfile" component={EditProfileScreen} />
@@ -186,6 +187,7 @@ export default function AppNavigator() {
         <Stack.Screen name="AddProduct" component={AddProductScreen} />
         <Stack.Screen name="EditProduct" component={EditProductScreen} />
         <Stack.Screen name="AllProducts" component={AllProductsScreen} />
+        <Stack.Screen name="CategoryProducts" component={CategoryProductsScreen} />
         <Stack.Screen name="Brand" component={BrandScreen} />
         <Stack.Screen name="BrandOnboarding" component={BrandOnboardingScreen} />
         <Stack.Screen name="CreateAnnouncement" component={CreateAnnouncementScreen} />

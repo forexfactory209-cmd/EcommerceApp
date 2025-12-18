@@ -31,17 +31,23 @@ const EditProductScreen = ({ route, navigation }) => {
     sizesInput: Array.isArray(product.sizes)
       ? product.sizes.join(', ')
       : '',
-    deliveryInput: Array.isArray(product.deliveryOptions || product.delivery_options)
-      ? (product.deliveryOptions || product.delivery_options)
-          .map((opt) => {
-            const label = opt.label || '';
-            const eta = opt.eta || '';
-            const price =
-              opt.price != null && opt.price !== '' ? String(opt.price) : '';
-            return [label, eta, price].join(';');
-          })
-          .join('\n')
-      : '',
+    // Legacy freeform delivery textarea (kept for backward compatibility but not populated
+    // from existing options to avoid duplicating them when saving)
+    deliveryInput: '',
+    // New structured delivery rows (one per option)
+    deliveryRows: (() => {
+      const arr = product.deliveryOptions || product.delivery_options || [];
+      if (!Array.isArray(arr) || arr.length === 0) {
+        return [{ id: 'row_0', label: '', eta: '', price: '' }];
+      }
+      return arr.map((opt, index) => ({
+        id: `row_${index}`,
+        label: opt.label || '',
+        eta: opt.eta || '',
+        price:
+          opt.price != null && opt.price !== '' ? String(opt.price) : '',
+      }));
+    })(),
     category: product.category || 'shoes',
     audience: product.audience || 'all',
     quantity: product.quantity != null ? String(product.quantity) : '',
@@ -51,6 +57,32 @@ const EditProductScreen = ({ route, navigation }) => {
 
   const handleChange = (key, value) => {
     setForm((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const handleDeliveryRowChange = (rowId, field, value) => {
+    setForm((prev) => ({
+      ...prev,
+      deliveryRows: prev.deliveryRows.map((row) =>
+        row.id === rowId ? { ...row, [field]: value } : row,
+      ),
+    }));
+  };
+
+  const handleAddDeliveryRow = () => {
+    setForm((prev) => ({
+      ...prev,
+      deliveryRows: [
+        ...prev.deliveryRows,
+        { id: `row_${Date.now()}`, label: '', eta: '', price: '' },
+      ],
+    }));
+  };
+
+  const handleRemoveDeliveryRow = (rowId) => {
+    setForm((prev) => ({
+      ...prev,
+      deliveryRows: prev.deliveryRows.filter((row) => row.id !== rowId),
+    }));
   };
 
   const handlePickImage = async () => {
@@ -158,25 +190,28 @@ const EditProductScreen = ({ route, navigation }) => {
         .map((v) => v.trim())
         .filter(Boolean);
 
-      const deliveryOptions = (form.deliveryInput || '')
-        .split('\n')
-        .map((line) => line.trim())
-        .filter(Boolean)
-        .map((line, index) => {
-          const [labelRaw, etaRaw, priceRaw] = line.split(';');
-          const label = (labelRaw || '').trim();
-          const eta = (etaRaw || '').trim();
-          const price = priceRaw != null && priceRaw.trim() !== ''
-            ? parseFloat(priceRaw.trim()) || 0
-            : null;
+      // New structured delivery options from multiple rows
+      const structuredDeliveryOptions = (form.deliveryRows || [])
+        .map((row, index) => {
+          const label = (row.label || '').trim();
+          const eta = (row.eta || '').trim();
+          const priceText = (row.price || '').trim();
+
+          if (!label && !eta && !priceText) return null;
+
+          const price = priceText !== '' ? parseFloat(priceText) || 0 : null;
+
           return {
-            id: `opt_${index}_${label.toLowerCase().replace(/\s+/g, '_')}`,
+            id: `opt_${index}_${label.toLowerCase().replace(/\s+/g, '_') || 'delivery'}`,
             label,
             eta: eta || null,
             price,
           };
         })
-        .filter((opt) => opt.label);
+        .filter(Boolean);
+
+      // Legacy textarea parsing is disabled for edits to prevent duplicating options.
+      const deliveryOptions = structuredDeliveryOptions;
 
       // Normalize images list from form
       const images = form.images && form.images.length > 0
@@ -236,6 +271,16 @@ const EditProductScreen = ({ route, navigation }) => {
 
       const primaryImage = uploadedImageUrls[0] || form.image || '';
 
+      // Derive full and thumbnail URLs for the primary image using Supabase image CDN when possible
+      let image_full_url = primaryImage || null;
+      let image_thumb_url = null;
+
+      if (image_full_url && image_full_url.includes('/storage/v1/object/')) {
+        image_thumb_url = image_full_url
+          .replace('/storage/v1/object/', '/storage/v1/render/image/')
+          .concat('?width=400&quality=75');
+      }
+
       const { error } = await supabase
         .from('products')
         .update({
@@ -243,6 +288,8 @@ const EditProductScreen = ({ route, navigation }) => {
           price: priceValue,
           brand: form.brand,
           image: primaryImage,
+          image_full_url,
+          image_thumb_url,
           images: uploadedImageUrls.length > 0 ? uploadedImageUrls : null,
           colors: colors.length > 0 ? colors : null,
           sizes: sizes.length > 0 ? sizes : null,
@@ -313,6 +360,15 @@ const EditProductScreen = ({ route, navigation }) => {
           keyboardType="numeric"
           value={form.price}
           onChangeText={(t) => handleChange('price', t)}
+        />
+
+        <Text style={styles.label}>Quantity in stock</Text>
+        <TextInput
+          style={styles.input}
+          placeholder="e.g. 10"
+          keyboardType="numeric"
+          value={form.quantity}
+          onChangeText={(t) => handleChange('quantity', t)}
         />
 
         <Text style={styles.label}>Brand</Text>
@@ -431,15 +487,56 @@ const EditProductScreen = ({ route, navigation }) => {
           onChangeText={(t) => handleChange('sizesInput', t)}
         />
 
-        <Text style={styles.label}>Delivery options (one per line: label;eta;price)</Text>
-        <TextInput
-          style={[styles.input, styles.textArea]}
-          multiline
-          placeholder={"Standard Delivery;3–5 days;0\nExpress Delivery;1–2 days;5.99"}
-          textAlignVertical="top"
-          value={form.deliveryInput}
-          onChangeText={(t) => handleChange('deliveryInput', t)}
-        />
+        <Text style={styles.label}>Delivery options</Text>
+        {form.deliveryRows.map((row, index) => (
+          <View key={row.id} style={{ marginBottom: 8 }}>
+            <TextInput
+              style={styles.input}
+              placeholder={index === 0 ? 'e.g. Standard Delivery' : 'e.g. Express Delivery'}
+              value={row.label}
+              onChangeText={(t) => handleDeliveryRowChange(row.id, 'label', t)}
+            />
+            <TextInput
+              style={styles.input}
+              placeholder="e.g. 1–2 days"
+              value={row.eta}
+              onChangeText={(t) => handleDeliveryRowChange(row.id, 'eta', t)}
+            />
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <View style={{ flex: 1 }}>
+                <TextInput
+                  style={styles.input}
+                  placeholder="e.g. 4.99 (leave empty for free)"
+                  keyboardType="numeric"
+                  value={row.price}
+                  onChangeText={(t) => handleDeliveryRowChange(row.id, 'price', t)}
+                />
+              </View>
+              {form.deliveryRows.length > 1 && (
+                <TouchableOpacity
+                  style={{ marginLeft: 8, paddingHorizontal: 8, paddingVertical: 6, borderRadius: 999, backgroundColor: '#fee2e2' }}
+                  onPress={() => handleRemoveDeliveryRow(row.id)}
+                >
+                  <Text style={{ color: '#b91c1c', fontWeight: '600', fontSize: 12 }}>Remove</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          </View>
+        ))}
+        <TouchableOpacity
+          style={{
+            alignSelf: 'flex-start',
+            paddingHorizontal: 12,
+            paddingVertical: 8,
+            borderRadius: 999,
+            borderWidth: 1,
+            borderColor: '#e5e7eb',
+            marginBottom: 8,
+          }}
+          onPress={handleAddDeliveryRow}
+        >
+          <Text style={{ fontSize: 12, fontWeight: '600', color: '#2563EB' }}>+ Add delivery option</Text>
+        </TouchableOpacity>
 
         <Text style={styles.label}>Description</Text>
         <TextInput

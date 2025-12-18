@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { View, Text, FlatList, Image, TouchableOpacity, StyleSheet, TextInput } from 'react-native';
+import { View, Text, FlatList, Image, TouchableOpacity, StyleSheet, TextInput, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Trash2, Plus, Truck, CheckCircle } from 'lucide-react-native';
 import { useFocusEffect } from '@react-navigation/native';
@@ -9,6 +9,7 @@ import { supabase } from '../lib/supabase';
 const VendorScreen = ({ navigation }) => {
   const [tab, setTab] = useState('orders'); // 'products' or 'orders'
   const { orders, deleteProduct, updateOrderStatus, authUserId, setOrders } = useStore();
+  const deletedProductIds = useStore((state) => state.deletedProductIds || []);
 
   const [remoteProducts, setRemoteProducts] = useState([]);
   const [discountInput, setDiscountInput] = useState('');
@@ -55,7 +56,8 @@ const VendorScreen = ({ navigation }) => {
           const { data: prodByOwner, error: prodOwnerError } = await supabase
             .from('products')
             .select('*')
-            .eq('brand_user_id', authUserId);
+            .eq('brand_user_id', authUserId)
+            .or('is_deleted.is.null,is_deleted.eq.false');
 
           if (prodOwnerError) {
             console.warn('Error loading vendor products by owner:', prodOwnerError.message || prodOwnerError);
@@ -69,7 +71,8 @@ const VendorScreen = ({ navigation }) => {
               const { data: prodByName, error: prodNameError } = await supabase
                 .from('products')
                 .select('*')
-                .eq('brand', brandName);
+                .eq('brand', brandName)
+                .or('is_deleted.is.null,is_deleted.eq.false');
 
               if (prodNameError) {
                 console.warn('Error loading vendor products by name:', prodNameError.message || prodNameError);
@@ -127,7 +130,9 @@ const VendorScreen = ({ navigation }) => {
     }, [authUserId, setOrders]),
   );
 
-  const myProducts = Array.isArray(remoteProducts) ? remoteProducts : [];
+  const myProducts = Array.isArray(remoteProducts)
+    ? remoteProducts.filter((p) => !deletedProductIds.includes(p.id))
+    : [];
 
   const myOrders = Array.isArray(orders)
     ? orders.filter((o) => !authUserId || o.brand_user_id === authUserId)
@@ -141,6 +146,35 @@ const VendorScreen = ({ navigation }) => {
   const deliveredOrdersCount = myOrders.filter((o) => o.status === 'Delivered').length;
   const pendingOrdersCount = myOrders.length - deliveredOrdersCount;
 
+  const handleDeleteProduct = async (productId) => {
+    if (!productId) return;
+
+    console.log('[Vendor] Requesting delete for product id:', productId);
+
+    try {
+      const { data, error } = await supabase
+        .from('products')
+        .update({ is_deleted: true })
+        .eq('id', productId);
+
+      if (error) {
+        console.warn('Vendor delete product error:', error.message || error);
+        Alert.alert('Error', error.message || 'Could not delete product.');
+        return;
+      }
+
+      console.log('[Vendor] Supabase delete succeeded for product id:', productId, 'response data:', data);
+
+      // Remove from local vendor list
+      setRemoteProducts((prev) => (Array.isArray(prev) ? prev.filter((p) => p.id !== productId) : prev));
+
+      // Also update in-memory catalog for other screens
+      deleteProduct(productId);
+    } catch (e) {
+      console.warn('Vendor delete product exception:', e.message || e);
+      Alert.alert('Error', 'Something went wrong while deleting this product.');
+    }
+  };
 
   const handleApplyDiscount = async () => {
     if (!authUserId) return;
@@ -514,7 +548,20 @@ const VendorScreen = ({ navigation }) => {
                 <Text style={{ color: '#111827', fontWeight: '600', marginRight: 4 }}>Flash</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                onPress={() => deleteProduct(item.id)}
+                onPress={() => {
+                  Alert.alert(
+                    'Delete product',
+                    'Are you sure you want to delete this product? This action cannot be undone.',
+                    [
+                      { text: 'Cancel', style: 'cancel' },
+                      {
+                        text: 'Delete',
+                        style: 'destructive',
+                        onPress: () => handleDeleteProduct(item.id),
+                      },
+                    ],
+                  );
+                }}
                 style={styles.deleteButton}
               >
                 <Trash2 size={18} color="#EF4444" />
