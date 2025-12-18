@@ -8,19 +8,12 @@ import { fetchApprovedBrandsFromSupabase } from '../services/brands';
 
 const AllProductsScreen = ({ navigation }) => {
   const products = useStore((state) => state.products);
-  const wishlist = useStore((state) => state.wishlist);
-  const addToWishlist = useStore((state) => state.addToWishlist);
-  const removeFromWishlist = useStore((state) => state.removeFromWishlist);
-  const authRole = useStore((state) => state.authRole);
+  const deletedProductIds = useStore((state) => state.deletedProductIds || []);
 
   const [remoteProducts, setRemoteProducts] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [brands, setBrands] = useState([]);
-  const [selectedBrand, setSelectedBrand] = useState('all');
-  const [priceSort, setPriceSort] = useState('none'); // 'none' | 'low' | 'high'
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState('all');
-  const [selectedAudience, setSelectedAudience] = useState('all');
+  const [brands, setBrands] = useState([]);
 
   const focusAnim = useRef(new Animated.Value(0)).current;
 
@@ -72,92 +65,67 @@ const AllProductsScreen = ({ navigation }) => {
     }, [loadProducts, loadBrands]),
   );
 
-  const baseData = remoteProducts.length > 0 ? remoteProducts : products;
+  const baseDataRaw = remoteProducts.length > 0 ? remoteProducts : products;
+  const baseData = (baseDataRaw || []).filter((p) => !deletedProductIds.includes(p.id));
 
-  const data = useMemo(() => {
-    let result = baseData || [];
+  const categories = useMemo(() => {
+    const map = new Map();
 
-    // Category filter (explicit match only)
-    if (selectedCategory !== 'all') {
-      const categoryId = selectedCategory.toLowerCase();
-      result = result.filter((p) => {
-        const cat = (p.category || '').toString().toLowerCase();
-        return cat && cat === categoryId;
-      });
-    }
+    (baseData || []).forEach((p) => {
+      const raw = (p.category || 'Other').toString();
+      const id = raw.toLowerCase();
+      const name = raw.charAt(0).toUpperCase() + raw.slice(1);
 
-    // Audience filter (explicit match only)
-    if (selectedAudience !== 'all') {
-      const audId = selectedAudience.toLowerCase();
-      result = result.filter((p) => {
-        const aud = (p.audience || '').toString().toLowerCase();
-        return aud && aud === audId;
-      });
-    }
+      if (!map.has(id)) {
+        map.set(id, {
+          id,
+          name,
+          image: p.image,
+          count: 1,
+        });
+      } else {
+        const existing = map.get(id);
+        map.set(id, { ...existing, count: existing.count + 1 });
+      }
+    });
 
-    // Brand filter (using approved brands list names)
-    if (selectedBrand !== 'all') {
-      result = result.filter((p) => (p.brand || '').toString() === selectedBrand);
-    }
+    let list = Array.from(map.values());
 
-    // Search by name
     if (searchQuery.trim()) {
       const q = searchQuery.trim().toLowerCase();
-      result = result.filter((p) => (p.name || '').toString().toLowerCase().includes(q));
+      list = list.filter((c) => c.name.toLowerCase().includes(q));
     }
 
-    // Price sort
-    if (priceSort === 'low') {
-      result = [...result].sort((a, b) => (a.price || 0) - (b.price || 0));
-    } else if (priceSort === 'high') {
-      result = [...result].sort((a, b) => (b.price || 0) - (a.price || 0));
-    }
+    return list;
+  }, [baseData, searchQuery]);
 
-    return result;
-  }, [baseData, selectedCategory, selectedAudience, selectedBrand, priceSort, searchQuery]);
-
-  const renderItem = ({ item }) => {
-    const inWishlist = wishlist.some((w) => w.id === item.id);
-
-    return (
-      <TouchableOpacity
-        style={styles.productCard}
-        onPress={() => navigation.navigate('ProductDetails', { product: item })}
-        activeOpacity={0.9}
-      >
-        <View style={styles.productImageWrapper}>
-          <Image source={{ uri: item.image }} style={styles.productImage} resizeMode="cover" />
-          <TouchableOpacity
-            style={styles.wishlistIcon}
-            onPress={(e) => {
-              e.stopPropagation();
-              if (authRole === 'admin') {
-                return;
-              }
-              if (inWishlist) {
-                removeFromWishlist(item.id);
-              } else {
-                addToWishlist(item);
-              }
-            }}
-          >
-            <Text style={styles.wishlistIconText}>{inWishlist ? '♥' : '♡'}</Text>
-          </TouchableOpacity>
-        </View>
-        <Text style={styles.productBrand}>{item.brand}</Text>
-        <Text style={styles.productName} numberOfLines={1}>{item.name}</Text>
-        <Text style={styles.productPrice}>${item.price}</Text>
-      </TouchableOpacity>
-    );
-  };
+  const renderCategoryItem = ({ item }) => (
+    <TouchableOpacity
+      style={styles.categoryCard}
+      activeOpacity={0.9}
+      onPress={() => navigation.navigate('CategoryProducts', { categoryId: item.id, categoryName: item.name })}
+    >
+      <View style={styles.categoryImageWrapper}>
+        {item.image ? (
+          <Image source={{ uri: item.image }} style={styles.categoryImage} resizeMode="cover" />
+        ) : (
+          <View style={styles.categoryPlaceholder} />
+        )}
+      </View>
+      <View style={styles.categoryOverlay}>
+        <Text style={styles.categoryName}>{item.name}</Text>
+        <Text style={styles.categoryCount}>{item.count} Products</Text>
+      </View>
+    </TouchableOpacity>
+  );
 
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.headerRow}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-          <Text style={styles.backButtonText}>{''} Back</Text>
+          <Text style={styles.backButtonIcon}>{'<'}</Text>
         </TouchableOpacity>
-        <Text style={styles.title}>All Products</Text>
+        <Text style={styles.title}>Categories</Text>
       </View>
 
       <Animated.View
@@ -177,7 +145,7 @@ const AllProductsScreen = ({ navigation }) => {
       >
         <TextInput
           style={styles.searchInput}
-          placeholder="Search by name"
+          placeholder="Search Categories"
           placeholderTextColor="#9ca3af"
           value={searchQuery}
           onChangeText={setSearchQuery}
@@ -186,95 +154,13 @@ const AllProductsScreen = ({ navigation }) => {
         />
       </Animated.View>
 
-      <View style={styles.filtersRow}>
-        <View style={styles.filterGroup}>
-          <Text style={styles.filterLabel}>Brand</Text>
-          <View style={styles.chipRow}>
-            <TouchableOpacity
-              style={[styles.chip, selectedBrand === 'all' && styles.chipActive]}
-              onPress={() => setSelectedBrand('all')}
-            >
-              <Text style={selectedBrand === 'all' ? styles.chipTextActive : styles.chipText}>All</Text>
-            </TouchableOpacity>
-            {brands.map((b) => (
-              <TouchableOpacity
-                key={b.id}
-                style={[styles.chip, selectedBrand === b.name && styles.chipActive]}
-                onPress={() => setSelectedBrand(b.name)}
-              >
-                <Text style={selectedBrand === b.name ? styles.chipTextActive : styles.chipText}>
-                  {b.name}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </View>
-
-        <View style={styles.filterGroup}>
-          <Text style={styles.filterLabel}>Price</Text>
-          <View style={styles.chipRow}>
-            <TouchableOpacity
-              style={[styles.chip, priceSort === 'none' && styles.chipActive]}
-              onPress={() => setPriceSort('none')}
-            >
-              <Text style={priceSort === 'none' ? styles.chipTextActive : styles.chipText}>Default</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.chip, priceSort === 'low' && styles.chipActive]}
-              onPress={() => setPriceSort('low')}
-            >
-              <Text style={priceSort === 'low' ? styles.chipTextActive : styles.chipText}>Low → High</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.chip, priceSort === 'high' && styles.chipActive]}
-              onPress={() => setPriceSort('high')}
-            >
-              <Text style={priceSort === 'high' ? styles.chipTextActive : styles.chipText}>High → Low</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        <View style={styles.filterGroup}>
-          <Text style={styles.filterLabel}>Category</Text>
-          <View style={styles.chipRow}>
-            {[{ id: 'all', label: 'All' }, { id: 'clothes', label: 'Clothes' }, { id: 'shoes', label: 'Shoes' }, { id: 'coats', label: 'Coats' }, { id: 'phones', label: 'Phones' }, { id: 'laptops', label: 'Laptops' }, { id: 'bags', label: 'Bags' }].map((cat) => (
-              <TouchableOpacity
-                key={cat.id}
-                style={[styles.chip, selectedCategory === cat.id && styles.chipActive]}
-                onPress={() => setSelectedCategory(cat.id)}
-              >
-                <Text style={selectedCategory === cat.id ? styles.chipTextActive : styles.chipText}>
-                  {cat.label}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </View>
-
-        <View style={styles.filterGroup}>
-          <Text style={styles.filterLabel}>Audience</Text>
-          <View style={styles.chipRow}>
-            {[{ id: 'all', label: 'All' }, { id: 'men', label: 'Men' }, { id: 'women', label: 'Women' }, { id: 'kids', label: 'Kids' }].map((aud) => (
-              <TouchableOpacity
-                key={aud.id}
-                style={[styles.chip, selectedAudience === aud.id && styles.chipActive]}
-                onPress={() => setSelectedAudience(aud.id)}
-              >
-                <Text style={selectedAudience === aud.id ? styles.chipTextActive : styles.chipText}>
-                  {aud.label}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </View>
-      </View>
       <FlatList
-        data={data}
-        keyExtractor={(item) => item.id.toString()}
+        data={categories}
+        keyExtractor={(item) => item.id}
         numColumns={2}
         columnWrapperStyle={styles.columnWrapper}
         contentContainerStyle={styles.listContent}
-        renderItem={renderItem}
+        renderItem={renderCategoryItem}
         refreshing={loading}
         onRefresh={loadProducts}
       />
@@ -287,12 +173,13 @@ export default AllProductsScreen;
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f9fafb',
+    backgroundColor: '#ffffff',
     paddingHorizontal: 16,
     paddingTop: 16,
   },
   searchWrapper: {
-    marginBottom: 12,
+    marginBottom: 30,
+    marginTop: 16,
     backgroundColor: '#ffffff',
     borderRadius: 999,
     borderWidth: 1,
@@ -316,17 +203,22 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   backButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-    backgroundColor: '#2563EB'
+    width: 40,
+    height: 40,
+    borderRadius: 7,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#ffffff',
+    shadowColor: '#000',
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 3,
   },
-  backButtonText: {
-    fontSize: 14,
-    color: '#ffffff',
-    fontWeight: '600',
+  backButtonIcon: {
+    fontSize: 18,
+    color: '#111827',
+    fontWeight: '700',
   },
   title: {
     fontSize: 22,
@@ -341,100 +233,47 @@ const styles = StyleSheet.create({
   filtersRow: {
     marginBottom: 12,
   },
-  filterGroup: {
-    marginBottom: 8,
-  },
-  filterLabel: {
-    fontSize: 12,
-    color: '#6b7280',
-    marginBottom: 4,
-  },
-  chipRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-  },
-  chip: {
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 999,
-    backgroundColor: '#e5e7eb',
-    marginRight: 8,
-    marginBottom: 6,
-  },
-  chipActive: {
-    backgroundColor: '#111827',
-  },
-  chipText: {
-    fontSize: 12,
-    color: '#4b5563',
-    fontWeight: '600',
-  },
-  chipTextActive: {
-    fontSize: 12,
-    color: '#ffffff',
-    fontWeight: '700',
-  },
   columnWrapper: {
     justifyContent: 'space-between',
     marginBottom: 18,
   },
-  productCard: {
+  categoryCard: {
     flex: 1,
     maxWidth: '48%',
-    backgroundColor: '#ffffff',
     borderRadius: 20,
-    padding: 10,
-    borderWidth: 0.5,
-    borderColor: '#e5e7eb',
-    shadowColor: '#000',
-    shadowOpacity: 0.04,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 3 },
-    elevation: 2,
+    overflow: 'hidden',
+    backgroundColor: '#f3f4f6',
+    marginBottom: 18,
   },
-  productImageWrapper: {
+  categoryImageWrapper: {
     height: 190,
     width: '100%',
-    backgroundColor: '#f3f4f6',
-    borderRadius: 18,
-    overflow: 'hidden',
-    marginBottom: 10,
-    position: 'relative',
   },
-  productImage: {
+  categoryImage: {
     width: '100%',
     height: '100%',
   },
-  wishlistIcon: {
+  categoryPlaceholder: {
+    flex: 1,
+    backgroundColor: '#e5e7eb',
+  },
+  categoryOverlay: {
     position: 'absolute',
-    top: 8,
-    right: 8,
-    width: 30,
-    height: 30,
-    borderRadius: 999,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
     backgroundColor: 'rgba(255,255,255,0.9)',
-    alignItems: 'center',
-    justifyContent: 'center',
   },
-  wishlistIconText: {
-    fontSize: 16,
-  },
-  productBrand: {
-    color: '#9ca3af',
-    fontSize: 11,
-    fontWeight: '600',
-    textTransform: 'uppercase',
-  },
-  productName: {
-    color: '#111827',
-    fontWeight: '600',
-    fontSize: 13,
-    marginTop: 4,
-  },
-  productPrice: {
-    color: '#2563EB',
+  categoryName: {
+    fontSize: 14,
     fontWeight: '700',
-    fontSize: 15,
-    marginTop: 6,
+    color: '#111827',
+  },
+  categoryCount: {
+    fontSize: 11,
+    color: '#6b7280',
+    marginTop: 2,
   },
 });

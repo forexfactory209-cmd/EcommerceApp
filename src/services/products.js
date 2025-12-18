@@ -4,6 +4,7 @@ export async function fetchProductsFromSupabase() {
   const { data, error } = await supabase
     .from('products')
     .select('*')
+    .or('is_deleted.is.null,is_deleted.eq.false')
     .order('created_at', { ascending: false });
 
   if (error) {

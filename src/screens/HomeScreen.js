@@ -1,5 +1,6 @@
-import React, { useState, useCallback, useEffect, useMemo } from 'react';
-import { View, Text, ScrollView, Image, TouchableOpacity, TextInput, FlatList, StyleSheet, Alert } from 'react-native';
+import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
+import { View, Text, ScrollView, TouchableOpacity, TextInput, FlatList, StyleSheet, Alert, Dimensions, Modal, Animated } from 'react-native';
+import { Image } from 'expo-image';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Search, ShoppingBag, Heart, Bell, Star, Mic } from 'lucide-react-native';
 import { useStore } from '../store/store';
@@ -8,6 +9,8 @@ import { fetchApprovedBrandsFromSupabase } from '../services/brands';
 import { fetchProductsFromSupabase } from '../services/products';
 import { useFocusEffect } from '@react-navigation/native';
 import { supabase } from '../lib/supabase';
+
+const windowWidth = Dimensions.get('window').width;
 
 const HomeScreen = ({ navigation }) => {
   const products = useStore((state) => state.products);
@@ -19,6 +22,7 @@ const HomeScreen = ({ navigation }) => {
   const authRole = useStore((state) => state.authRole);
   const brandLogoUrl = useStore((state) => state.brandLogoUrl);
   const authUserId = useStore((state) => state.authUserId);
+  const deletedProductIds = useStore((state) => state.deletedProductIds || []);
   const cartCount = useStore((state) => state.cart.length || 0);
   const setBrandLogoUrl = useStore((state) => state.setBrandLogoUrl);
   const loadFollowedBrands = useStore((state) => state.loadFollowedBrands);
@@ -32,6 +36,11 @@ const HomeScreen = ({ navigation }) => {
   const [unreadNotifications, setUnreadNotifications] = useState(0);
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [selectedAudience, setSelectedAudience] = useState('all');
+  const [searchMode, setSearchMode] = useState('text');
+  const [trendingIndex, setTrendingIndex] = useState(0);
+  const [categorySheetVisible, setCategorySheetVisible] = useState(false);
+  const [pendingCategory, setPendingCategory] = useState('all');
+  const categorySlide = useRef(new Animated.Value(0)).current; // 0 = hidden, 1 = visible
 
   const loadProducts = useCallback(async () => {
     try {
@@ -133,7 +142,16 @@ const HomeScreen = ({ navigation }) => {
     loadUnreadNotifications();
   }, [authUserId, loadUnreadNotifications]);
 
-  const baseProducts = (remoteProducts.length > 0 ? remoteProducts : products) || [];
+  useEffect(() => {
+    Animated.timing(categorySlide, {
+      toValue: categorySheetVisible ? 1 : 0,
+      duration: 220,
+      useNativeDriver: true,
+    }).start();
+  }, [categorySheetVisible, categorySlide]);
+
+  const rawBaseProducts = (remoteProducts.length > 0 ? remoteProducts : products) || [];
+  const baseProducts = rawBaseProducts.filter((p) => !deletedProductIds.includes(p.id));
 
   const filterByCategory = (item) => {
     if (selectedCategory === 'all') return true;
@@ -217,6 +235,11 @@ const HomeScreen = ({ navigation }) => {
   const filteredProducts = baseProducts.filter(
     (item) => filterByCategory(item) && filterByAudience(item) && filterBySearch(item),
   );
+
+  const trendingProducts = useMemo(() => {
+    if (!Array.isArray(baseProducts)) return [];
+    return baseProducts.slice(0, 5);
+  }, [baseProducts]);
 
   const myBrandProducts = useMemo(() => {
     const isBrandUser = userType === 'brand' || authRole === 'brand';
@@ -307,11 +330,54 @@ const HomeScreen = ({ navigation }) => {
     }
   };
   
+  const getProductThumbUri = (item) => {
+    if (item.image_thumb_url) return item.image_thumb_url;
+    if (item.image_full_url) return item.image_full_url;
+    return item.image || '';
+  };
+
+  // Use a stronger, full image for the main product cards on HomeScreen
+  const getProductCardUri = (item) => {
+    if (item.image_full_url) return item.image_full_url;
+    if (item.image) return item.image;
+    if (item.image_thumb_url) return item.image_thumb_url;
+    return '';
+  };
+
+  const getBrandLogoThumbUri = (brand) => {
+    // Helper to turn any storage object URL into a square, contained CDN image
+    const toSquareCdn = (url) => {
+      if (!url) return '';
+      if (url.includes('/storage/v1/object/')) {
+        return url
+          .replace('/storage/v1/object/', '/storage/v1/render/image/')
+          .concat('?width=200&height=200&resize=contain&quality=80');
+      }
+      return url;
+    };
+
+    // Prefer an explicit full logo URL, but render it as a square contained image when possible
+    if (brand.logo_full_url) {
+      return toSquareCdn(brand.logo_full_url);
+    }
+
+    // Next, derive a square CDN-rendered image from the raw storage logo_url
+    if (brand.logo_url) {
+      return toSquareCdn(brand.logo_url);
+    }
+
+    // Fall back to any stored thumbnail URL
+    if (brand.logo_thumb_url) return brand.logo_thumb_url;
+
+    return '';
+  };
+
   const renderProduct = ({ item }) => {
     const inWishlist = wishlist.some((w) => w.id === item.id);
     const stats = ratingStats[item.id];
     const rating = stats?.avg ?? 0;
     const ratingCount = stats?.count ?? 0;
+    const isOutOfStock = Number(item.quantity) === 0;
 
     const currentPrice = Number(item.price) || 0;
     const flashPrice =
@@ -344,7 +410,13 @@ const HomeScreen = ({ navigation }) => {
         activeOpacity={0.9}
       >
         <View style={styles.productImageWrapper}>
-          <Image source={{ uri: item.image }} style={styles.productImage} resizeMode="cover" />
+          <Image
+            source={{ uri: getProductCardUri(item) }}
+            style={styles.productImage}
+            contentFit="cover"
+            cachePolicy="disk"
+            transition={200}
+          />
           <TouchableOpacity
             style={styles.wishlistIcon}
             onPress={(e) => {
@@ -368,6 +440,11 @@ const HomeScreen = ({ navigation }) => {
           {isFlashActive && (
             <View style={styles.flashBadge}>
               <Text style={styles.flashBadgeText}>Flash Sale</Text>
+            </View>
+          )}
+          {isOutOfStock && (
+            <View style={styles.outOfStockBadge}>
+              <Text style={styles.outOfStockBadgeText}>Out of stock</Text>
             </View>
           )}
         </View>
@@ -429,20 +506,94 @@ const HomeScreen = ({ navigation }) => {
 
   return (
     <SafeAreaView style={styles.container}>
+      <Modal
+        visible={categorySheetVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setCategorySheetVisible(false)}
+      >
+        <SafeAreaView style={styles.categoryModalOverlay}>
+          <Animated.View
+            style={[
+              styles.categoryModalContent,
+              {
+                transform: [
+                  {
+                    translateX: categorySlide.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [-windowWidth * 0.75, 0],
+                    }),
+                  },
+                ],
+              },
+            ]}
+          >
+            <Text style={styles.categoryModalTitle}>Categories</Text>
+            <ScrollView
+              showsVerticalScrollIndicator={false}
+              style={styles.categoryModalList}
+            >
+              {[
+                { id: 'all', label: 'All' },
+                { id: 'clothes', label: 'Clothes' },
+                { id: 'shoes', label: 'Shoes' },
+                { id: 'coats', label: 'Coats' },
+                { id: 'phones', label: 'Phones' },
+                { id: 'laptops', label: 'Laptops' },
+                { id: 'bags', label: 'Bags' },
+              ].map((cat) => {
+                const active = pendingCategory === cat.id;
+                return (
+                  <TouchableOpacity
+                    key={cat.id}
+                    style={[styles.categoryModalItem, active && styles.categoryModalItemActive]}
+                    onPress={() => setPendingCategory(cat.id)}
+                  >
+                    <Text
+                      style={[styles.categoryModalItemText, active && styles.categoryModalItemTextActive]}
+                    >
+                      {cat.label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+            <TouchableOpacity
+              style={styles.categoryModalApplyButton}
+              onPress={() => {
+                setSelectedCategory(pendingCategory);
+                setCategorySheetVisible(false);
+              }}
+            >
+              <Text style={styles.categoryModalApplyText}>Apply</Text>
+            </TouchableOpacity>
+          </Animated.View>
+          <TouchableOpacity
+            style={styles.categoryModalBackdrop}
+            activeOpacity={1}
+            onPress={() => setCategorySheetVisible(false)}
+          />
+        </SafeAreaView>
+      </Modal>
       <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false}>
-        {/* Top Bar */}
         <View style={styles.topBarRow}>
-          <TouchableOpacity style={styles.roundIconButton} activeOpacity={0.85}>
-            <View style={styles.menuLines}>
-              <View style={styles.menuLine} />
-              <View style={[styles.menuLine, styles.menuLineShort]} />
-            </View>
+          <TouchableOpacity
+            style={styles.categoryIconButton}
+            activeOpacity={0.85}
+            onPress={() => {
+              setPendingCategory(selectedCategory);
+              setCategorySheetVisible(true);
+            }}
+          >
+            <View style={styles.categoryIconInnerCircle} />
           </TouchableOpacity>
+
+          <Text style={styles.exploreTitleTop}>Explore</Text>
+
           <View style={styles.topBarActions}>
             <TouchableOpacity
               style={styles.roundIconButton}
               onPress={() => {
-                // Optimistically clear badge, NotificationsScreen will mark as read
                 setUnreadNotifications(0);
                 navigation.navigate('Notifications');
               }}
@@ -458,7 +609,7 @@ const HomeScreen = ({ navigation }) => {
                 )}
               </View>
             </TouchableOpacity>
-            <TouchableOpacity
+            {/* <TouchableOpacity
               style={styles.roundIconButton}
               onPress={() => navigation.navigate('Cart')}
               activeOpacity={0.85}
@@ -473,100 +624,146 @@ const HomeScreen = ({ navigation }) => {
                   </View>
                 )}
               </View>
-            </TouchableOpacity>
+            </TouchableOpacity> */}
           </View>
         </View>
 
-        {/* Greeting */}
-        <View style={styles.headerRow}>
+        {/* <View style={styles.headerRow}>
           <View>
-            <Text style={styles.helloTitle}>Hello</Text>
+            <Text style={styles.helloTitle}>
+              {userName ? `Hi, ${userName}` : 'Discover style'}
+            </Text>
             <Text style={styles.helloSubtitle}>
-              Welcome to Laza{userName ? `, ${userName}` : '.'}
+              Shop the latest drops and trending picks
             </Text>
           </View>
-          <TouchableOpacity
-            style={styles.avatarWrapper}
-            onPress={() => navigation.navigate('Profile')}
-          >
-            <Image
-              source={{
-                uri:
-                  authRole === 'brand' && brandLogoUrl
-                    ? brandLogoUrl
-                    : 'https://randomuser.me/api/portraits/men/32.jpg',
-              }}
-              style={styles.avatarImage}
-            />
-          </TouchableOpacity>
-        </View>
+        </View> */}
 
-        {/* Code Search */}
-        <View style={styles.codeSearchRow}>
-          <TextInput
-            style={styles.codeInput}
-            placeholder="Enter product code"
-            value={searchCode}
-            onChangeText={setSearchCode}
-            autoCapitalize="characters"
-          />
-          <TouchableOpacity style={styles.codeButton} onPress={handleFindByCode}>
-            <Text style={styles.codeButtonText}>Go</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Search Bar */}
-        <View style={styles.searchRow}>
-          <View style={styles.searchBar}>
-            <Search color="gray" size={20} />
-            <TextInput
-              placeholder="Search..."
-              style={styles.searchInput}
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-            />
+        <View style={styles.searchCard}>
+          <View style={styles.searchModeRow}>
+            <TouchableOpacity
+              style={[styles.searchModeChip, searchMode === 'text' && styles.searchModeChipActive]}
+              onPress={() => setSearchMode('text')}
+            >
+              <Text
+                style={[styles.searchModeText, searchMode === 'text' && styles.searchModeTextActive]}
+              >
+                Search
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.searchModeChip, searchMode === 'code' && styles.searchModeChipActive]}
+              onPress={() => setSearchMode('code')}
+            >
+              <Text
+                style={[styles.searchModeText, searchMode === 'code' && styles.searchModeTextActive]}
+              >
+                Product code
+              </Text>
+            </TouchableOpacity>
           </View>
-          <TouchableOpacity style={styles.micButton} activeOpacity={0.85}>
-            <Mic color="#ffffff" size={20} />
-          </TouchableOpacity>
+
+          <View style={styles.searchRow}>
+            <View style={styles.searchBar}>
+              <Search color="gray" size={20} />
+              <TextInput
+                placeholder={searchMode === 'code' ? 'Enter product code' : 'Search products'}
+                style={styles.searchInput}
+                value={searchMode === 'code' ? searchCode : searchQuery}
+                onChangeText={(text) => {
+                  if (searchMode === 'code') {
+                    setSearchCode(text);
+                  } else {
+                    setSearchQuery(text);
+                  }
+                }}
+                autoCapitalize={searchMode === 'code' ? 'characters' : 'none'}
+              />
+            </View>
+            <TouchableOpacity
+              style={styles.micButton}
+              activeOpacity={0.85}
+              onPress={() => {
+                if (searchMode === 'code') {
+                  handleFindByCode();
+                }
+              }}
+            >
+              <Search color="#ffffff" size={20} />
+            </TouchableOpacity>
+          </View>
+{/* 
+          <View style={styles.headerCategoriesRow}>
+            <TouchableOpacity
+              style={styles.headerCategoryButton}
+              onPress={() => navigation.navigate('AllProducts', { openCategories: true })}
+            >
+              <Text style={styles.headerCategoryText}>Categories</Text>
+            </TouchableOpacity>
+          </View> */}
         </View>
 
-        {/* Categories */}
-        <View style={{ marginBottom: 16 }}>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.categoriesRow}
-          >
-            {[
-              { id: 'all', label: 'All' },
-              { id: 'clothes', label: 'Clothes' },
-              { id: 'shoes', label: 'Shoes' },
-              { id: 'coats', label: 'Coats' },
-              { id: 'phones', label: 'Phones' },
-              { id: 'laptops', label: 'Laptops' },
-              { id: 'bags', label: 'Bags' },
-            ].map((cat) => {
-              const active = selectedCategory === cat.id;
-              return (
+        {trendingProducts.length > 0 && (
+          <View style={styles.trendingSection}>
+            <View style={styles.productsHeader}>
+              <Text style={styles.sectionTitle}>Trending products</Text>
+            </View>
+            <ScrollView
+              horizontal
+              pagingEnabled
+              showsHorizontalScrollIndicator={false}
+              onMomentumScrollEnd={(event) => {
+                const offsetX = event.nativeEvent.contentOffset.x;
+                const index = Math.round(offsetX / (windowWidth - 32));
+                setTrendingIndex(index);
+              }}
+            >
+              {trendingProducts.map((item, index) => (
                 <TouchableOpacity
-                  key={cat.id}
-                  onPress={() => setSelectedCategory(cat.id)}
-                  style={[styles.categoryChip, active && styles.categoryChipActive]}
+                  key={item.id || index}
+                  activeOpacity={0.9}
+                  style={[styles.trendingCard, { width: windowWidth - 32 }]}
+                  onPress={() => navigation.navigate('ProductDetails', { product: item })}
                 >
-                  <Text
-                    style={[styles.categoryChipText, active && styles.categoryChipTextActive]}
-                  >
-                    {cat.label}
-                  </Text>
+                  {item.image ? (
+                    <Image
+                      source={{ uri: getProductThumbUri(item) }}
+                      style={styles.trendingImageBackground}
+                      contentFit="cover"
+                      cachePolicy="disk"
+                      transition={250}
+                    />
+                  ) : null}
+                  <View style={styles.trendingGradientOverlay} />
+                  <View style={styles.trendingGradientBottom} />
+                  <View style={styles.trendingContent}>
+                    <Text style={styles.trendingTitle} numberOfLines={1}>
+                      New Collection
+                    </Text>
+                    <Text style={styles.trendingSubtitle} numberOfLines={2}>
+                      Hore U Adeego
+                    </Text>
+                    <TouchableOpacity
+                      style={styles.trendingButton}
+                      onPress={() => navigation.navigate('ProductDetails', { product: item })}
+                    >
+                      <Text style={styles.trendingButtonText}>Shop now</Text>
+                    </TouchableOpacity>
+                  </View>
                 </TouchableOpacity>
-              );
-            })}
-          </ScrollView>
-        </View>
+              ))}
+            </ScrollView>
+            <View style={styles.trendingDotsRow}>
+              {trendingProducts.map((_, index) => {
+                const active = index === trendingIndex;
+                return <View key={index} style={[styles.trendingDot, active && styles.trendingDotActive]} />;
+              })}
+            </View>
+          </View>
+        )}
 
         {/* Audience Filters */}
-        <View style={{ marginBottom: 24 }}>
+        {/* <View style={{ marginBottom: 24 }}>
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
@@ -594,7 +791,7 @@ const HomeScreen = ({ navigation }) => {
               );
             })}
           </ScrollView>
-        </View>
+        </View> */}
 
         {/* Your products - only visible for brand users */}
         {(userType === 'brand' || authRole === 'brand') && myBrandProducts.length > 0 && (
@@ -603,8 +800,8 @@ const HomeScreen = ({ navigation }) => {
               <Text style={styles.sectionTitle}>Your Products</Text>
             </View>
             <View style={styles.productsGrid}>
-              {myBrandProducts.map((item) => (
-                <View key={item.id} style={styles.productWrapper}>
+              {myBrandProducts.map((item, index) => (
+                <View key={`${item.id}-${index}`} style={styles.productWrapper}>
                   {renderProduct({ item })}
                 </View>
               ))}
@@ -612,14 +809,13 @@ const HomeScreen = ({ navigation }) => {
           </>
         )}
 
-        {/* Brands - only visible for normal customers (not brand, not admin) */}
         {userType !== 'brand' && authRole !== 'admin' && brands.length > 0 && (
           <>
             <View style={styles.productsHeader}>
-              <Text style={styles.sectionTitle}>Choose Brand</Text>
+              <Text style={styles.sectionTitle}>Top brands</Text>
               {brands.length > 8 && (
                 <TouchableOpacity onPress={() => navigation.navigate('AllBrands')}>
-                  <Text style={styles.seeAllText}>View All</Text>
+                  <Text style={styles.seeAllText}>See all</Text>
                 </TouchableOpacity>
               )}
             </View>
@@ -629,9 +825,9 @@ const HomeScreen = ({ navigation }) => {
               style={styles.brandsScroll}
               contentContainerStyle={styles.brandsRow}
             >
-              {brands.slice(0, 8).map((brand) => (
+              {brands.slice(0, 8).map((brand, index) => (
                 <TouchableOpacity
-                  key={brand.id}
+                  key={`${brand.id}-${index}`}
                   style={styles.brandItem}
                   onPress={() => navigation.navigate('Brand', { brandId: brand.id, brand })}
                 >
@@ -643,12 +839,14 @@ const HomeScreen = ({ navigation }) => {
                       <Image
                         source={{
                           uri:
-                            brand.logo_url ||
+                            getBrandLogoThumbUri(brand) ||
                             (authRole === 'brand' && brand.user_id === authUserId && brandLogoUrl) ||
                             '',
                         }}
                         style={styles.brandLogo}
-                        resizeMode="contain"
+                        contentFit="contain"
+                        cachePolicy="disk"
+                        transition={200}
                       />
                     ) : (
                       <Text style={styles.brandIconText}>
@@ -663,19 +861,51 @@ const HomeScreen = ({ navigation }) => {
           </>
         )}
 
-        {/* Products Grid - hidden for brand users */}
         {userType !== 'brand' && authRole !== 'brand' && (
           <>
             <View style={styles.productsHeader}>
-              <Text style={styles.sectionTitle}>New Arrivals</Text>
+              <Text style={styles.sectionTitle}>Popular products</Text>
               <TouchableOpacity onPress={() => navigation.navigate('AllProducts')}>
                 <Text style={styles.seeAllText}>See All</Text>
               </TouchableOpacity>
             </View>
 
+            <View style={{ marginBottom: 16 }}>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.categoriesRow}
+              >
+                {[
+                  { id: 'all', label: 'All' },
+                  { id: 'clothes', label: 'Clothes' },
+                  { id: 'shoes', label: 'Shoes' },
+                  { id: 'coats', label: 'Coats' },
+                  { id: 'phones', label: 'Phones' },
+                  { id: 'laptops', label: 'Laptops' },
+                  { id: 'bags', label: 'Bags' },
+                ].map((cat) => {
+                  const active = selectedCategory === cat.id;
+                  return (
+                    <TouchableOpacity
+                      key={cat.id}
+                      onPress={() => setSelectedCategory(cat.id)}
+                      style={[styles.categoryChip, active && styles.categoryChipActive]}
+                    >
+                      <Text
+                        style={[styles.categoryChipText, active && styles.categoryChipTextActive]}
+                      >
+                        {cat.label}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+            </View>
+
             <View style={styles.productsGrid}>
-              {filteredProducts.map((item) => (
-                <View key={item.id} style={styles.productWrapper}>
+              {filteredProducts.map((item, index) => (
+                <View key={`${item.id}-${index}`} style={styles.productWrapper}>
                   {renderProduct({ item })}
                 </View>
               ))}
@@ -879,9 +1109,12 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     elevation: 3,
   },
+  // Inner logo circle used in Top brands row (slightly smaller than outer to create ring)
   brandLogo: {
-    width: 40,
-    height: 40,
+    width: 54,
+    height: 54,
+    borderRadius: 27,
+    backgroundColor: '#ffffff',
   },
   searchInput: {
     flex: 1,
@@ -905,22 +1138,20 @@ const styles = StyleSheet.create({
     marginRight: 12,
     alignItems: 'center',
   },
+  // Outer dark circle behind brand logos in Top brands row (creates the ring effect)
   brandIconWrapper: {
-    minWidth: 72,
-    paddingHorizontal: 14,
-    height: 40,
-    backgroundColor: '#ffffff',
-    borderRadius: 999,
+    width: 72,
+    height: 72,
+    backgroundColor: '#111827',
+    borderRadius: 36,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: '#f3f4f6',
     marginBottom: 8,
     shadowColor: '#000',
-    shadowOpacity: 0.06,
+    shadowOpacity: 0.08,
     shadowRadius: 4,
     shadowOffset: { width: 0, height: 2 },
-    elevation: 1,
+    elevation: 2,
   },
   brandIconText: {
     fontWeight: '700',
@@ -968,7 +1199,7 @@ const styles = StyleSheet.create({
   productImageWrapper: {
     height: 190,
     width: '100%',
-    backgroundColor: '#f3f4f6',
+    backgroundColor: '#ffffff',
     borderRadius: 18,
     overflow: 'hidden',
     marginBottom: 10,
@@ -989,9 +1220,25 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     textTransform: 'uppercase',
   },
+  outOfStockBadge: {
+    position: 'absolute',
+    bottom: 8,
+    left: 8,
+    backgroundColor: 'rgba(17,24,39,0.9)',
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  outOfStockBadgeText: {
+    color: '#F9FAFB',
+    fontSize: 10,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+  },
   productImage: {
     width: '100%',
     height: '100%',
+    resizeMode: 'contain',
   },
   wishlistIcon: {
     position: 'absolute',
@@ -1100,5 +1347,218 @@ const styles = StyleSheet.create({
   },
   bottomSpacer: {
     height: 80,
+  },
+  categoryIconButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#ffffff',
+    shadowColor: '#000',
+    shadowOpacity: 0.04,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 1,
+  },
+  categoryIconInnerCircle: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    borderWidth: 2,
+    borderColor: '#111827',
+  },
+  categoryModalOverlay: {
+    flex: 1,
+    flexDirection: 'row',
+    backgroundColor: 'rgba(0,0,0,0.3)',
+  },
+  categoryModalBackdrop: {
+    flex: 1,
+  },
+  categoryModalContent: {
+    width: '75%',
+    backgroundColor: '#ffffff',
+    paddingHorizontal: 16,
+    paddingTop: 20,
+    paddingBottom: 16,
+    borderTopRightRadius: 0,
+    borderBottomRightRadius: 0,
+  },
+  categoryModalTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    marginBottom: 12,
+    color: '#111827',
+  },
+  categoryModalList: {
+    flexGrow: 0,
+    maxHeight: 300,
+    marginBottom: 16,
+  },
+  categoryModalItem: {
+    paddingVertical: 10,
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    marginBottom: 8,
+    backgroundColor: '#F3F4F6',
+  },
+  categoryModalItemActive: {
+    backgroundColor: '#111827',
+  },
+  categoryModalItemText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#4B5563',
+  },
+  categoryModalItemTextActive: {
+    color: '#ffffff',
+  },
+  categoryModalApplyButton: {
+    paddingVertical: 12,
+    borderRadius: 999,
+    backgroundColor: '#111827',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  categoryModalApplyText: {
+    color: '#ffffff',
+    fontWeight: '700',
+    fontSize: 15,
+  },
+  exploreTitleTop: {
+    fontSize: 23,
+    fontWeight: '700',
+    color: '#111827',
+  },
+  searchCard: {
+    backgroundColor: '#ffffff',
+    borderRadius: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    marginBottom: 20,
+    marginTop: 22,
+    shadowColor: '#000',
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 2,
+  },
+  searchModeRow: {
+    flexDirection: 'row',
+    marginBottom: 12,
+  },
+  searchModeChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: '#f3f4f6',
+    marginRight: 8,
+  },
+  searchModeChipActive: {
+    backgroundColor: '#111827',
+  },
+  searchModeText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#6b7280',
+  },
+  searchModeTextActive: {
+    color: '#ffffff',
+  },
+  headerCategoriesRow: {
+    marginTop: 12,
+    flexDirection: 'row',
+    justifyContent: 'flex-start',
+  },
+  headerCategoryButton: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 999,
+    backgroundColor: '#f3f4f6',
+  },
+  headerCategoryText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#4b5563',
+   
+  },
+  trendingSection: {
+    marginBottom: 24,
+  },
+  trendingCard: {
+    backgroundColor: '#7C3AED',
+    borderRadius: 24,
+    marginRight: 12,
+    overflow: 'hidden',
+    shadowColor: '#7C3AED',
+    shadowOpacity: 0.28,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 5,
+    height: 190,
+  },
+  trendingImageBackground: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
+  trendingGradientOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(17,24,39,0.6)',
+  },
+  
+  trendingContent: {
+    flex: 1,
+    paddingHorizontal: 20,
+    paddingVertical: 18,
+    justifyContent: 'flex-end',
+  },
+  trendingTitle: {
+    color: '#ffffff',
+    fontSize: 18,
+    fontWeight: '700',
+    marginBottom: 6,
+  },
+  trendingSubtitle: {
+    color: '#E5E7EB',
+    fontSize: 13,
+    marginBottom: 14,
+  },
+  trendingButton: {
+    alignSelf: 'flex-start',
+    paddingHorizontal: 18,
+    paddingVertical: 9,
+    borderRadius: 999,
+    backgroundColor: 'rgba(255,255,255,0.96)',
+  },
+  trendingButtonText: {
+    color: '#4B5563',
+    fontWeight: '700',
+    fontSize: 13,
+  },
+  // trendingImageWrapper and trendingImage are no longer used in the new full-background layout
+  trendingDotsRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    marginTop: 8,
+  },
+  trendingDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#E5E7EB',
+    marginHorizontal: 3,
+  },
+  trendingDotActive: {
+    backgroundColor: '#7C3AED',
   },
 });

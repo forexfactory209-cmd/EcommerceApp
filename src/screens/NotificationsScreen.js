@@ -9,9 +9,10 @@ import {
   TouchableOpacity, 
   ActivityIndicator, 
   RefreshControl,
-  SafeAreaView,
   Image
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+
 import { useNavigation } from '@react-navigation/native';
 import { ArrowLeft, Bell, BellOff, Check } from 'lucide-react-native';
 import { useStore } from '../store/store';
@@ -117,71 +118,92 @@ const NotificationsScreen = () => {
     fetchNotifications();
   }, []);
 
-  const formatDate = (dateString) => {
+  const formatTime = (dateString) => {
     const date = new Date(dateString);
-    const now = new Date();
-    const diffInHours = (now - date) / (1000 * 60 * 60);
-    
-    if (diffInHours < 24) {
-      return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    } else if (diffInHours < 48) {
-      return 'Yesterday';
-    } else {
-      return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
-    }
+    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
 
-  const renderItem = ({ item }) => (
-    <TouchableOpacity
-      activeOpacity={0.8}
-      onPress={() => handleNotificationPress(item)}
-      style={[
-        styles.notificationItem,
-        !item.is_read && styles.unreadNotification,
-      ]}
-    >
-      <View style={styles.notificationHeader}>
-        {item.brands?.logo_url ? (
-          <Image 
-            source={{ uri: item.brands.logo_url }} 
-            style={styles.brandLogo} 
-          />
-        ) : (
-          <View style={styles.brandInitial}>
-            <Text style={styles.brandInitialText}>
-              {item.brands?.name?.charAt(0) || 'B'}
-            </Text>
-          </View>
-        )}
-        <View style={styles.notificationContent}>
-          <Text style={styles.notificationTitle}>{item.title}</Text>
-          <Text style={styles.notificationMessage}>{item.message}</Text>
-          <View style={styles.notificationFooter}>
-            <Text style={styles.notificationTime}>
-              {formatDate(item.created_at)}
-            </Text>
-            {!item.is_read && (
-              <TouchableOpacity 
-                style={styles.markAsReadButton}
-                onPress={() => markAsRead(item.id)}
-              >
-                <Check size={14} color="#007AFF" />
-                <Text style={styles.markAsReadText}>Mark as read</Text>
-              </TouchableOpacity>
-            )}
-          </View>
-        </View>
-      </View>
-    </TouchableOpacity>
-  );
+  const getSectionLabel = (dateString) => {
+    const date = new Date(dateString);
+    const now = new Date();
+
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const startOfYesterday = new Date(startOfToday);
+    startOfYesterday.setDate(startOfYesterday.getDate() - 1);
+
+    const startOfGiven = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+
+    if (startOfGiven.getTime() === startOfToday.getTime()) {
+      return 'Today';
+    }
+    if (startOfGiven.getTime() === startOfYesterday.getTime()) {
+      return 'Yesterday';
+    }
+
+    return date.toLocaleDateString([], {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+    });
+  };
 
   const visibleNotifications = notifications;
 
+  const renderItem = ({ item, index }) => {
+    const currentSection = getSectionLabel(item.created_at);
+    const prevItem = index > 0 ? visibleNotifications[index - 1] : null;
+    const prevSection = prevItem ? getSectionLabel(prevItem.created_at) : null;
+    const showSectionHeader = index === 0 || currentSection !== prevSection;
+
+    return (
+      <View style={styles.itemWrapper}>
+        {showSectionHeader && (
+          <Text style={styles.sectionHeader}>{currentSection}</Text>
+        )}
+
+        <TouchableOpacity
+          activeOpacity={0.8}
+          onPress={() => handleNotificationPress(item)}
+          style={[
+            styles.notificationItem,
+            !item.is_read && styles.unreadNotification,
+          ]}
+        >
+          <View style={styles.notificationHeader}>
+            <View style={styles.iconCircle}>
+              {item.brands?.logo_url ? (
+                <Image
+                  source={{ uri: item.brands.logo_url }}
+                  style={styles.iconImage}
+                />
+              ) : (
+                <Text style={styles.iconInitial}>
+                  {item.brands?.name?.charAt(0)?.toUpperCase() || 'B'}
+                </Text>
+              )}
+            </View>
+
+            <View style={styles.notificationContent}>
+              <Text style={styles.notificationTitle}>{item.title}</Text>
+              <Text style={styles.notificationMessage}>{item.message}</Text>
+              <View style={styles.notificationFooter}>
+                <Text style={styles.notificationTime}>
+                  {formatTime(item.created_at)}
+                </Text>
+                {!item.is_read && <View style={styles.unreadDot} />}
+              </View>
+            </View>
+          </View>
+        </TouchableOpacity>
+      </View>
+    );
+  };
+
   if (loading) {
     return (
-      <View style={styles.loadingContainer}>
+      <SafeAreaView style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#007AFF" />
-      </View>
+      </SafeAreaView>
     );
   }
 
@@ -238,20 +260,19 @@ const NotificationsScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#F4F4F5',
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#F4F4F5',
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F0F0F0',
+    borderBottomWidth: 0,
     backgroundColor: '#FFFFFF',
   },
   backButton: {
@@ -277,47 +298,53 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   listContent: {
-    padding: 16,
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    paddingBottom: 24,
+  },
+  itemWrapper: {
+    marginBottom: 8,
+  },
+  sectionHeader: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#9CA3AF',
+    marginTop: 16,
+    marginBottom: 8,
   },
   notificationItem: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
+    borderRadius: 20,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    marginBottom: 4,
   },
   unreadNotification: {
-    backgroundColor: '#F8FAFF',
-    borderLeftWidth: 4,
-    borderLeftColor: '#007AFF',
+    backgroundColor: '#F9FAFB',
   },
   notificationHeader: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
+    alignItems: 'center',
   },
-  brandLogo: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    marginRight: 12,
-  },
-  brandInitial: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#F0F0F0',
+  iconCircle: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#111111',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
   },
-  brandInitialText: {
+  iconImage: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    resizeMode: 'cover',
+  },
+  iconInitial: {
+    color: '#FFFFFF',
     fontSize: 18,
-    fontWeight: '600',
-    color: '#666666',
+    fontWeight: '700',
   },
   notificationContent: {
     flex: 1,
@@ -325,12 +352,12 @@ const styles = StyleSheet.create({
   notificationTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#1A1A1A',
+    color: '#111111',
     marginBottom: 4,
   },
   notificationMessage: {
     fontSize: 14,
-    color: '#666666',
+    color: '#6B7280',
     marginBottom: 8,
     lineHeight: 20,
   },
@@ -341,17 +368,13 @@ const styles = StyleSheet.create({
   },
   notificationTime: {
     fontSize: 12,
-    color: '#999999',
+    color: '#9CA3AF',
   },
-  markAsReadButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  markAsReadText: {
-    color: '#007AFF',
-    fontSize: 12,
-    marginLeft: 4,
-    fontWeight: '500',
+  unreadDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#111111',
   },
   emptyContainer: {
     flex: 1,

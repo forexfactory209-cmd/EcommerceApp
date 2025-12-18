@@ -1,5 +1,6 @@
 import React, { useCallback, useMemo, useRef, useState } from 'react';
-import { View, Text, Image, TouchableOpacity, ScrollView, StyleSheet, Dimensions, Alert, ActivityIndicator, TextInput, Modal } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Dimensions, Alert, ActivityIndicator, TextInput, Modal } from 'react-native';
+import { Image } from 'expo-image';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ArrowLeft, ShoppingCart, Heart, Star } from 'lucide-react-native';
 import { useStore } from '../store/store';
@@ -73,13 +74,24 @@ const ProductDetailsScreen = ({ route, navigation }) => {
   };
 
   const images = useMemo(() => {
+    // Start from any explicit images array saved on the product
+    let list = [];
+
     if (Array.isArray(product.images) && product.images.length > 0) {
-      return product.images;
+      list = product.images.filter(Boolean);
+    } else if (product.image_full_url) {
+      list = [product.image_full_url];
+    } else if (product.image) {
+      list = [product.image];
     }
-    if (product.image) {
-      return [product.image];
+
+    // Ensure the primary full image URL (if any) is first in the list
+    if (product.image_full_url) {
+      const primary = product.image_full_url;
+      list = [primary, ...list.filter((uri) => uri && uri !== primary)];
     }
-    return [];
+
+    return list;
   }, [product]);
 
   const colors = Array.isArray(product.colors) ? product.colors : [];
@@ -128,6 +140,7 @@ const ProductDetailsScreen = ({ route, navigation }) => {
   const [submittingQuestion, setSubmittingQuestion] = useState(false);
   const [submittingAnswerIds, setSubmittingAnswerIds] = useState({});
   const [showAllSimilar, setShowAllSimilar] = useState(false);
+  const [activeInfoTab, setActiveInfoTab] = useState('description'); // 'description' | 'reviews'
 
   const currentPrice = Number(product.price) || 0;
   const flashPriceRaw =
@@ -338,7 +351,9 @@ const ProductDetailsScreen = ({ route, navigation }) => {
             <Image
               source={{ uri: images[selectedImageIndex] }}
               style={styles.headerImage}
-              resizeMode="cover"
+              contentFit="cover"
+              cachePolicy="disk"
+              transition={250}
             />
           </View>
         )}
@@ -462,14 +477,14 @@ const ProductDetailsScreen = ({ route, navigation }) => {
                   <Image
                     source={{ uri }}
                     style={styles.thumbImage}
-                    resizeMode="cover"
+                    contentFit="cover"
+                    cachePolicy="disk"
+                    transition={200}
                   />
                 </TouchableOpacity>
               ))}
             </ScrollView>
           )}
-
-          <Text style={styles.description}>{product.description}</Text>
 
           {product.code ? (
             <View style={styles.section}>
@@ -494,7 +509,6 @@ const ProductDetailsScreen = ({ route, navigation }) => {
             <View style={styles.sellerRow}>
               <View>
                 <Text style={styles.sectionLabel}>Seller</Text>
-                <Text style={styles.sellerValue}>{product.brand || 'Store'}</Text>
               </View>
               {product.brand ? (
                 <TouchableOpacity
@@ -596,247 +610,293 @@ const ProductDetailsScreen = ({ route, navigation }) => {
               ))}
             </View>
           )}
-
-          <View style={styles.section}>
-            <View style={styles.reviewsHeaderRow}>
-              <View>
-                <Text style={styles.sectionLabel}>Reviews</Text>
-                <Text style={styles.reviewsSummaryText}>
-                  {ratingCount} Reviews · {avgRating != null ? avgRating.toFixed(1) : '0.0'} ★
-                </Text>
-              </View>
+          
+          {/* Info tabs: Description / Reviews */}
+          <View style={styles.infoTabsSection}>
+            <View style={styles.infoTabsHeaderRow}>
               <TouchableOpacity
-                style={styles.seeAllButton}
-                onPress={() =>
-                  navigation.navigate('ProductReviews', {
-                    productId: product.id,
-                    productName: product.name,
-                  })
-                }
+                style={[
+                  styles.infoTabButton,
+                  activeInfoTab === 'description' && styles.infoTabButtonActive,
+                ]}
+                onPress={() => setActiveInfoTab('description')}
               >
-                <Text style={styles.seeAllButtonText}>See all</Text>
+                <Text
+                  style={[
+                    styles.infoTabLabel,
+                    activeInfoTab === 'description' && styles.infoTabLabelActive,
+                  ]}
+                >
+                  Description
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.infoTabButton,
+                  activeInfoTab === 'reviews' && styles.infoTabButtonActive,
+                ]}
+                onPress={() => setActiveInfoTab('reviews')}
+              >
+                <Text
+                  style={[
+                    styles.infoTabLabel,
+                    activeInfoTab === 'reviews' && styles.infoTabLabelActive,
+                  ]}
+                >
+                  Reviews
+                </Text>
               </TouchableOpacity>
             </View>
 
-            {reviewsLoading && featuredReviews.length === 0 ? (
-              <ActivityIndicator style={{ marginTop: 12 }} />
-            ) : null}
-
-            {featuredReviews.slice(0, 3).map((review) => (
-              <View key={review.id} style={styles.reviewPreviewRow}>
-                <View style={styles.reviewAvatarCircle}>
-                  <Text style={styles.reviewAvatarInitial}>
-                    {(review.user_display_name || 'C').charAt(0).toUpperCase()}
-                  </Text>
-                </View>
-                <View style={styles.reviewPreviewContent}>
-                  <View style={styles.reviewPreviewHeaderRow}>
-                    <Text style={styles.reviewUserName} numberOfLines={1}>
-                      {review.user_display_name || 'Customer'}
-                    </Text>
-                    <View style={styles.reviewPreviewRatingBlock}>
-                      <Text style={styles.reviewPreviewRatingValue}>
-                        {review.rating.toFixed(1)}
-                      </Text>
-                      <Text style={styles.reviewPreviewRatingLabel}> rating</Text>
-                    </View>
-                  </View>
-                  <View style={styles.reviewMetaRow}>
-                    <Text style={styles.reviewDateText}>
-                      {formatTimeAgo(review.created_at)}
-                    </Text>
-                  </View>
-                  <View style={styles.reviewStarsRowStatic}>
-                    {[1, 2, 3, 4, 5].map((star) => (
-                      <Star
-                        key={star}
-                        size={14}
-                        color={review.rating >= star ? '#FBBF24' : '#D1D5DB'}
-                        fill={review.rating >= star ? '#FBBF24' : 'transparent'}
-                      />
-                    ))}
-                  </View>
-                  <Text style={styles.reviewPreviewText} numberOfLines={2}>
-                    {review.text}
-                  </Text>
-                </View>
+            {activeInfoTab === 'description' ? (
+              <View style={styles.infoTabBody}>
+                <Text style={styles.description}>{product.description}</Text>
               </View>
-            ))}
-          </View>
-
-          <View style={styles.section}>
-            <Text style={styles.sectionLabel}>Questions & Answers</Text>
-
-            {!isAdminUser && authUserId && (
-              <View style={styles.qaForm}>
-                <TextInput
-                  style={styles.textArea}
-                  placeholder="Ask about size, material, delivery..."
-                  value={questionText}
-                  onChangeText={setQuestionText}
-                  multiline
-                />
-                <TouchableOpacity
-                  style={styles.submitButton}
-                  disabled={submittingQuestion || !questionText}
-                  onPress={async () => {
-                    try {
-                      setSubmittingQuestion(true);
-                      const deviceLang =
-                        typeof Intl !== 'undefined' && Intl.DateTimeFormat
-                          ? Intl.DateTimeFormat().resolvedOptions().locale
-                          : null;
-                      await createProductQuestion({
-                        productId: product.id,
-                        userId: authUserId,
-                        text: questionText,
-                        countryCode: null,
-                        deviceLang,
-                      });
-                      setQuestionText('');
-                      loadQuestions(true);
-                    } catch (e) {
-                      Alert.alert('Error', 'Failed to submit question.');
-                    } finally {
-                      setSubmittingQuestion(false);
-                    }
-                  }}
-                >
-                  {submittingQuestion ? (
-                    <ActivityIndicator color="#ffffff" />
-                  ) : (
-                    <Text style={styles.submitButtonText}>Ask question</Text>
-                  )}
-                </TouchableOpacity>
-              </View>
-            )}
-
-            {questionsLoading && questions.length === 0 ? (
-              <ActivityIndicator style={{ marginTop: 12 }} />
-            ) : null}
-
-            {questions.map((q) => {
-              const answers = answersMap[q.id] || [];
-              const brandAnswers = answers.filter((a) => a.is_brand_owner);
-              const otherAnswers = answers.filter((a) => !a.is_brand_owner);
-              return (
-                <View key={q.id} style={styles.questionCard}>
-                  <View style={styles.questionHeaderRow}>
+            ) : (
+              <View style={styles.infoTabBody}>
+                <View style={styles.section}>
+                  <View style={styles.reviewsHeaderRow}>
                     <View>
-                      <Text style={styles.reviewUserName}>{userName || 'Customer'}</Text>
-                      <View style={styles.reviewMetaRow}>
-                        <Text style={styles.reviewDateText}>
-                          {formatTimeAgo(q.created_at)}
-                        </Text>
-                        {q.country_code ? (
-                          <View style={styles.countryBadge}>
-                            <Text style={styles.countryBadgeText}>{q.country_code}</Text>
-                          </View>
-                        ) : null}
-                      </View>
+                      <Text style={styles.sectionLabel}>Reviews</Text>
+                      <Text style={styles.reviewsSummaryText}>
+                        {ratingCount} Reviews · {avgRating != null ? avgRating.toFixed(1) : '0.0'} ★
+                      </Text>
                     </View>
+                    <TouchableOpacity
+                      style={styles.seeAllButton}
+                      onPress={() =>
+                        navigation.navigate('ProductReviews', {
+                          productId: product.id,
+                          productName: product.name,
+                        })
+                      }
+                    >
+                      <Text style={styles.seeAllButtonText}>See all</Text>
+                    </TouchableOpacity>
                   </View>
-                  <Text style={styles.questionText}>{q.text}</Text>
 
-                  {brandAnswers.map((a) => (
-                    <View key={a.id} style={styles.brandReplyBubble}>
-                      <View style={styles.replyHeaderRow}>
-                        <Text style={styles.replyUserName}>Brand Owner</Text>
-                        <View style={styles.brandBadge}>
-                          <Text style={styles.brandBadgeText}>Brand Owner</Text>
+                  {reviewsLoading && featuredReviews.length === 0 ? (
+                    <ActivityIndicator style={{ marginTop: 12 }} />
+                  ) : null}
+
+                  {featuredReviews.slice(0, 3).map((review) => (
+                    <View key={review.id} style={styles.reviewPreviewRow}>
+                      <View style={styles.reviewAvatarCircle}>
+                        <Text style={styles.reviewAvatarInitial}>
+                          {(review.user_display_name || 'C').charAt(0).toUpperCase()}
+                        </Text>
+                      </View>
+                      <View style={styles.reviewPreviewContent}>
+                        <View style={styles.reviewPreviewHeaderRow}>
+                          <Text style={styles.reviewUserName} numberOfLines={1}>
+                            {review.user_display_name || 'Customer'}
+                          </Text>
+                          <View style={styles.reviewPreviewRatingBlock}>
+                            <Text style={styles.reviewPreviewRatingValue}>
+                              {review.rating.toFixed(1)}
+                            </Text>
+                            <Text style={styles.reviewPreviewRatingLabel}> rating</Text>
+                          </View>
                         </View>
+                        <View style={styles.reviewMetaRow}>
+                          <Text style={styles.reviewDateText}>
+                            {formatTimeAgo(review.created_at)}
+                          </Text>
+                        </View>
+                        <View style={styles.reviewStarsRowStatic}>
+                          {[1, 2, 3, 4, 5].map((star) => (
+                            <Star
+                              key={star}
+                              size={14}
+                              color={review.rating >= star ? '#FBBF24' : '#D1D5DB'}
+                              fill={review.rating >= star ? '#FBBF24' : 'transparent'}
+                            />
+                          ))}
+                        </View>
+                        <Text style={styles.reviewPreviewText} numberOfLines={2}>
+                          {review.text}
+                        </Text>
                       </View>
-                      <Text style={styles.replyText}>{a.text}</Text>
-                      <Text style={styles.replyDateText}>
-                        {formatTimeAgo(a.created_at)}
-                      </Text>
                     </View>
                   ))}
+                </View>
 
-                  {otherAnswers.map((a) => (
-                    <View key={a.id} style={styles.userReplyBubble}>
-                      <View style={styles.replyHeaderRow}>
-                        <Text style={styles.replyUserName}>User</Text>
-                      </View>
-                      <Text style={styles.replyText}>{a.text}</Text>
-                      <Text style={styles.replyDateText}>
-                        {formatTimeAgo(a.created_at)}
-                      </Text>
-                    </View>
-                  ))}
+                <View style={styles.section}>
+                  <Text style={styles.sectionLabel}>Questions & Answers</Text>
 
-                  {authUserId && (
-                    <View style={styles.replyFormRow}>
+                  {!isAdminUser && authUserId && (
+                    <View style={styles.qaForm}>
                       <TextInput
-                        style={styles.textInput}
-                        placeholder={
-                          ownsProduct && (isBrandUser || isAdminUser)
-                            ? 'Answer as brand owner...'
-                            : 'Add an answer...'
-                        }
-                        value={answerDrafts[q.id] || ''}
-                        onChangeText={(text) =>
-                          setAnswerDrafts((prev) => ({ ...prev, [q.id]: text }))
-                        }
+                        style={styles.textArea}
+                        placeholder="Ask about size, material, delivery..."
+                        value={questionText}
+                        onChangeText={setQuestionText}
+                        multiline
                       />
                       <TouchableOpacity
-                        style={styles.smallSubmitButton}
+                        style={styles.submitButton}
+                        disabled={submittingQuestion || !questionText}
                         onPress={async () => {
-                          const text = answerDrafts[q.id];
-                          if (!text) return;
                           try {
-                            setSubmittingAnswerIds((prev) => ({
-                              ...prev,
-                              [q.id]: true,
-                            }));
-                            const created = await createProductAnswer({
-                              questionId: q.id,
+                            setSubmittingQuestion(true);
+                            const deviceLang =
+                              typeof Intl !== 'undefined' && Intl.DateTimeFormat
+                                ? Intl.DateTimeFormat().resolvedOptions().locale
+                                : null;
+                            await createProductQuestion({
+                              productId: product.id,
                               userId: authUserId,
-                              text,
-                              isBrandOwner: ownsProduct && (isBrandUser || isAdminUser),
+                              text: questionText,
+                              countryCode: null,
+                              deviceLang,
                             });
-                            setAnswersMap((prev) => ({
-                              ...prev,
-                              [q.id]: [...(prev[q.id] || []), created],
-                            }));
-                            setAnswerDrafts((prev) => ({ ...prev, [q.id]: '' }));
+                            setQuestionText('');
+                            loadQuestions(true);
                           } catch (e) {
-                            Alert.alert('Error', 'Failed to submit answer.');
+                            Alert.alert('Error', 'Failed to submit question.');
                           } finally {
-                            setSubmittingAnswerIds((prev) => ({
-                              ...prev,
-                              [q.id]: false,
-                            }));
+                            setSubmittingQuestion(false);
                           }
                         }}
                       >
-                        {submittingAnswerIds[q.id] ? (
+                        {submittingQuestion ? (
                           <ActivityIndicator color="#ffffff" />
                         ) : (
-                          <Text style={styles.smallSubmitButtonText}>Send</Text>
+                          <Text style={styles.submitButtonText}>Ask question</Text>
                         )}
                       </TouchableOpacity>
                     </View>
                   )}
-                </View>
-              );
-            })}
 
-            {questionsHasMore && !questionsLoading ? (
-              <TouchableOpacity
-                style={styles.loadMoreButton}
-                onPress={() => loadQuestions(false)}
-              >
-                <Text style={styles.loadMoreButtonText}>Load more questions</Text>
-              </TouchableOpacity>
-            ) : null}
+                  {questionsLoading && questions.length === 0 ? (
+                    <ActivityIndicator style={{ marginTop: 12 }} />
+                  ) : null}
+
+                  {questions.map((q) => {
+                    const answers = answersMap[q.id] || [];
+                    const brandAnswers = answers.filter((a) => a.is_brand_owner);
+                    const otherAnswers = answers.filter((a) => !a.is_brand_owner);
+                    return (
+                      <View key={q.id} style={styles.questionCard}>
+                        <View style={styles.questionHeaderRow}>
+                          <View>
+                            <Text style={styles.reviewUserName}>{userName || 'Customer'}</Text>
+                            <View style={styles.reviewMetaRow}>
+                              <Text style={styles.reviewDateText}>
+                                {formatTimeAgo(q.created_at)}
+                              </Text>
+                              {q.country_code ? (
+                                <View style={styles.countryBadge}>
+                                  <Text style={styles.countryBadgeText}>{q.country_code}</Text>
+                                </View>
+                              ) : null}
+                            </View>
+                          </View>
+                        </View>
+                        <Text style={styles.questionText}>{q.text}</Text>
+
+                        {brandAnswers.map((a) => (
+                          <View key={a.id} style={styles.brandReplyBubble}>
+                            <View style={styles.replyHeaderRow}>
+                              <Text style={styles.replyUserName}>Brand Owner</Text>
+                              <View style={styles.brandBadge}>
+                                <Text style={styles.brandBadgeText}>Brand Owner</Text>
+                              </View>
+                            </View>
+                            <Text style={styles.replyText}>{a.text}</Text>
+                            <Text style={styles.replyDateText}>
+                              {formatTimeAgo(a.created_at)}
+                            </Text>
+                          </View>
+                        ))}
+
+                        {otherAnswers.map((a) => (
+                          <View key={a.id} style={styles.userReplyBubble}>
+                            <View style={styles.replyHeaderRow}>
+                              <Text style={styles.replyUserName}>User</Text>
+                            </View>
+                            <Text style={styles.replyText}>{a.text}</Text>
+                            <Text style={styles.replyDateText}>
+                              {formatTimeAgo(a.created_at)}
+                            </Text>
+                          </View>
+                        ))}
+
+                        {authUserId && (
+                          <View style={styles.replyFormRow}>
+                            <TextInput
+                              style={styles.textInput}
+                              placeholder={
+                                ownsProduct && (isBrandUser || isAdminUser)
+                                  ? 'Answer as brand owner...'
+                                  : 'Add an answer...'
+                              }
+                              value={answerDrafts[q.id] || ''}
+                              onChangeText={(text) =>
+                                setAnswerDrafts((prev) => ({ ...prev, [q.id]: text }))
+                              }
+                            />
+                            <TouchableOpacity
+                              style={styles.smallSubmitButton}
+                              onPress={async () => {
+                                const text = answerDrafts[q.id];
+                                if (!text) return;
+                                try {
+                                  setSubmittingAnswerIds((prev) => ({
+                                    ...prev,
+                                    [q.id]: true,
+                                  }));
+                                  const created = await createProductAnswer({
+                                    questionId: q.id,
+                                    userId: authUserId,
+                                    text,
+                                    isBrandOwner: ownsProduct && (isBrandUser || isAdminUser),
+                                  });
+                                  setAnswersMap((prev) => ({
+                                    ...prev,
+                                    [q.id]: [...(prev[q.id] || []), created],
+                                  }));
+                                  setAnswerDrafts((prev) => ({ ...prev, [q.id]: '' }));
+                                } catch (e) {
+                                  Alert.alert('Error', 'Failed to submit answer.');
+                                } finally {
+                                  setSubmittingAnswerIds((prev) => ({
+                                    ...prev,
+                                    [q.id]: false,
+                                  }));
+                                }
+                              }}
+                            >
+                              {submittingAnswerIds[q.id] ? (
+                                <ActivityIndicator color="#ffffff" />
+                              ) : (
+                                <Text style={styles.smallSubmitButtonText}>Send</Text>
+                              )}
+                            </TouchableOpacity>
+                          </View>
+                        )}
+                      </View>
+                    );
+                  })}
+
+                  {questionsHasMore && !questionsLoading ? (
+                    <TouchableOpacity
+                      style={styles.loadMoreButton}
+                      onPress={() => loadQuestions(false)}
+                    >
+                      <Text style={styles.loadMoreButtonText}>Load more questions</Text>
+                    </TouchableOpacity>
+                  ) : null}
+                </View>
+              </View>
+            )}
           </View>
 
           {similarProducts.length > 0 && (
             <View style={styles.section}>
               <Text style={styles.sectionLabel}>Similar products</Text>
               <View style={styles.similarGrid}>
-                {visibleSimilarProducts.map((item) => {
+                {visibleSimilarProducts.map((item, index) => {
                   const coverImage =
                     (Array.isArray(item.images) && item.images[0]) || item.image || null;
                   const priceValue =
@@ -846,7 +906,7 @@ const ProductDetailsScreen = ({ route, navigation }) => {
 
                   return (
                     <TouchableOpacity
-                      key={item.id}
+                      key={`${item.id}-${index}`}
                       style={styles.similarCard}
                       onPress={() => navigation.push('ProductDetails', { product: item })}
                       activeOpacity={0.9}
@@ -856,7 +916,9 @@ const ProductDetailsScreen = ({ route, navigation }) => {
                           <Image
                             source={{ uri: coverImage }}
                             style={styles.similarImage}
-                            resizeMode="cover"
+                            contentFit="cover"
+                            cachePolicy="disk"
+                            transition={200}
                           />
                         ) : (
                           <View style={styles.similarImagePlaceholder}>
@@ -915,7 +977,9 @@ const ProductDetailsScreen = ({ route, navigation }) => {
                 <Image
                   source={{ uri: previewImageUri }}
                   style={styles.previewImage}
-                  resizeMode="contain"
+                  contentFit="contain"
+                  cachePolicy="disk"
+                  transition={200}
                 />
               ) : null}
             </View>
@@ -1030,6 +1094,39 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: '#16a34a',
+  },
+  infoTabsSection: {
+    marginTop: 8,
+  },
+  infoTabsHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#e5e7eb',
+    borderRadius: 12,
+    padding: 2,
+    marginBottom: 8,
+  },
+  infoTabButton: {
+    flex: 1,
+    paddingVertical: 16,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  infoTabButtonActive: {
+    backgroundColor: '#2563EB',
+  },
+  infoTabLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#4b5563',
+  },
+  infoTabLabelActive: {
+    color: '#ffffff',
+  },
+  infoTabBody: {
+    paddingTop: 8,
   },
   sellerRow: {
     flexDirection: 'row',
@@ -1192,7 +1289,8 @@ const styles = StyleSheet.create({
     width: 72,
     height: 72,
     borderRadius: 16,
-    marginRight: 8,
+    marginRight: 12,
+    marginBottom: 10,
     overflow: 'hidden',
     backgroundColor: '#f3f4f6',
     borderWidth: 1,
@@ -1256,12 +1354,13 @@ const styles = StyleSheet.create({
   },
   chip: {
     minWidth: 56,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 999,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 8,
     borderWidth: 0,
     marginHorizontal: 4,
     marginBottom: 8,
+    marginRight: 12,
     backgroundColor: '#f3f4f6',
     alignItems: 'center',
   },

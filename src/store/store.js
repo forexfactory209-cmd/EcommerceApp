@@ -166,7 +166,7 @@ export const useStore = create((set, get) => ({
   toggleFollowBrand: async (brandId) => {
     console.log('[Store] toggleFollowBrand called with brandId:', brandId, typeof brandId);
     if (!brandId) return;
-    
+
     // Don't convert to number - keep as string/UUID
     const authUserId = get().authUserId;
     console.log('[Store] authUserId:', authUserId);
@@ -221,6 +221,8 @@ export const useStore = create((set, get) => ({
     }
   },
 
+  deletedProductIds: [],
+
   // Cart
   cart: [],
   addToCart: (product) => set((state) => {
@@ -237,6 +239,27 @@ export const useStore = create((set, get) => ({
   removeFromCart: (id) => set((state) => ({
     cart: state.cart.filter((item) => item.id !== id),
   })),
+  increaseQuantity: (id) => set((state) => ({
+    cart: state.cart.map((item) =>
+      item.id === id ? { ...item, quantity: (item.quantity || 1) + 1 } : item,
+    ),
+  })),
+  decreaseQuantity: (id) => set((state) => {
+    const existing = state.cart.find((item) => item.id === id);
+    if (!existing) return state;
+
+    if ((existing.quantity || 1) <= 1) {
+      return {
+        cart: state.cart.filter((item) => item.id !== id),
+      };
+    }
+
+    return {
+      cart: state.cart.map((item) =>
+        item.id === id ? { ...item, quantity: (item.quantity || 1) - 1 } : item,
+      ),
+    };
+  }),
   clearCart: () => set({ cart: [] }),
 
   // Checkout: move cart to orders and clear cart
@@ -273,6 +296,9 @@ export const useStore = create((set, get) => ({
   })),
   deleteProduct: (id) => set((state) => ({
     products: state.products.filter((p) => p.id !== id),
+    cart: state.cart.filter((item) => item.id !== id),
+    wishlist: state.wishlist.filter((item) => item.id !== id),
+    deletedProductIds: [...(state.deletedProductIds || []), id],
   })),
   updateOrderStatus: (orderId, status) => set((state) => ({
     orders: state.orders.map((o) =>
@@ -286,16 +312,16 @@ export const useStore = create((set, get) => ({
   // Replace orders list (used when loading from Supabase)
   setOrders: (orders) => set({ orders }),
 
-   // Wishlist actions
-   addToWishlist: (product) => set((state) => {
-     const exists = state.wishlist.find((item) => item.id === product.id);
-     if (exists) return state;
-     return { wishlist: [product, ...state.wishlist] };
-   }),
-   removeFromWishlist: (id) => set((state) => ({
-     wishlist: state.wishlist.filter((item) => item.id !== id),
-   })),
-   clearWishlistByProductIds: (ids) => set((state) => ({
-     wishlist: state.wishlist.filter((item) => !ids.includes(item.id)),
-   })),
+  // Wishlist actions
+  addToWishlist: (product) => set((state) => {
+    const exists = state.wishlist.find((item) => item.id === product.id);
+    if (exists) return state;
+    return { wishlist: [product, ...state.wishlist] };
+  }),
+  removeFromWishlist: (id) => set((state) => ({
+    wishlist: state.wishlist.filter((item) => item.id !== id),
+  })),
+  clearWishlistByProductIds: (ids) => set((state) => ({
+    wishlist: state.wishlist.filter((item) => !ids.includes(item.id)),
+  })),
 }));

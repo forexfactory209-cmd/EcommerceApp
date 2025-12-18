@@ -1,5 +1,6 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, Image, FlatList, TouchableOpacity, Alert, Linking } from 'react-native';
+import React, { useEffect, useMemo, useState } from 'react';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, Alert, Linking } from 'react-native';
+import { Image } from 'expo-image';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ArrowLeft, Star } from 'lucide-react-native';
 import { useStore } from '../store/store';
@@ -12,6 +13,7 @@ const BrandScreen = ({ route, navigation }) => {
   const products = useStore((state) => state.products);
   const followedBrandIds = useStore((state) => state.followedBrandIds || []);
   const toggleFollowBrand = useStore((state) => state.toggleFollowBrand);
+  const deletedProductIds = useStore((state) => state.deletedProductIds || []);
   const [remoteProducts, setRemoteProducts] = useState([]);
   const [ratingStats, setRatingStats] = useState({});
   const [fetchedBrand, setFetchedBrand] = useState(null);
@@ -41,7 +43,11 @@ const BrandScreen = ({ route, navigation }) => {
   }, []);
 
   const brand = fetchedBrand || routeBrand || null;
-  const baseData = remoteProducts.length > 0 ? remoteProducts : products;
+
+  const baseData = useMemo(() => {
+    const raw = remoteProducts.length > 0 ? remoteProducts : products;
+    return (raw || []).filter((p) => !deletedProductIds.includes(p.id));
+  }, [remoteProducts, products, deletedProductIds]);
   const brandUserId = brand?.user_id || null;
   const brandName = (brand?.name || '').toString();
   const brandDiscount =
@@ -103,37 +109,46 @@ const BrandScreen = ({ route, navigation }) => {
     };
   }, [brandId, routeBrand]);
 
-  const brandProducts = baseData.filter((p) => {
-    const hasBrandUser = !!brandUserId;
+  const brandProducts = useMemo(
+    () =>
+      baseData.filter((p) => {
+        const hasBrandUser = !!brandUserId;
 
-    if (hasBrandUser) {
-      return p.brand_user_id && p.brand_user_id === brandUserId;
-    }
+        if (hasBrandUser) {
+          return p.brand_user_id && p.brand_user_id === brandUserId;
+        }
 
-    return (p.brand || '') === brandName;
-  });
+        return (p.brand || '') === brandName;
+      }),
+    [baseData, brandUserId, brandName],
+  );
+
+  const ratingProductIds = useMemo(
+    () =>
+      baseData
+        .filter((p) => {
+          const hasBrandUser = !!brandUserId;
+
+          if (hasBrandUser) {
+            return p.brand_user_id && p.brand_user_id === brandUserId;
+          }
+
+          return (p.brand || '') === brandName;
+        })
+        .map((p) => p.id)
+        .filter(Boolean),
+    [baseData, brandUserId, brandName],
+  );
 
   useEffect(() => {
     const loadRatingStats = async () => {
       try {
-        const ids = baseData
-          .filter((p) => {
-            const hasBrandUser = !!brandUserId;
-
-            if (hasBrandUser) {
-              return p.brand_user_id && p.brand_user_id === brandUserId;
-            }
-
-            return (p.brand || '') === brandName;
-          })
-          .map((p) => p.id)
-          .filter(Boolean);
-        if (ids.length === 0) {
+        if (ratingProductIds.length === 0) {
           setRatingStats({});
           return;
         }
 
-        const result = await fetchManyProductRatingSummaries(ids);
+        const result = await fetchManyProductRatingSummaries(ratingProductIds);
         setRatingStats(result || {});
       } catch (e) {
         console.warn('Failed to load brand rating stats', e.message || e);
@@ -141,7 +156,7 @@ const BrandScreen = ({ route, navigation }) => {
     };
 
     loadRatingStats();
-  }, [baseData, brandUserId, brandName]);
+  }, [ratingProductIds]);
 
   useEffect(() => {
     const computeAndPersistBrandRating = async () => {
@@ -224,10 +239,21 @@ const BrandScreen = ({ route, navigation }) => {
         onPress={() => navigation.navigate('ProductDetails', { product: item })}
       >
         <View style={styles.productImageWrapper}>
-          <Image source={{ uri: item.image }} style={styles.productImage} resizeMode="cover" />
+          <Image
+            source={{ uri: item.image }}
+            style={styles.productImage}
+            contentFit="cover"
+            cachePolicy="disk"
+            transition={200}
+          />
           {isFlashActive && (
             <View style={styles.flashBadge}>
               <Text style={styles.flashBadgeText}>Flash Sale</Text>
+            </View>
+          )}
+          {(item.quantity ?? 0) === 0 && (
+            <View style={styles.outOfStockBanner}>
+              <Text style={styles.outOfStockText}>Out of stock</Text>
             </View>
           )}
         </View>
@@ -338,7 +364,9 @@ const BrandScreen = ({ route, navigation }) => {
           <Image
             source={{ uri: brand.banner_url }}
             style={styles.bannerImage}
-            resizeMode="cover"
+            contentFit="cover"
+            cachePolicy="disk"
+            transition={250}
           />
         </View>
       ) : null}
@@ -366,7 +394,13 @@ const BrandScreen = ({ route, navigation }) => {
       <View style={styles.brandInfo}>
         <View style={styles.brandIconWrapper}>
           {brand?.logo_url ? (
-            <Image source={{ uri: brand.logo_url }} style={styles.brandLogo} resizeMode="contain" />
+            <Image
+              source={{ uri: brand.logo_url }}
+              style={styles.brandLogo}
+              contentFit="contain"
+              cachePolicy="disk"
+              transition={200}
+            />
           ) : (
             <Text style={styles.brandIconText}>
               {(brand?.name || '?').charAt(0).toUpperCase()}
@@ -650,6 +684,23 @@ const styles = StyleSheet.create({
   productImage: {
     width: '100%',
     height: '100%',
+  },
+  outOfStockBanner: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    paddingVertical: 6,
+    backgroundColor: 'rgba(17,24,39,0.9)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  outOfStockText: {
+    color: '#ffffff',
+    fontSize: 11,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   flashBadge: {
     position: 'absolute',

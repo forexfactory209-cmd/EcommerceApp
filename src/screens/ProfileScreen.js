@@ -165,100 +165,100 @@ const ProfileScreen = ({ navigation }) => {
 
           <View style={styles.sectionList}>
             <TouchableOpacity
-            style={activeSectionKey === 'EditProfile' ? styles.sectionItemHighlighted : styles.sectionItem}
-            onPress={() => {
-              setActiveSectionKey('EditProfile');
-              navigation.navigate('EditProfile');
-            }}
-          >
-            <Text style={activeSectionKey === 'EditProfile' ? styles.sectionItemHighlightedLabel : styles.sectionItemLabel}>Edit Profile</Text>
+              style={activeSectionKey === 'EditProfile' ? styles.sectionItemHighlighted : styles.sectionItem}
+              onPress={() => {
+                setActiveSectionKey('EditProfile');
+                navigation.navigate('EditProfile');
+              }}
+            >
+              <Text style={activeSectionKey === 'EditProfile' ? styles.sectionItemHighlightedLabel : styles.sectionItemLabel}>Edit Profile</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
-            style={activeSectionKey === 'Addresses' ? styles.sectionItemHighlighted : styles.sectionItem}
-            onPress={() => {
-              setActiveSectionKey('Addresses');
-              navigation.navigate('Addresses');
-            }}
-          >
-            <Text style={activeSectionKey === 'Addresses' ? styles.sectionItemHighlightedLabel : styles.sectionItemLabel}>Saved Addresses</Text>
+              style={activeSectionKey === 'Addresses' ? styles.sectionItemHighlighted : styles.sectionItem}
+              onPress={() => {
+                setActiveSectionKey('Addresses');
+                navigation.navigate('Addresses');
+              }}
+            >
+              <Text style={activeSectionKey === 'Addresses' ? styles.sectionItemHighlightedLabel : styles.sectionItemLabel}>Saved Addresses</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
-            style={activeSectionKey === 'Billing' ? styles.sectionItemHighlighted : styles.sectionItem}
-            onPress={() => {
-              setActiveSectionKey('Billing');
-              navigation.navigate('Billing');
-            }}
-          >
-            <Text style={activeSectionKey === 'Billing' ? styles.sectionItemHighlightedLabel : styles.sectionItemLabel}>Payment Methods</Text>
+              style={activeSectionKey === 'Billing' ? styles.sectionItemHighlighted : styles.sectionItem}
+              onPress={() => {
+                setActiveSectionKey('Billing');
+                navigation.navigate('Billing');
+              }}
+            >
+              <Text style={activeSectionKey === 'Billing' ? styles.sectionItemHighlightedLabel : styles.sectionItemLabel}>Payment Methods</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
-            style={activeSectionKey === 'Wishlist' ? styles.sectionItemHighlighted : styles.sectionItem}
-            onPress={() => {
-              setActiveSectionKey('Wishlist');
-              navigation.navigate('Wishlist');
-            }}
-          >
-            <Text style={activeSectionKey === 'Wishlist' ? styles.sectionItemHighlightedLabel : styles.sectionItemLabel}>Favorites</Text>
+              style={activeSectionKey === 'Wishlist' ? styles.sectionItemHighlighted : styles.sectionItem}
+              onPress={() => {
+                setActiveSectionKey('Wishlist');
+                navigation.navigate('Wishlist');
+              }}
+            >
+              <Text style={activeSectionKey === 'Wishlist' ? styles.sectionItemHighlightedLabel : styles.sectionItemLabel}>Favorites</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
-            style={activeSectionKey === 'Notifications' ? styles.sectionItemHighlighted : styles.sectionItem}
-            onPress={() => {
-              setActiveSectionKey('Notifications');
-              navigation.navigate('Notifications');
-            }}
-          >
-            <Text style={activeSectionKey === 'Notifications' ? styles.sectionItemHighlightedLabel : styles.sectionItemLabel}>Notifications</Text>
+              style={activeSectionKey === 'Notifications' ? styles.sectionItemHighlighted : styles.sectionItem}
+              onPress={() => {
+                setActiveSectionKey('Notifications');
+                navigation.navigate('Notifications');
+              }}
+            >
+              <Text style={activeSectionKey === 'Notifications' ? styles.sectionItemHighlightedLabel : styles.sectionItemLabel}>Notifications</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
-            style={activeSectionKey === 'HelpSupport' ? styles.sectionItemHighlighted : styles.sectionItem}
-            onPress={() => {
-              setActiveSectionKey('HelpSupport');
-            }}
-          >
-            <Text style={activeSectionKey === 'HelpSupport' ? styles.sectionItemHighlightedLabel : styles.sectionItemLabel}>Help & Support</Text>
+              style={activeSectionKey === 'HelpSupport' ? styles.sectionItemHighlighted : styles.sectionItem}
+              onPress={() => {
+                setActiveSectionKey('HelpSupport');
+              }}
+            >
+              <Text style={activeSectionKey === 'HelpSupport' ? styles.sectionItemHighlightedLabel : styles.sectionItemLabel}>Help & Support</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
-            style={activeSectionKey === 'TrackOrder' ? styles.sectionItemHighlighted : styles.sectionItem}
-            onPress={() => {
-              setActiveSectionKey('TrackOrder');
-              navigation.navigate('TrackOrder');
-            }}
-          >
-            <Text style={activeSectionKey === 'TrackOrder' ? styles.sectionItemHighlightedLabel : styles.sectionItemLabel}>Track Orders</Text>
+              style={activeSectionKey === 'TrackOrder' ? styles.sectionItemHighlighted : styles.sectionItem}
+              onPress={() => {
+                setActiveSectionKey('TrackOrder');
+                navigation.navigate('TrackOrder');
+              }}
+            >
+              <Text style={activeSectionKey === 'TrackOrder' ? styles.sectionItemHighlightedLabel : styles.sectionItemLabel}>Track Orders</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
-            style={activeSectionKey === 'BecomeSeller' ? styles.sectionItemHighlighted : styles.sectionItem}
-            onPress={() => navigation.navigate('BrandOnboarding')}
-          >
-            <Text style={activeSectionKey === 'BecomeSeller' ? styles.sectionItemHighlightedLabel : styles.sectionItemLabel}>Become a Seller</Text>
+              style={activeSectionKey === 'BecomeSeller' ? styles.sectionItemHighlighted : styles.sectionItem}
+              onPress={() => navigation.navigate('BrandOnboarding')}
+            >
+              <Text style={activeSectionKey === 'BecomeSeller' ? styles.sectionItemHighlightedLabel : styles.sectionItemLabel}>Become a Seller</Text>
             </TouchableOpacity>
           </View>
 
           <TouchableOpacity
-          style={styles.logoutButton}
-          onPress={async () => {
-            try {
-              await supabase.auth.signOut();
-            } catch (e) {
-            }
-            clearAuthUser();
-            setUserProfile({ name: '', email: '' });
-            setUserType('customer');
-            navigation.reset({
-              index: 0,
-              routes: [{ name: 'Welcome' }],
-            });
-          }}
-        >
-          <Text style={styles.logoutText}>Logout</Text>
-        </TouchableOpacity>
+            style={styles.logoutButton}
+            onPress={async () => {
+              try {
+                await supabase.auth.signOut();
+              } catch (e) {
+              }
+              clearAuthUser();
+              setUserProfile({ name: '', email: '' });
+              setUserType('customer');
+              navigation.reset({
+                index: 0,
+                routes: [{ name: 'Welcome' }],
+              });
+            }}
+          >
+            <Text style={styles.logoutText}>Logout</Text>
+          </TouchableOpacity>
         </ScrollView>
       </SafeAreaView>
     );
@@ -376,8 +376,8 @@ const ProfileScreen = ({ navigation }) => {
               <Text style={styles.emptyText}>You have no orders yet.</Text>
             ) : (
               <View style={{ paddingBottom: 24 }}>
-                {myOrders.map((item) => (
-                  <React.Fragment key={item.id}>{renderItem({ item })}</React.Fragment>
+                {myOrders.map((item, index) => (
+                  <React.Fragment key={`${item.id}-${index}`}>{renderItem({ item })}</React.Fragment>
                 ))}
               </View>
             )}
@@ -482,7 +482,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderRadius: 999,
     borderWidth: 1,
-     marginBottom: 30,
+    marginBottom: 30,
     borderColor: '#EFF6FF',
     backgroundColor: '#2563EB',
   },
