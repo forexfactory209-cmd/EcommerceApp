@@ -2,7 +2,7 @@ import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react'
 import { View, Text, ScrollView, TouchableOpacity, TextInput, FlatList, StyleSheet, Alert, Dimensions, Modal, Animated } from 'react-native';
 import { Image } from 'expo-image';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Search, ShoppingBag, Heart, Bell, Star, Mic } from 'lucide-react-native';
+import { Search, ShoppingBag, Heart, Bell, Star, Mic, Menu } from 'lucide-react-native';
 import { useStore } from '../store/store';
 import { fetchManyProductRatingSummaries } from '../services/ratings';
 import { fetchApprovedBrandsFromSupabase } from '../services/brands';
@@ -42,7 +42,7 @@ const HomeScreen = ({ navigation }) => {
   const [pendingCategory, setPendingCategory] = useState('all');
   const categorySlide = useRef(new Animated.Value(0)).current; // 0 = hidden, 1 = visible
 
-  const loadProducts = useCallback(async () => {
+  const loadProducts = useCallback(async ({ reset = false } = {}) => {
     try {
       setLoading(true);
       const data = await fetchProductsFromSupabase();
@@ -96,10 +96,11 @@ const HomeScreen = ({ navigation }) => {
 
   useFocusEffect(
     useCallback(() => {
-      loadProducts();
+      // Run initial loads once when Home gains focus
+      loadProducts({ reset: true });
       loadBrands();
       loadUnreadNotifications();
-    }, [loadProducts, loadBrands]),
+    }, []),
   );
 
   useEffect(() => {
@@ -505,7 +506,7 @@ const HomeScreen = ({ navigation }) => {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
       <Modal
         visible={categorySheetVisible}
         transparent
@@ -585,7 +586,7 @@ const HomeScreen = ({ navigation }) => {
               setCategorySheetVisible(true);
             }}
           >
-            <View style={styles.categoryIconInnerCircle} />
+            <Menu color="#111827" size={22} />
           </TouchableOpacity>
 
           <Text style={styles.exploreTitleTop}>Explore</Text>

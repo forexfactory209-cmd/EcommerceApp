@@ -126,6 +126,11 @@ const AddressesScreen = ({ navigation }) => {
           data={addresses}
           keyExtractor={(item) => item.id.toString()}
           renderItem={renderItem}
+          initialNumToRender={8}
+          windowSize={5}
+          maxToRenderPerBatch={10}
+          removeClippedSubviews
+          showsVerticalScrollIndicator={false}
           contentContainerStyle={{ paddingBottom: 24 }}
         />
       )}

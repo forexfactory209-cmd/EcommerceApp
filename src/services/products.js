@@ -1,11 +1,42 @@
 import { supabase } from '../lib/supabase';
 
-export async function fetchProductsFromSupabase() {
+export async function fetchProductsFromSupabase({ page = 1, pageSize = 20 } = {}) {
+  const from = (page - 1) * pageSize;
+  const to = from + pageSize - 1;
+
   const { data, error } = await supabase
     .from('products')
-    .select('*')
+    .select(
+      [
+        'id',
+        'name',
+        'description',
+        'price',
+        'flash_price',
+        'flash_start_at',
+        'flash_end_at',
+        'flash_quantity',
+        'flash_sold',
+        'image',
+        'image_thumb_url',
+        'image_full_url',
+        'brand',
+        'brand_user_id',
+        'category',
+        'audience',
+        'quantity',
+        'images',
+        'colors',
+        'sizes',
+        'delivery_options',
+        'created_at',
+        'is_deleted',
+        'code',
+      ].join(',')
+    )
     .or('is_deleted.is.null,is_deleted.eq.false')
-    .order('created_at', { ascending: false });
+    .order('created_at', { ascending: false })
+    .range(from, to);
 
   if (error) {
     console.warn('Error fetching products from Supabase:', error.message);
