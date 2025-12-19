@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -96,6 +96,8 @@ const TrackOrderScreen = () => {
 
   const [ordersList, setOrdersList] = useState([]);
   const [ordersListLoading, setOrdersListLoading] = useState(false);
+  const [statusFilter, setStatusFilter] = useState('Delivered');
+  const [selectedOrderId, setSelectedOrderId] = useState(null);
 
   const headerAnim = useRef(new Animated.Value(0)).current;
 
@@ -152,15 +154,47 @@ const TrackOrderScreen = () => {
     }).start();
   }, [headerAnim]);
 
+  const filteredOrders = useMemo(() => {
+    if (!Array.isArray(ordersList) || ordersList.length === 0) return [];
+
+    if (statusFilter === 'Pending') {
+      // Treat anything that is not Delivered or Canceled as pending / in-progress
+      return ordersList.filter(
+        (o) => o.status !== 'Delivered' && o.status !== 'Canceled',
+      );
+    }
+
+    return ordersList.filter((o) => (o.status || 'Pending') === statusFilter);
+  }, [ordersList, statusFilter]);
+
+  const mostRecentOrderId = useMemo(() => {
+    if (!Array.isArray(ordersList) || ordersList.length === 0) return null;
+    // ordersList is already sorted with most recent first from Supabase
+    return ordersList[0]?.id ?? null;
+  }, [ordersList]);
+
   const renderOrderListRow = ({ item }) => {
     const pill = mapStatusToPill(item.status || 'Pending');
     const itemCount = Array.isArray(item.items) ? item.items.length : 0;
     const firstItems = Array.isArray(item.items) ? item.items.slice(0, 2) : [];
+    const isMostRecent = item.id === mostRecentOrderId;
+    const isSelected = item.id === selectedOrderId;
+    const highlight = isMostRecent || isSelected;
+
     return (
       <TouchableOpacity
-        style={[styles.orderListRow, { borderColor: COLORS.primary + '15' }]}
+        style={[
+          styles.orderListRow,
+          {
+            borderColor: COLORS.primary + '15',
+            backgroundColor: highlight ? '#EEF2FF' : '#FFFFFF',
+          },
+        ]}
         activeOpacity={0.8}
-        onPress={() => navigation.navigate('TrackOrderDetails', { orderId: item.id })}
+        onPress={() => {
+          setSelectedOrderId(item.id);
+          navigation.navigate('SimpleOrderTracking', { orderId: item.id });
+        }}
       >
         <View style={styles.orderListLeft}>
           <Text style={[styles.orderListTitle, { color: palette.textPrimary }]}>Order #{item.id}</Text>
@@ -433,14 +467,48 @@ const TrackOrderScreen = () => {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.sectionBlock}>
-          <Text style={[styles.sectionTitle, { color: palette.textPrimary }]}>Your Orders</Text>
+          <Text style={[styles.sectionTitle, { color: palette.textPrimary }]}>My Orders</Text>
+
+          <View style={styles.statusTabsRow}>
+            {[
+              { id: 'Delivered', label: 'Delivered' },
+              { id: 'Pending', label: 'Pending' },
+              { id: 'Canceled', label: 'Cancelled' },
+            ].map((tab) => {
+              const active = statusFilter === tab.id;
+              return (
+                <TouchableOpacity
+                  key={tab.id}
+                  style={[
+                    styles.statusTabButton,
+                    {
+                      backgroundColor: active ? COLORS.primary : '#F3F4F6',
+                    },
+                  ]}
+                  onPress={() => setStatusFilter(tab.id)}
+                  activeOpacity={0.9}
+                >
+                  <Text
+                    style={[
+                      styles.statusTabLabel,
+                      { color: active ? '#FFFFFF' : '#6B7280' },
+                    ]}
+                    numberOfLines={1}
+                  >
+                    {tab.label}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+
           {ordersListLoading && ordersList.length === 0 ? (
             <ActivityIndicator size="small" color={COLORS.primary} />
-          ) : ordersList.length === 0 ? (
-            <Text style={{ color: palette.textMuted, fontSize: 13 }}>You have no orders yet.</Text>
+          ) : filteredOrders.length === 0 ? (
+            <Text style={{ color: palette.textMuted, fontSize: 13 }}>No orders in this status yet.</Text>
           ) : (
             <FlatList
-              data={ordersList}
+              data={filteredOrders}
               keyExtractor={(item) => item.id.toString()}
               renderItem={renderOrderListRow}
               scrollEnabled={false}
@@ -607,6 +675,32 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     marginBottom: 8,
   },
+  statusTabsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 8,
+    marginBottom: 16,
+  },
+  statusTabButton: {
+    flex: 1,
+    paddingVertical: 8,
+    marginRight: 8,
+    borderRadius: 999,
+    backgroundColor: '#F3F4F6',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  statusTabButtonActive: {
+    backgroundColor: COLORS.primary,
+  },
+  statusTabLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#6B7280',
+  },
+  statusTabLabelActive: {
+    color: '#FFFFFF',
+  },
   itemRow: {
     flexDirection: 'row',
     paddingVertical: 10,
@@ -686,15 +780,15 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingVertical: 14,
     paddingHorizontal: 14,
-    marginBottom: 12,
+    marginBottom: 10,
     borderRadius: 18,
     borderWidth: 1,
     backgroundColor: '#FFFFFF',
-    shadowColor: '#000000',
-    shadowOpacity: 0.05,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 3,
+    shadowColor: '#000',
+    shadowOpacity: 0.03,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 2,
   },
   orderListLeft: {
     flex: 1,

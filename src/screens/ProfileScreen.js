@@ -16,8 +16,6 @@ const ProfileScreen = ({ navigation }) => {
 
   const [brandId, setBrandId] = useState(null);
   const [brandLoading, setBrandLoading] = useState(true);
-  const [showOrderHistory, setShowOrderHistory] = useState(false);
-  const [activeSectionKey, setActiveSectionKey] = useState(null);
 
   useEffect(() => {
     const loadBrandForProfile = async () => {
@@ -67,7 +65,7 @@ const ProfileScreen = ({ navigation }) => {
 
   const ADMIN_EMAIL = 'caliaxmed488@gmail.com'; // Change to your admin email
 
-  const renderItem = ({ item }) => (
+  const OrderCard = React.memo(({ item }) => (
     <View style={styles.orderCard}>
       <View style={styles.orderHeaderRow}>
         <Text style={styles.orderTitle}>Order #{item.id}</Text>
@@ -116,149 +114,127 @@ const ProfileScreen = ({ navigation }) => {
         </View>
       ) : null}
     </View>
-  );
+  ));
+
+  const renderItem = ({ item }) => <OrderCard item={item} />;
 
   if (userType === 'customer' && authRole !== 'admin') {
     return (
       <SafeAreaView style={styles.container}>
         <ScrollView contentContainerStyle={styles.scrollContent}>
-          <View style={styles.headerBackground}>
-            <View style={styles.headerContent}>
-              <View style={styles.avatarCircle}>
-                <Text style={styles.avatarInitial}>
-                  {authEmail ? authEmail.charAt(0).toUpperCase() : 'U'}
-                </Text>
-              </View>
-              <View style={styles.headerTextBlock}>
-                <Text style={styles.headerName}>My Profile</Text>
-                {authEmail && <Text style={styles.headerEmail}>{authEmail}</Text>}
-                <Text style={styles.headerSubText}>Customer account</Text>
-              </View>
+          <Text style={styles.settingsTitle}>Profile</Text>
+
+          <View style={styles.settingsGroup}>
+            <Text style={styles.settingsGroupLabel}>Account</Text>
+            <View style={styles.settingsCard}>
+              <TouchableOpacity
+                style={styles.settingsRow}
+                onPress={() => {
+                  navigation.navigate('EditProfile');
+                }}
+              >
+                <View style={styles.settingsRowLeft}>
+                  <Text style={styles.settingsRowLabel}>Edit Profile</Text>
+                </View>
+                <Text style={styles.settingsRowChevron}>{'>'}</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.settingsRow}
+                onPress={() => {
+                  navigation.navigate('TrackOrder');
+                }}
+              >
+                <View style={styles.settingsRowLeft}>
+                  <Text style={styles.settingsRowLabel}>Orders</Text>
+                </View>
+                <Text style={styles.settingsRowChevron}>{'>'}</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.settingsRow, { borderBottomWidth: 0 }]}
+                onPress={() => {
+                  navigation.navigate('Addresses');
+                }}
+              >
+                <View style={styles.settingsRowLeft}>
+                  <Text style={styles.settingsRowLabel}>Saved Address</Text>
+                </View>
+                <Text style={styles.settingsRowChevron}>{'>'}</Text>
+              </TouchableOpacity>
             </View>
           </View>
 
-          <View style={styles.profileCardWrapper}>
-            <View style={styles.statsCardRow}>
-              <View style={styles.statsColumn}>
-                <Text style={styles.statsNumberPrimary}>{totalOrders}</Text>
-                <Text style={styles.statsLabel}>Orders</Text>
-              </View>
-              <View style={styles.statsDivider} />
-              <View style={styles.statsColumn}>
-                <Text style={styles.statsNumberSuccess}>{deliveredCount}</Text>
-                <Text style={styles.statsLabel}>Completed</Text>
-              </View>
-              <View style={styles.statsDivider} />
-              <View style={styles.statsColumn}>
-                <Text style={styles.statsNumberWarning}>{pendingCount}</Text>
-                <Text style={styles.statsLabel}>Pending</Text>
-              </View>
+          <View style={styles.settingsGroup}>
+            <Text style={styles.settingsGroupLabel}>Support &amp; Info</Text>
+            <View style={styles.settingsCard}>
+              <TouchableOpacity
+                style={styles.settingsRow}
+                onPress={() => {}}
+              >
+                <View style={styles.settingsRowLeft}>
+                  <Text style={styles.settingsRowLabel}>FAQ</Text>
+                </View>
+                <Text style={styles.settingsRowChevron}>{'>'}</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.settingsRow}
+                onPress={() => {}}
+              >
+                <View style={styles.settingsRowLeft}>
+                  <Text style={styles.settingsRowLabel}>Contact Support</Text>
+                </View>
+                <Text style={styles.settingsRowChevron}>{'>'}</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.settingsRow}
+                onPress={() => {}}
+              >
+                <View style={styles.settingsRowLeft}>
+                  <Text style={styles.settingsRowLabel}>Terms &amp; Conditions</Text>
+                </View>
+                <Text style={styles.settingsRowChevron}>{'>'}</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.settingsRow, { borderBottomWidth: 0 }]}
+                onPress={() => {}}
+              >
+                <View style={styles.settingsRowLeft}>
+                  <Text style={styles.settingsRowLabel}>Privacy Policy</Text>
+                </View>
+                <Text style={styles.settingsRowChevron}>{'>'}</Text>
+              </TouchableOpacity>
             </View>
-
-            <TouchableOpacity
-              style={styles.orderHistoryButton}
-              onPress={() => navigation.navigate('TrackOrder')}
-            >
-              <Text style={styles.orderHistoryButtonText}>View Order History</Text>
-            </TouchableOpacity>
           </View>
 
-          <View style={styles.sectionList}>
-            <TouchableOpacity
-              style={activeSectionKey === 'EditProfile' ? styles.sectionItemHighlighted : styles.sectionItem}
-              onPress={() => {
-                setActiveSectionKey('EditProfile');
-                navigation.navigate('EditProfile');
-              }}
-            >
-              <Text style={activeSectionKey === 'EditProfile' ? styles.sectionItemHighlightedLabel : styles.sectionItemLabel}>Edit Profile</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={activeSectionKey === 'Addresses' ? styles.sectionItemHighlighted : styles.sectionItem}
-              onPress={() => {
-                setActiveSectionKey('Addresses');
-                navigation.navigate('Addresses');
-              }}
-            >
-              <Text style={activeSectionKey === 'Addresses' ? styles.sectionItemHighlightedLabel : styles.sectionItemLabel}>Saved Addresses</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={activeSectionKey === 'Billing' ? styles.sectionItemHighlighted : styles.sectionItem}
-              onPress={() => {
-                setActiveSectionKey('Billing');
-                navigation.navigate('Billing');
-              }}
-            >
-              <Text style={activeSectionKey === 'Billing' ? styles.sectionItemHighlightedLabel : styles.sectionItemLabel}>Payment Methods</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={activeSectionKey === 'Wishlist' ? styles.sectionItemHighlighted : styles.sectionItem}
-              onPress={() => {
-                setActiveSectionKey('Wishlist');
-                navigation.navigate('Wishlist');
-              }}
-            >
-              <Text style={activeSectionKey === 'Wishlist' ? styles.sectionItemHighlightedLabel : styles.sectionItemLabel}>Favorites</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={activeSectionKey === 'Notifications' ? styles.sectionItemHighlighted : styles.sectionItem}
-              onPress={() => {
-                setActiveSectionKey('Notifications');
-                navigation.navigate('Notifications');
-              }}
-            >
-              <Text style={activeSectionKey === 'Notifications' ? styles.sectionItemHighlightedLabel : styles.sectionItemLabel}>Notifications</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={activeSectionKey === 'HelpSupport' ? styles.sectionItemHighlighted : styles.sectionItem}
-              onPress={() => {
-                setActiveSectionKey('HelpSupport');
-              }}
-            >
-              <Text style={activeSectionKey === 'HelpSupport' ? styles.sectionItemHighlightedLabel : styles.sectionItemLabel}>Help & Support</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={activeSectionKey === 'TrackOrder' ? styles.sectionItemHighlighted : styles.sectionItem}
-              onPress={() => {
-                setActiveSectionKey('TrackOrder');
-                navigation.navigate('TrackOrder');
-              }}
-            >
-              <Text style={activeSectionKey === 'TrackOrder' ? styles.sectionItemHighlightedLabel : styles.sectionItemLabel}>Track Orders</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={activeSectionKey === 'BecomeSeller' ? styles.sectionItemHighlighted : styles.sectionItem}
-              onPress={() => navigation.navigate('BrandOnboarding')}
-            >
-              <Text style={activeSectionKey === 'BecomeSeller' ? styles.sectionItemHighlightedLabel : styles.sectionItemLabel}>Become a Seller</Text>
-            </TouchableOpacity>
+          <View style={styles.settingsGroup}>
+            <View style={styles.settingsCard}>
+              <TouchableOpacity
+                style={[styles.settingsRow, { borderBottomWidth: 0 }]}
+                onPress={async () => {
+                  try {
+                    await supabase.auth.signOut();
+                  } catch (e) {
+                  }
+                  clearAuthUser();
+                  setUserProfile({ name: '', email: '' });
+                  setUserType('customer');
+                  navigation.reset({
+                    index: 0,
+                    routes: [{ name: 'Welcome' }],
+                  });
+                }}
+              >
+                <View style={styles.settingsRowLeft}>
+                  <Text style={styles.logoutLabel}>Logout</Text>
+                </View>
+                <Text style={styles.settingsRowChevron}>{'>'}</Text>
+              </TouchableOpacity>
+            </View>
           </View>
-
-          <TouchableOpacity
-            style={styles.logoutButton}
-            onPress={async () => {
-              try {
-                await supabase.auth.signOut();
-              } catch (e) {
-              }
-              clearAuthUser();
-              setUserProfile({ name: '', email: '' });
-              setUserType('customer');
-              navigation.reset({
-                index: 0,
-                routes: [{ name: 'Welcome' }],
-              });
-            }}
-          >
-            <Text style={styles.logoutText}>Logout</Text>
-          </TouchableOpacity>
         </ScrollView>
       </SafeAreaView>
     );
@@ -375,11 +351,17 @@ const ProfileScreen = ({ navigation }) => {
             {myOrders.length === 0 ? (
               <Text style={styles.emptyText}>You have no orders yet.</Text>
             ) : (
-              <View style={{ paddingBottom: 24 }}>
-                {myOrders.map((item, index) => (
-                  <React.Fragment key={`${item.id}-${index}`}>{renderItem({ item })}</React.Fragment>
-                ))}
-              </View>
+              <FlatList
+                data={myOrders}
+                keyExtractor={(item) => item.id.toString()}
+                renderItem={renderItem}
+                initialNumToRender={8}
+                windowSize={5}
+                maxToRenderPerBatch={10}
+                removeClippedSubviews
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={{ paddingBottom: 24 }}
+              />
             )}
           </>
         )}
@@ -418,6 +400,58 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingBottom: 24,
+  },
+  settingsTitle: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#111827',
+    marginTop: 8,
+    marginBottom: 24,
+  },
+  settingsGroup: {
+    marginBottom: 24,
+  },
+  settingsGroupLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#9CA3AF',
+    marginBottom: 8,
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+  },
+  settingsCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    paddingHorizontal: 16,
+    paddingVertical: 4,
+    shadowColor: '#000',
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 1,
+  },
+  settingsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+  },
+  settingsRowLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  settingsRowLabel: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#111827',
+  },
+  settingsRowChevron: {
+    fontSize: 18,
+    color: '#D1D5DB',
   },
   title: {
     fontSize: 24,
@@ -538,6 +572,11 @@ const styles = StyleSheet.create({
     backgroundColor: '#ffffff',
   },
   logoutText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#ef4444',
+  },
+  logoutLabel: {
     fontSize: 14,
     fontWeight: '600',
     color: '#ef4444',

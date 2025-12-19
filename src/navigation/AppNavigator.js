@@ -38,6 +38,8 @@ import AdminCustomersScreen from '../screens/AdminCustomersScreen';
 import AdminCustomerDetailsScreen from '../screens/AdminCustomerDetailsScreen';
 import TrackOrderScreen from '../screens/TrackOrderScreen';
 import TrackOrderDetailsScreen from '../screens/TrackOrderDetailsScreen';
+import SimpleOrderTrackingScreen from '../screens/SimpleOrderTrackingScreen';
+import OrderDeliveredSuccessScreen from '../screens/OrderDeliveredSuccessScreen';
 import PromoCodesScreen from '../screens/PromoCodesScreen';
 import ProductReviewsScreen from '../screens/ProductReviewsScreen';
 import ProductWriteReviewScreen from '../screens/ProductWriteReviewScreen';
@@ -63,8 +65,9 @@ const TabNavigator = () => {
           backgroundColor: '#ffffff',
           borderTopWidth: 0,
           elevation: 0,
-          height: 60,
-          paddingBottom: 10
+          height: 82,
+          paddingBottom: 10,
+          paddingTop: 9,
         },
         tabBarActiveTintColor: '#2563EB',
         tabBarInactiveTintColor: '#9CA3AF',
@@ -200,6 +203,8 @@ export default function AppNavigator() {
         <Stack.Screen name="AdminCustomerDetails" component={AdminCustomerDetailsScreen} />
         <Stack.Screen name="TrackOrder" component={TrackOrderScreen} />
         <Stack.Screen name="TrackOrderDetails" component={TrackOrderDetailsScreen} />
+        <Stack.Screen name="SimpleOrderTracking" component={SimpleOrderTrackingScreen} />
+        <Stack.Screen name="OrderDeliveredSuccess" component={OrderDeliveredSuccessScreen} />
         <Stack.Screen name="ProductReviews" component={ProductReviewsScreen} />
         <Stack.Screen name="ProductWriteReview" component={ProductWriteReviewScreen} />
       </Stack.Navigator>
