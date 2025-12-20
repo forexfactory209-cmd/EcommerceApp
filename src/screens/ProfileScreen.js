@@ -1,8 +1,19 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, FlatList, StyleSheet, TouchableOpacity, ActivityIndicator, ScrollView } from 'react-native';
+import { View, Text, FlatList, StyleSheet, TouchableOpacity, ActivityIndicator, ScrollView, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useStore } from '../store/store';
 import { supabase } from '../lib/supabase';
+import {
+  User,
+  Package,
+  MapPin,
+  Store,
+  HelpCircle,
+  AlertCircle,
+  FileText,
+  ShieldCheck,
+  LogOut as LogOutIcon,
+} from 'lucide-react-native';
 
 const ProfileScreen = ({ navigation }) => {
   const orders = useStore((state) => state.orders);
@@ -10,6 +21,9 @@ const ProfileScreen = ({ navigation }) => {
   const authEmail = useStore((state) => state.authEmail);
   const authRole = useStore((state) => state.authRole);
   const authUserId = useStore((state) => state.authUserId);
+  const userProfile = useStore((state) => state.userProfile);
+  const seenDeliveredOrdersCount = useStore((state) => state.seenDeliveredOrdersCount || 0);
+  const setSeenDeliveredOrdersCount = useStore((state) => state.setSeenDeliveredOrdersCount);
   const setUserType = useStore((state) => state.setUserType);
   const setUserProfile = useStore((state) => state.setUserProfile);
   const clearAuthUser = useStore((state) => state.clearAuthUser);
@@ -53,6 +67,48 @@ const ProfileScreen = ({ navigation }) => {
     loadBrandForProfile();
   }, [authUserId, authRole]);
 
+  // Ensure customer profile data (name, username, avatar_url, etc.) is loaded
+  // into the global store so the header can show it without requiring a
+  // round-trip through the Edit Profile screen.
+  useEffect(() => {
+    const loadCustomerProfile = async () => {
+      if (!authUserId || authRole === 'brand') return;
+
+      try {
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('name, username, gender, dob, country, city, district, address, address_descr, avatar_url')
+          .eq('user_id', authUserId)
+          .maybeSingle();
+
+        if (error) {
+          console.warn('Error loading customer profile for header:', error.message || error);
+          return;
+        }
+
+        if (data) {
+          setUserProfile({
+            name: data.name || '',
+            username: data.username || '',
+            email: authEmail || '',
+            gender: data.gender || '',
+            dob: data.dob || '',
+            country: data.country || '',
+            city: data.city || '',
+            district: data.district || '',
+            address: data.address || '',
+            address_descr: data.address_descr || '',
+            avatar_url: data.avatar_url || null,
+          });
+        }
+      } catch (e) {
+        console.warn('Unexpected error loading customer profile for header:', e.message || e);
+      }
+    };
+
+    loadCustomerProfile();
+  }, [authUserId, authRole, authEmail, setUserProfile]);
+
   const myOrders =
     userType === 'brand' && authUserId
       ? orders.filter((o) => o.brand_user_id === authUserId)
@@ -62,6 +118,12 @@ const ProfileScreen = ({ navigation }) => {
   const deliveredCount = myOrders.filter((o) => o.status === 'Delivered').length;
   const pendingCount = myOrders.filter((o) => o.status !== 'Delivered').length;
   const totalSpent = myOrders.reduce((sum, o) => sum + (o.total || 0), 0);
+
+  const unseenDeliveredCount = Math.max(deliveredCount - (seenDeliveredOrdersCount || 0), 0);
+
+  const displayName =
+    userProfile?.name?.trim() || userProfile?.username?.trim() || 'Guest User';
+  const displayEmail = userProfile?.email || authEmail || 'No email';
 
   const ADMIN_EMAIL = 'caliaxmed488@gmail.com'; // Change to your admin email
 
@@ -120,128 +182,206 @@ const ProfileScreen = ({ navigation }) => {
 
   if (userType === 'customer' && authRole !== 'admin') {
     return (
-      <SafeAreaView style={styles.container}>
-        <ScrollView contentContainerStyle={styles.scrollContent}>
-          <Text style={styles.settingsTitle}>Profile</Text>
-
-          <View style={styles.settingsGroup}>
-            <Text style={styles.settingsGroupLabel}>Account</Text>
-            <View style={styles.settingsCard}>
-              <TouchableOpacity
-                style={styles.settingsRow}
-                onPress={() => {
-                  navigation.navigate('EditProfile');
-                }}
-              >
-                <View style={styles.settingsRowLeft}>
-                  <Text style={styles.settingsRowLabel}>Edit Profile</Text>
-                </View>
-                <Text style={styles.settingsRowChevron}>{'>'}</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.settingsRow}
-                onPress={() => {
-                  navigation.navigate('TrackOrder');
-                }}
-              >
-                <View style={styles.settingsRowLeft}>
-                  <Text style={styles.settingsRowLabel}>Orders</Text>
-                </View>
-                <Text style={styles.settingsRowChevron}>{'>'}</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.settingsRow, { borderBottomWidth: 0 }]}
-                onPress={() => {
-                  navigation.navigate('Addresses');
-                }}
-              >
-                <View style={styles.settingsRowLeft}>
-                  <Text style={styles.settingsRowLabel}>Saved Address</Text>
-                </View>
-                <Text style={styles.settingsRowChevron}>{'>'}</Text>
-              </TouchableOpacity>
-            </View>
+      <SafeAreaView style={styles.container} edges={['top', 'right', 'bottom', 'left']}>
+        <View style={styles.headerBackground}>
+          <View style={styles.headerTopRow}>
+            <Text style={styles.headerTitle}>Profile</Text>
+            <TouchableOpacity
+              onPress={() => {
+                navigation.navigate('EditProfile');
+              }}
+            >
+              <Text style={styles.headerEditText}>Edit</Text>
+            </TouchableOpacity>
           </View>
 
-          <View style={styles.settingsGroup}>
-            <Text style={styles.settingsGroupLabel}>Support &amp; Info</Text>
-            <View style={styles.settingsCard}>
+          <View style={styles.headerAvatarSection}>
+            <View style={styles.profileAvatarWrapper}>
+              <View style={styles.avatarCircle}>
+                {userProfile?.avatar_url ? (
+                  <Image
+                    source={{ uri: userProfile.avatar_url }}
+                    style={styles.avatarImage}
+                  />
+                ) : (
+                  <Text style={styles.avatarInitial}>
+                    {displayName?.[0]?.toUpperCase() || 'A'}
+                  </Text>
+                )}
+              </View>
               <TouchableOpacity
-                style={styles.settingsRow}
-                onPress={() => {}}
+                style={styles.avatarEditBadge}
+                onPress={() => navigation.navigate('EditProfile')}
               >
-                <View style={styles.settingsRowLeft}>
-                  <Text style={styles.settingsRowLabel}>FAQ</Text>
-                </View>
-                <Text style={styles.settingsRowChevron}>{'>'}</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.settingsRow}
-                onPress={() => {}}
-              >
-                <View style={styles.settingsRowLeft}>
-                  <Text style={styles.settingsRowLabel}>Contact Support</Text>
-                </View>
-                <Text style={styles.settingsRowChevron}>{'>'}</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.settingsRow}
-                onPress={() => {}}
-              >
-                <View style={styles.settingsRowLeft}>
-                  <Text style={styles.settingsRowLabel}>Terms &amp; Conditions</Text>
-                </View>
-                <Text style={styles.settingsRowChevron}>{'>'}</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.settingsRow, { borderBottomWidth: 0 }]}
-                onPress={() => {}}
-              >
-                <View style={styles.settingsRowLeft}>
-                  <Text style={styles.settingsRowLabel}>Privacy Policy</Text>
-                </View>
-                <Text style={styles.settingsRowChevron}>{'>'}</Text>
+                <Text style={styles.avatarEditBadgeText}>✎</Text>
               </TouchableOpacity>
             </View>
+            <Text style={styles.headerName}>{displayName}</Text>
+            <Text style={styles.headerEmail}>{displayEmail}</Text>
+          </View>
+        </View>
+
+        <ScrollView contentContainerStyle={styles.profileScrollContent}>
+          <View style={styles.profileSectionCard}>
+            <TouchableOpacity
+              style={styles.profileSectionRow}
+              onPress={() => {
+                navigation.navigate('EditProfile');
+              }}
+            >
+              <View style={styles.profileSectionLeft}>
+                <View style={[styles.iconCircle, styles.iconCirclePrimary]}>
+                  <User size={18} color="#ffffff" />
+                </View>
+                <Text style={styles.profileSectionLabel}>Profile Settings</Text>
+              </View>
+              <Text style={styles.profileSectionChevron}>{'>'}</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.profileSectionRow}
+              onPress={() => {
+                setSeenDeliveredOrdersCount(deliveredCount);
+                navigation.navigate('TrackOrder');
+              }}
+            >
+              <View style={styles.profileSectionLeft}>
+                <View style={[styles.iconCircle, styles.iconCirclePurple]}>
+                  <Package size={18} color="#ffffff" />
+                </View>
+                <Text style={styles.profileSectionLabel}>My Orders</Text>
+              </View>
+              {unseenDeliveredCount > 0 && (
+                <View style={styles.badge}>
+                  <Text style={styles.badgeText}>{unseenDeliveredCount}</Text>
+                </View>
+              )}
+              <Text style={styles.profileSectionChevron}>{'>'}</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.profileSectionRow}
+              onPress={() => {
+                navigation.navigate('Addresses');
+              }}
+            >
+              <View style={styles.profileSectionLeft}>
+                <View style={[styles.iconCircle, styles.iconCirclePrimaryLight]}>
+                  <MapPin size={18} color="#ffffff" />
+                </View>
+                <Text style={styles.profileSectionLabel}>Saved Addresses</Text>
+              </View>
+              <Text style={styles.profileSectionChevron}>{'>'}</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.profileSectionRow, styles.profileSectionRowLast]}
+              onPress={() => {
+                navigation.navigate('FollowedStores');
+              }}
+            >
+              <View style={styles.profileSectionLeft}>
+                <View style={[styles.iconCircle, styles.iconCircleIndigo]}>
+                  <Store size={18} color="#ffffff" />
+                </View>
+                <Text style={styles.profileSectionLabel}>Followed Stores</Text>
+              </View>
+              <Text style={styles.profileSectionChevron}>{'>'}</Text>
+            </TouchableOpacity>
           </View>
 
-          <View style={styles.settingsGroup}>
-            <View style={styles.settingsCard}>
-              <TouchableOpacity
-                style={[styles.settingsRow, { borderBottomWidth: 0 }]}
-                onPress={async () => {
-                  try {
-                    await supabase.auth.signOut();
-                  } catch (e) {
-                  }
-                  clearAuthUser();
-                  setUserProfile({ name: '', email: '' });
-                  setUserType('customer');
-                  navigation.reset({
-                    index: 0,
-                    routes: [{ name: 'Welcome' }],
-                  });
-                }}
-              >
-                <View style={styles.settingsRowLeft}>
-                  <Text style={styles.logoutLabel}>Logout</Text>
+          <View style={styles.profileSectionCard}>
+            <TouchableOpacity
+              style={styles.profileSectionRow}
+              onPress={() => {
+                navigation.navigate('HelpFAQ');
+              }}
+            >
+              <View style={styles.profileSectionLeft}>
+                <View style={[styles.iconCircle, styles.iconCircleGray]}>
+                  <HelpCircle size={18} color="#4B5563" />
                 </View>
-                <Text style={styles.settingsRowChevron}>{'>'}</Text>
-              </TouchableOpacity>
-            </View>
+                <Text style={styles.profileSectionLabel}>FAQ</Text>
+              </View>
+              <Text style={styles.profileSectionChevron}>{'>'}</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.profileSectionRow}
+              onPress={() => {
+                navigation.navigate('ReportProblem');
+              }}
+            >
+              <View style={styles.profileSectionLeft}>
+                <View style={[styles.iconCircle, styles.iconCircleGray]}>
+                  <AlertCircle size={18} color="#4B5563" />
+                </View>
+                <Text style={styles.profileSectionLabel}>Report Problem</Text>
+              </View>
+              <Text style={styles.profileSectionChevron}>{'>'}</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.profileSectionRow}
+              onPress={() => {
+                navigation.navigate('TermsConditions');
+              }}
+            >
+              <View style={styles.profileSectionLeft}>
+                <View style={[styles.iconCircle, styles.iconCircleGray]}>
+                  <FileText size={18} color="#4B5563" />
+                </View>
+                <Text style={styles.profileSectionLabel}>Terms and Condition</Text>
+              </View>
+              <Text style={styles.profileSectionChevron}>{'>'}</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.profileSectionRow, styles.profileSectionRowLast]}
+              onPress={() => {
+                navigation.navigate('PrivacyPolicy');
+              }}
+            >
+              <View style={styles.profileSectionLeft}>
+                <View style={[styles.iconCircle, styles.iconCircleGray]}>
+                  <ShieldCheck size={18} color="#4B5563" />
+                </View>
+                <Text style={styles.profileSectionLabel}>Privacy Policy</Text>
+              </View>
+              <Text style={styles.profileSectionChevron}>{'>'}</Text>
+            </TouchableOpacity>
           </View>
+
+          <TouchableOpacity
+            style={styles.logoutFullWidthButton}
+            onPress={async () => {
+              try {
+                await supabase.auth.signOut();
+              } catch (e) {
+              }
+              clearAuthUser();
+              setUserProfile({ name: '', email: '' });
+              setUserType('customer');
+              navigation.reset({
+                index: 0,
+                routes: [{ name: 'Welcome' }],
+              });
+            }}
+          >
+            <View style={styles.logoutContentRow}>
+              <LogOutIcon size={18} color="#EF4444" />
+              <Text style={styles.logoutFullWidthText}>Log Out</Text>
+            </View>
+          </TouchableOpacity>
+
+          <Text style={styles.appVersionText}>App Version 2.4.0</Text>
         </ScrollView>
       </SafeAreaView>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top', 'right', 'bottom', 'left']}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <Text style={styles.title}>My Profile</Text>
 
@@ -582,25 +722,70 @@ const styles = StyleSheet.create({
     color: '#ef4444',
   },
   headerBackground: {
-    backgroundColor: '#2563EB',
+    backgroundColor: '#11146E',
     paddingTop: 24,
-    paddingBottom: 32,
-    paddingHorizontal: 16,
-    borderBottomLeftRadius: 24,
-    borderBottomRightRadius: 24,
+    paddingBottom: 27,
+    paddingHorizontal: 20,
+    borderBottomLeftRadius: 32,
+    borderBottomRightRadius: 32,
   },
-  headerContent: {
+  headerTopRow: {
     flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  headerIconButton: {
+    width: 32,
+    height: 20,
+    borderRadius: 16,
+    backgroundColor: 'rgba(15,23,42,0.3)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  headerSideSpacer: {
+    width: 32,
+    height: 20,
+  },
+  avatarImage: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 42,
+  },
+  // headerBackIcon: {
+  //   color: '#ffffff',
+  //   fontSize: 18,
+  //   fontWeight: '600',
+  // },
+  headerTitle: {
+    color: '#ffffff',
+    fontSize: 18,
+    fontWeight: '600',
+  },
+  headerEditText: {
+    color: '#FBBF24',
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  headerAvatarSection: {
+    marginTop: 28,
+    alignItems: 'center',
+  },
+  profileAvatarWrapper: {
+    width: 96,
+    height: 96,
+    borderRadius: 48,
+    borderWidth: 3,
+    borderColor: '#ffffff',
+    justifyContent: 'center',
     alignItems: 'center',
   },
   avatarCircle: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
+    width: 84,
+    height: 84,
+    borderRadius: 42,
     backgroundColor: '#EFF6FF',
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 16,
   },
   avatarInitial: {
     fontSize: 28,
@@ -611,6 +796,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   headerName: {
+    marginTop: 16,
     fontSize: 20,
     fontWeight: '700',
     color: '#ffffff',
@@ -629,6 +815,133 @@ const styles = StyleSheet.create({
     marginTop: -24,
     marginBottom: 12,
     paddingHorizontal: 4,
+  },
+  avatarEditBadge: {
+    position: 'absolute',
+    right: -2,
+    bottom: -2,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#ffffff',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  avatarEditBadgeText: {
+    fontSize: 14,
+    color: '#2563EB',
+    fontWeight: '700',
+  },
+  profileScrollContent: {
+    paddingTop: 20,
+    paddingHorizontal: 4,
+    paddingBottom: 32,
+  },
+  profileSectionCard: {
+    backgroundColor: '#ffffff',
+    borderRadius: 18,
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 1,
+  },
+  profileSectionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+  },
+  profileSectionRowLast: {
+    borderBottomWidth: 0,
+  },
+  profileSectionLeft: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  profileSectionLabel: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#111827',
+    marginLeft: 12,
+  },
+  profileSectionChevron: {
+    fontSize: 18,
+    color: '#D1D5DB',
+    marginLeft: 8,
+  },
+  badge: {
+    minWidth: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: '#EF4444',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 6,
+    marginRight: 4,
+  },
+  badgeText: {
+    color: '#ffffff',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  iconCircle: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  iconCirclePrimary: {
+    backgroundColor: '#4F46E5',
+  },
+  iconCirclePurple: {
+    backgroundColor: '#7C3AED',
+  },
+  iconCirclePrimaryLight: {
+    backgroundColor: '#6366F1',
+  },
+  iconCircleIndigo: {
+    backgroundColor: '#312E81',
+  },
+  iconCircleGray: {
+    backgroundColor: '#E5E7EB',
+  },
+  logoutFullWidthButton: {
+    marginTop: 8,
+    marginBottom: 12,
+    backgroundColor: '#ffffff',
+    borderRadius: 24,
+    paddingVertical: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOpacity: 0.03,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 1,
+  },
+  logoutContentRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  logoutFullWidthText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#EF4444',
+  },
+  appVersionText: {
+    marginTop: 4,
+    textAlign: 'center',
+    fontSize: 12,
+    color: '#9CA3AF',
   },
   statsCardRow: {
     flexDirection: 'row',

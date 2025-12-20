@@ -1,6 +1,7 @@
 import 'react-native-url-polyfill/auto';
 import { createClient } from '@supabase/supabase-js';
 
+
 // TODO: replace these with your actual Supabase project values
 const SUPABASE_URL = 'https://aeivheqhwlifhancoswz.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFlaXZoZXFod2xpZmhhbmNvc3d6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM4MzE3MjcsImV4cCI6MjA3OTQwNzcyN30.Cb-KGI5SEQI5dLRW5q222CEWkaVSCQz46BRJU7_uLRo';

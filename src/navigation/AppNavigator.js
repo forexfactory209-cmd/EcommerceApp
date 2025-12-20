@@ -34,6 +34,11 @@ import CategoryProductsScreen from '../screens/CategoryProductsScreen';
 import AdminProductsScreen from '../screens/AdminProductsScreen';
 import AdminDashboardScreen from '../screens/AdminDashboardScreen';
 import AllBrandsScreen from '../screens/AllBrandsScreen';
+import FollowedStoresScreen from '../screens/FollowedStoresScreen';
+import HelpFAQScreen from '../screens/HelpFAQScreen';
+import ReportProblemScreen from '../screens/ReportProblemScreen';
+import TermsConditionsScreen from '../screens/TermsConditionsScreen';
+import PrivacyPolicyScreen from '../screens/PrivacyPolicyScreen';
 import AdminCustomersScreen from '../screens/AdminCustomersScreen';
 import AdminCustomerDetailsScreen from '../screens/AdminCustomerDetailsScreen';
 import TrackOrderScreen from '../screens/TrackOrderScreen';
@@ -207,6 +212,11 @@ export default function AppNavigator() {
         <Stack.Screen name="OrderDeliveredSuccess" component={OrderDeliveredSuccessScreen} />
         <Stack.Screen name="ProductReviews" component={ProductReviewsScreen} />
         <Stack.Screen name="ProductWriteReview" component={ProductWriteReviewScreen} />
+        <Stack.Screen name="FollowedStores" component={FollowedStoresScreen} />
+        <Stack.Screen name="HelpFAQ" component={HelpFAQScreen} />
+        <Stack.Screen name="ReportProblem" component={ReportProblemScreen} />
+        <Stack.Screen name="TermsConditions" component={TermsConditionsScreen} />
+        <Stack.Screen name="PrivacyPolicy" component={PrivacyPolicyScreen} />
       </Stack.Navigator>
     </NavigationContainer>
   );

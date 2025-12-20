@@ -77,6 +77,7 @@ export const useStore = create((set, get) => ({
   // Catalog and orders
   products: PRODUCTS,
   orders: [],
+  seenDeliveredOrdersCount: 0,
 
   // User type / role
   userType: 'customer', // 'customer' | 'brand'
@@ -85,7 +86,19 @@ export const useStore = create((set, get) => ({
   // Basic user profile
   userName: '',
   userEmail: '',
-  setUserProfile: ({ name, email }) => set({ userName: name, userEmail: email }),
+  userProfile: null,
+  setUserProfile: (profile) =>
+    set((state) => {
+      const safeProfile = profile || {};
+      return {
+        userName: safeProfile.name ?? state.userName ?? '',
+        userEmail: safeProfile.email ?? state.userEmail ?? '',
+        userProfile: {
+          ...(state.userProfile || {}),
+          ...safeProfile,
+        },
+      };
+    }),
 
   // Auth state (Supabase)
   authUserId: null,
@@ -111,6 +124,8 @@ export const useStore = create((set, get) => ({
       userType: 'customer',
       userName: '',
       userEmail: '',
+      userProfile: null,
+      seenDeliveredOrdersCount: 0,
       brandLogoUrl: '',
     }),
 
@@ -284,6 +299,9 @@ export const useStore = create((set, get) => ({
       cart: [],
     };
   }),
+
+  setSeenDeliveredOrdersCount: (count) =>
+    set({ seenDeliveredOrdersCount: typeof count === 'number' ? count : 0 }),
 
   // Vendor actions
   addProduct: (product) => set((state) => ({

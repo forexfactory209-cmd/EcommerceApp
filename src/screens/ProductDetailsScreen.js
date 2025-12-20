@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo, useRef, useState } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Dimensions, Alert, ActivityIndicator, TextInput, Modal } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Dimensions, Alert, ActivityIndicator, TextInput, Modal, FlatList } from 'react-native';
 import { Image } from 'expo-image';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ArrowLeft, ShoppingCart, Heart, Star } from 'lucide-react-native';
@@ -39,10 +39,17 @@ const ProductDetailsScreen = ({ route, navigation }) => {
 
   const currentRating = productRatings[product.id] || 0;
 
-  const similarProducts = useMemo(() => {
-    const brandName = product.brand || '';
-    const brandUserId = product.brand_user_id || null;
+  const currentCategoryId = product.category_id || product.categoryId || null;
+  const currentCategoryName = product.category_name || product.category || null;
 
+  const primaryColor = useMemo(() => {
+    if (Array.isArray(product.colors) && product.colors.length > 0) {
+      return product.colors[0];
+    }
+    return product.color || null;
+  }, [product]);
+
+  const similarProducts = useMemo(() => {
     if (!Array.isArray(baseProducts) || baseProducts.length === 0) return [];
 
     const scored = baseProducts
@@ -50,11 +57,17 @@ const ProductDetailsScreen = ({ route, navigation }) => {
       .map((p) => {
         let score = 0;
 
-        const sameBrand = brandName && (p.brand || '') === brandName;
-        const sameStore = brandUserId && p.brand_user_id === brandUserId;
+        const sameCategory =
+          currentCategoryId &&
+          (p.category_id === currentCategoryId ||
+            p.categoryId === currentCategoryId ||
+            p.category === currentCategoryName);
 
-        if (sameBrand) score += 3;
-        if (sameStore) score += 1;
+        const candidateColors = Array.isArray(p.colors) ? p.colors : p.color ? [p.color] : [];
+        const sameColor = primaryColor && candidateColors.includes(primaryColor);
+
+        if (sameCategory) score += 3;
+        if (sameColor) score += 2;
 
         // Light boost for products with images and price defined
         if (p.image || (Array.isArray(p.images) && p.images.length > 0)) score += 0.5;
@@ -62,10 +75,11 @@ const ProductDetailsScreen = ({ route, navigation }) => {
 
         return { product: p, score };
       })
+      .filter((row) => row.score > 0)
       .sort((a, b) => b.score - a.score);
 
     return scored.map((row) => row.product);
-  }, [baseProducts, product]);
+  }, [baseProducts, product, currentCategoryId, currentCategoryName, primaryColor]);
 
   const handleCopyCode = async () => {
     if (!product.code) return;
@@ -139,8 +153,8 @@ const ProductDetailsScreen = ({ route, navigation }) => {
   const [answerDrafts, setAnswerDrafts] = useState({});
   const [submittingQuestion, setSubmittingQuestion] = useState(false);
   const [submittingAnswerIds, setSubmittingAnswerIds] = useState({});
-  const [showAllSimilar, setShowAllSimilar] = useState(false);
   const [activeInfoTab, setActiveInfoTab] = useState('description'); // 'description' | 'reviews'
+  const [similarLimit, setSimilarLimit] = useState(10);
 
   const currentPrice = Number(product.price) || 0;
   const flashPriceRaw =
@@ -181,11 +195,112 @@ const ProductDetailsScreen = ({ route, navigation }) => {
     return sold >= product.flash_quantity;
   })();
 
-  const VISIBLE_SIMILAR_COUNT = 8;
-  const visibleSimilarProducts = showAllSimilar
-    ? similarProducts
-    : similarProducts.slice(0, VISIBLE_SIMILAR_COUNT);
-  const hasMoreSimilar = similarProducts.length > VISIBLE_SIMILAR_COUNT;
+  const MAX_SIMILAR_ITEMS = 50;
+  const visibleSimilarProducts = useMemo(
+    () => similarProducts.slice(0, Math.min(similarLimit, MAX_SIMILAR_ITEMS)),
+    [similarProducts, similarLimit],
+  );
+
+  const handleSeeAllSimilar = useCallback(() => {
+    if (currentCategoryId || currentCategoryName) {
+      navigation.push('CategoryProducts', {
+        categoryId: currentCategoryId,
+        categoryName: currentCategoryName,
+      });
+      return;
+    }
+
+    navigation.push('AllProducts');
+  }, [navigation, currentCategoryId, currentCategoryName]);
+
+  const handleLoadMoreSimilar = useCallback(() => {
+    if (similarLimit >= MAX_SIMILAR_ITEMS) return;
+    if (similarLimit >= similarProducts.length) return;
+
+    const next = Math.min(similarLimit + 10, similarProducts.length, MAX_SIMILAR_ITEMS);
+    setSimilarLimit(next);
+  }, [similarLimit, similarProducts.length]);
+
+  const renderSimilarItem = useCallback(
+    ({ item, index }) => {
+      const coverImage =
+        (Array.isArray(item.images) && item.images[0]) || item.image || null;
+      const priceValue =
+        typeof item.price === 'number' ? item.price : Number(item.price) || 0;
+
+      const inSimilarWishlist = wishlist.some((w) => w.id === item.id);
+
+      return (
+        <TouchableOpacity
+          style={styles.similarCard}
+          onPress={() => navigation.push('ProductDetails', { product: item })}
+          activeOpacity={0.9}
+        >
+          <View style={styles.similarImageWrapper}>
+            {coverImage ? (
+              <Image
+                source={{ uri: coverImage }}
+                style={styles.similarImage}
+                contentFit="cover"
+                cachePolicy="disk"
+                transition={200}
+              />
+            ) : (
+              <View style={styles.similarImagePlaceholder}>
+                <Text style={styles.similarImagePlaceholderText}>No image</Text>
+              </View>
+            )}
+
+            <TouchableOpacity
+              style={styles.similarWishlistIcon}
+              onPress={(e) => {
+                e.stopPropagation();
+                if (inSimilarWishlist) {
+                  removeFromWishlist(item.id);
+                } else {
+                  addToWishlist(item);
+                }
+              }}
+              activeOpacity={0.9}
+            >
+              <Heart
+                size={16}
+                color={inSimilarWishlist ? '#ef4444' : '#9ca3af'}
+                fill={inSimilarWishlist ? '#ef4444' : 'transparent'}
+              />
+            </TouchableOpacity>
+          </View>
+
+          {item.brand ? (
+            <Text style={styles.similarBrand} numberOfLines={1}>
+              {item.brand}
+            </Text>
+          ) : null}
+
+          <Text style={styles.similarName} numberOfLines={2}>
+            {item.name}
+          </Text>
+
+          <View style={styles.similarPriceRow}>
+            <Text style={styles.similarPrice}>
+              {priceValue > 0 ? `$${priceValue.toFixed(2)}` : ''}
+            </Text>
+            <TouchableOpacity
+              style={styles.similarAddButton}
+              onPress={(e) => {
+                e.stopPropagation();
+                addToCart(item);
+              }}
+              activeOpacity={0.9}
+            >
+              <Text style={styles.similarAddButtonText}>+</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      );
+    },
+    [navigation, wishlist, addToWishlist, removeFromWishlist, addToCart],
+  );
 
   const formatTimeAgo = (dateString) => {
     if (!dateString) return '';
@@ -894,62 +1009,24 @@ const ProductDetailsScreen = ({ route, navigation }) => {
 
           {similarProducts.length > 0 && (
             <View style={styles.section}>
-              <Text style={styles.sectionLabel}>Similar products</Text>
-              <View style={styles.similarGrid}>
-                {visibleSimilarProducts.map((item, index) => {
-                  const coverImage =
-                    (Array.isArray(item.images) && item.images[0]) || item.image || null;
-                  const priceValue =
-                    typeof item.price === 'number'
-                      ? item.price
-                      : Number(item.price) || 0;
-
-                  return (
-                    <TouchableOpacity
-                      key={`${item.id}-${index}`}
-                      style={styles.similarCard}
-                      onPress={() => navigation.push('ProductDetails', { product: item })}
-                      activeOpacity={0.9}
-                    >
-                      <View style={styles.similarImageWrapper}>
-                        {coverImage ? (
-                          <Image
-                            source={{ uri: coverImage }}
-                            style={styles.similarImage}
-                            contentFit="cover"
-                            cachePolicy="disk"
-                            transition={200}
-                          />
-                        ) : (
-                          <View style={styles.similarImagePlaceholder}>
-                            <Text style={styles.similarImagePlaceholderText}>No image</Text>
-                          </View>
-                        )}
-                      </View>
-                      {item.brand ? (
-                        <Text style={styles.similarBrand} numberOfLines={1}>
-                          {item.brand}
-                        </Text>
-                      ) : null}
-                      <Text style={styles.similarName} numberOfLines={2}>
-                        {item.name}
-                      </Text>
-                      <Text style={styles.similarPrice}>
-                        {priceValue > 0 ? `$${priceValue.toFixed(2)}` : ''}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
+              <View style={styles.similarHeaderRow}>
+                <Text style={styles.sectionLabel}>You might also like</Text>
+                <TouchableOpacity onPress={handleSeeAllSimilar} activeOpacity={0.8}>
+                  <Text style={styles.similarSeeAllText}>See All</Text>
+                </TouchableOpacity>
               </View>
 
-              {hasMoreSimilar && !showAllSimilar && (
-                <TouchableOpacity
-                  style={styles.loadMoreButton}
-                  onPress={() => setShowAllSimilar(true)}
-                >
-                  <Text style={styles.loadMoreButtonText}>Show more</Text>
-                </TouchableOpacity>
-              )}
+              <FlatList
+                data={visibleSimilarProducts}
+                keyExtractor={(item, index) => `${item.id}-${index}`}
+                renderItem={renderSimilarItem}
+                numColumns={2}
+                scrollEnabled={false}
+                columnWrapperStyle={styles.similarRow}
+                contentContainerStyle={styles.similarListContent}
+                onEndReached={handleLoadMoreSimilar}
+                onEndReachedThreshold={0.5}
+              />
             </View>
           )}
         </ScrollView>
@@ -1911,45 +1988,45 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     elevation: 2,
   },
-  questionHeaderRow: {
+  similarHeaderRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 4,
+    alignItems: 'center',
+    marginBottom: 12,
   },
-  questionText: {
+  similarSeeAllText: {
+    color: '#2563EB',
+    fontWeight: '700',
     fontSize: 13,
-    color: '#111827',
-    lineHeight: 20,
-    marginTop: 2,
   },
-  similarList: {
-    paddingVertical: 4,
+  similarListContent: {
+    paddingBottom: 8,
   },
-  similarGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    marginHorizontal: -6,
+  similarRow: {
+    justifyContent: 'space-between',
+    marginBottom: 16,
   },
   similarCard: {
-    width: '48%',
-    marginHorizontal: 6,
-    marginBottom: 12,
-    borderRadius: 18,
+    flex: 1,
+    marginRight: 12,
     backgroundColor: '#ffffff',
-    borderWidth: 1,
+    borderRadius: 20,
+    padding: 10,
+    borderWidth: 0.5,
     borderColor: '#e5e7eb',
-    overflow: 'hidden',
     shadowColor: '#000',
-    shadowOpacity: 0.06,
+    shadowOpacity: 0.04,
     shadowRadius: 8,
     shadowOffset: { width: 0, height: 3 },
-    elevation: 3,
+    elevation: 2,
   },
   similarImageWrapper: {
+    height: 140,
     width: '100%',
-    height: 120,
     backgroundColor: '#f3f4f6',
+    borderRadius: 16,
+    overflow: 'hidden',
+    marginBottom: 10,
   },
   similarImage: {
     width: '100%',
@@ -1964,26 +2041,52 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: '#9ca3af',
   },
+  similarWishlistIcon: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    width: 26,
+    height: 26,
+    borderRadius: 999,
+    backgroundColor: 'rgba(255,255,255,0.9)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   similarBrand: {
     fontSize: 11,
     fontWeight: '600',
-    color: '#6b7280',
-    marginTop: 8,
-    marginHorizontal: 10,
+    color: '#9ca3af',
+    textTransform: 'uppercase',
   },
   similarName: {
     fontSize: 13,
     fontWeight: '600',
     color: '#111827',
-    marginTop: 2,
-    marginHorizontal: 10,
+    marginTop: 4,
+  },
+  similarPriceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 6,
   },
   similarPrice: {
     fontSize: 13,
     fontWeight: '700',
-    color: '#111827',
-    marginTop: 6,
-    marginBottom: 10,
-    marginHorizontal: 10,
+    color: '#2563EB',
+  },
+  similarAddButton: {
+    width: 26,
+    height: 26,
+    borderRadius: 999,
+    backgroundColor: '#111827',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  similarAddButtonText: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: '700',
+    lineHeight: 18,
   },
 });
