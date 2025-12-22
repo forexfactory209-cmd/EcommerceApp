@@ -358,19 +358,7 @@ const BrandScreen = ({ route, navigation }) => {
   }, [effectiveBrandId]);
 
   return (
-    <SafeAreaView style={styles.container}>
-      {brand?.banner_url ? (
-        <View style={styles.bannerWrapper}>
-          <Image
-            source={{ uri: brand.banner_url }}
-            style={styles.bannerImage}
-            contentFit="cover"
-            cachePolicy="disk"
-            transition={250}
-          />
-        </View>
-      ) : null}
-
+    <SafeAreaView style={styles.container} edges={['top', 'right', 'bottom', 'left']}>
       <View style={styles.headerRow}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
           <ArrowLeft color="#111827" size={22} />
@@ -492,18 +480,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#f9fafb',
     paddingHorizontal: 16,
     paddingTop: 16,
-  },
-  bannerWrapper: {
-    marginHorizontal: -16,
-    marginTop: -16,
-    marginBottom: 12,
-    height: 140,
-    overflow: 'hidden',
-    backgroundColor: '#e5e7eb',
-  },
-  bannerImage: {
-    width: '100%',
-    height: '100%',
   },
   headerRow: {
     flexDirection: 'row',

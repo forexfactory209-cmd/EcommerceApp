@@ -9,6 +9,7 @@ import { fetchApprovedBrandsFromSupabase } from '../services/brands';
 import { fetchProductsFromSupabase } from '../services/products';
 import { useFocusEffect } from '@react-navigation/native';
 import { supabase } from '../lib/supabase';
+import { getFlashSaleState } from '../utils/flashSale';
 
 const windowWidth = Dimensions.get('window').width;
 
@@ -26,6 +27,7 @@ const HomeScreen = ({ navigation }) => {
   const cartCount = useStore((state) => state.cart.length || 0);
   const setBrandLogoUrl = useStore((state) => state.setBrandLogoUrl);
   const loadFollowedBrands = useStore((state) => state.loadFollowedBrands);
+  const setProducts = useStore((state) => state.setProducts);
   const [searchCode, setSearchCode] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [remoteProducts, setRemoteProducts] = useState([]);
@@ -48,6 +50,7 @@ const HomeScreen = ({ navigation }) => {
       const data = await fetchProductsFromSupabase();
       if (Array.isArray(data) && data.length > 0) {
         setRemoteProducts(data);
+        setProducts(data);
       }
     } catch (e) {
       Alert.alert('Supabase error', e.message || 'Failed to load products from Supabase');
@@ -152,9 +155,12 @@ const HomeScreen = ({ navigation }) => {
   }, [categorySheetVisible, categorySlide]);
 
   const rawBaseProducts = (remoteProducts.length > 0 ? remoteProducts : products) || [];
-  const baseProducts = rawBaseProducts.filter((p) => !deletedProductIds.includes(p.id));
+  const baseProducts = useMemo(
+    () => rawBaseProducts.filter((p) => !deletedProductIds.includes(p.id)),
+    [rawBaseProducts, deletedProductIds]
+  );
 
-  const filterByCategory = (item) => {
+  const filterByCategory = useCallback((item) => {
     if (selectedCategory === 'all') return true;
 
     const explicit = (item.category || '').toString().toLowerCase();
@@ -197,9 +203,9 @@ const HomeScreen = ({ navigation }) => {
       default:
         return true;
     }
-  };
+  }, [selectedCategory]);
 
-  const filterByAudience = (item) => {
+  const filterByAudience = useCallback((item) => {
     if (selectedAudience === 'all') return true;
 
     const explicit = (item.audience || '').toString().toLowerCase();
@@ -221,20 +227,23 @@ const HomeScreen = ({ navigation }) => {
     if (selectedAudience === 'kids') {
       return text.includes('kid') || text.includes('child') || text.includes('children') || text.includes('boys') || text.includes('girls');
     }
-
     return true;
-  };
+  }, [selectedAudience]);
 
-  const filterBySearch = (item) => {
+  const filterBySearch = useCallback((item) => {
     const q = searchQuery.trim().toLowerCase();
     if (!q) return true;
 
     const name = (item.name || '').toString().toLowerCase();
     return name.includes(q);
-  };
+  }, [searchQuery]);
 
-  const filteredProducts = baseProducts.filter(
-    (item) => filterByCategory(item) && filterByAudience(item) && filterBySearch(item),
+  const filteredProducts = useMemo(
+    () =>
+      baseProducts.filter(
+        (item) => filterByCategory(item) && filterByAudience(item) && filterBySearch(item),
+      ),
+    [baseProducts, filterByCategory, filterByAudience, filterBySearch],
   );
 
   const trendingProducts = useMemo(() => {
@@ -378,31 +387,8 @@ const HomeScreen = ({ navigation }) => {
     const stats = ratingStats[item.id];
     const rating = stats?.avg ?? 0;
     const ratingCount = stats?.count ?? 0;
+    const { currentPrice, flashPrice, isFlashActive } = getFlashSaleState(item);
     const isOutOfStock = Number(item.quantity) === 0;
-
-    const currentPrice = Number(item.price) || 0;
-    const flashPrice =
-      item.flash_price != null && item.flash_price !== ''
-        ? Number(item.flash_price)
-        : null;
-
-    let isFlashActive = false;
-    if (flashPrice != null && !Number.isNaN(flashPrice) && flashPrice > 0) {
-      try {
-        const now = new Date();
-        const start = item.flash_start_at ? new Date(item.flash_start_at) : null;
-        const end = item.flash_end_at ? new Date(item.flash_end_at) : null;
-        const hasQty = item.flash_quantity != null;
-        const sold = Number(item.flash_sold) || 0;
-        const qtyOk = !hasQty || sold < item.flash_quantity;
-
-        if (start && end && qtyOk && start <= now && end > now) {
-          isFlashActive = true;
-        }
-      } catch (e) {
-        // ignore date parse errors
-      }
-    }
 
     return (
       <TouchableOpacity 
@@ -418,6 +404,16 @@ const HomeScreen = ({ navigation }) => {
             cachePolicy="disk"
             transition={200}
           />
+          {isFlashActive && (
+            <View style={styles.flashBadge}>
+              <Text style={styles.flashBadgeText}>Flash Sale</Text>
+            </View>
+          )}
+          {isOutOfStock && !isFlashActive && (
+            <View style={styles.outOfStockBadge}>
+              <Text style={styles.outOfStockBadgeText}>Out of stock</Text>
+            </View>
+          )}
           <TouchableOpacity
             style={styles.wishlistIcon}
             onPress={(e) => {
@@ -438,16 +434,6 @@ const HomeScreen = ({ navigation }) => {
               fill={inWishlist ? '#ef4444' : 'transparent'}
             />
           </TouchableOpacity>
-          {isFlashActive && (
-            <View style={styles.flashBadge}>
-              <Text style={styles.flashBadgeText}>Flash Sale</Text>
-            </View>
-          )}
-          {isOutOfStock && (
-            <View style={styles.outOfStockBadge}>
-              <Text style={styles.outOfStockBadgeText}>Out of stock</Text>
-            </View>
-          )}
         </View>
         <Text style={styles.productBrand}>{item.brand}</Text>
         <Text style={styles.productName} numberOfLines={1}>{item.name}</Text>
@@ -506,7 +492,7 @@ const HomeScreen = ({ navigation }) => {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
+    <SafeAreaView style={styles.container} edges={['top', 'right', 'bottom', 'left']}>
       <Modal
         visible={categorySheetVisible}
         transparent

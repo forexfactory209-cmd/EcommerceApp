@@ -5,6 +5,7 @@ import { Trash2, Plus, Truck, CheckCircle } from 'lucide-react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useStore } from '../store/store';
 import { supabase } from '../lib/supabase';
+import { sendDiscountToFollowers } from '../services/notifications';
 
 const VendorScreen = ({ navigation }) => {
   const [tab, setTab] = useState('orders'); // 'products' or 'orders'
@@ -241,7 +242,7 @@ const VendorScreen = ({ navigation }) => {
         console.warn('Vendor discount: exception persisting brand discount', e.message || e);
       }
 
-      // Create a notification so followers of this brand see the discount update
+      // Notify followers (and the brand owner) about the new discount using shared helper
       try {
         let brandIdForNotif = brandMeta?.id || null;
         let brandNameForNotif = brandMeta?.name || null;
@@ -265,25 +266,13 @@ const VendorScreen = ({ navigation }) => {
           }
         }
 
-        if (brandIdForNotif && authUserId) {
-          const { error: notifError } = await supabase
-            .from('notifications')
-            .insert({
-              user_id: authUserId,
-              brand_id: brandIdForNotif,
-              title: 'New discount from ' + (brandNameForNotif || 'a brand'),
-              message: `Enjoy ${value}% off on selected products.`,
-              is_read: false,
-            });
-
-          if (notifError) {
-            console.warn('Vendor discount: failed to insert notification', notifError.message || notifError);
-          }
+        if (brandIdForNotif) {
+          await sendDiscountToFollowers(brandIdForNotif, brandNameForNotif, value);
         } else {
-          console.warn('Vendor discount: no brand id or auth user id available for notification insert');
+          console.warn('Vendor discount: no brand id available for discount notification');
         }
       } catch (e) {
-        console.warn('Vendor discount: exception inserting notification', e.message || e);
+        console.warn('Vendor discount: exception sending discount notification to followers', e.message || e);
       }
 
       setShowDiscountInput(false);

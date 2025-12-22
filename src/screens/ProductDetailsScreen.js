@@ -8,7 +8,7 @@ import * as Clipboard from 'expo-clipboard';
 import { useFocusEffect } from '@react-navigation/native';
 import { fetchUserProductRating, upsertUserProductRating, fetchProductRatingSummary } from '../services/ratings';
 import { fetchProductReviews, createProductReview, fetchReviewReplies, addReviewReply, updateProductReview, deleteProductReview } from '../services/reviews';
-import { fetchProductQuestions, createProductQuestion, fetchAnswersForQuestions, createProductAnswer } from '../services/questions';
+import { fetchProductQuestions, createProductQuestion, fetchAnswersForQuestions, createProductAnswer, updateProductAnswer, deleteProductAnswer } from '../services/questions';
 import * as ImagePicker from 'expo-image-picker';
 import { supabase } from '../lib/supabase';
 
@@ -21,6 +21,7 @@ const ProductDetailsScreen = ({ route, navigation }) => {
   const userType = useStore((state) => state.userType);
   const authRole = useStore((state) => state.authRole);
   const products = useStore((state) => state.products);
+  const deletedProductIds = useStore((state) => state.deletedProductIds || []);
   const productRatings = useStore((state) => state.productRatings);
   const setProductRating = useStore((state) => state.setProductRating);
   const authUserId = useStore((state) => state.authUserId);
@@ -42,44 +43,25 @@ const ProductDetailsScreen = ({ route, navigation }) => {
   const currentCategoryId = product.category_id || product.categoryId || null;
   const currentCategoryName = product.category_name || product.category || null;
 
-  const primaryColor = useMemo(() => {
-    if (Array.isArray(product.colors) && product.colors.length > 0) {
-      return product.colors[0];
-    }
-    return product.color || null;
-  }, [product]);
-
   const similarProducts = useMemo(() => {
     if (!Array.isArray(baseProducts) || baseProducts.length === 0) return [];
 
-    const scored = baseProducts
-      .filter((p) => p && p.id !== product.id)
-      .map((p) => {
-        let score = 0;
+    const categoryKey = (currentCategoryName || '').toLowerCase();
 
-        const sameCategory =
-          currentCategoryId &&
-          (p.category_id === currentCategoryId ||
-            p.categoryId === currentCategoryId ||
-            p.category === currentCategoryName);
+    return baseProducts.filter((p) => {
+      if (!p || p.id === product.id) return false;
+      if (deletedProductIds.includes(p.id)) return false;
 
-        const candidateColors = Array.isArray(p.colors) ? p.colors : p.color ? [p.color] : [];
-        const sameColor = primaryColor && candidateColors.includes(primaryColor);
+      const sameIdCategory =
+        currentCategoryId &&
+        (p.category_id === currentCategoryId || p.categoryId === currentCategoryId);
 
-        if (sameCategory) score += 3;
-        if (sameColor) score += 2;
+      const sameNameCategory =
+        categoryKey && typeof p.category === 'string' && p.category.toLowerCase() === categoryKey;
 
-        // Light boost for products with images and price defined
-        if (p.image || (Array.isArray(p.images) && p.images.length > 0)) score += 0.5;
-        if (p.price != null) score += 0.5;
-
-        return { product: p, score };
-      })
-      .filter((row) => row.score > 0)
-      .sort((a, b) => b.score - a.score);
-
-    return scored.map((row) => row.product);
-  }, [baseProducts, product, currentCategoryId, currentCategoryName, primaryColor]);
+      return sameIdCategory || sameNameCategory;
+    });
+  }, [baseProducts, product, currentCategoryId, currentCategoryName, deletedProductIds]);
 
   const handleCopyCode = async () => {
     if (!product.code) return;
@@ -153,6 +135,8 @@ const ProductDetailsScreen = ({ route, navigation }) => {
   const [answerDrafts, setAnswerDrafts] = useState({});
   const [submittingQuestion, setSubmittingQuestion] = useState(false);
   const [submittingAnswerIds, setSubmittingAnswerIds] = useState({});
+  const [editingAnswerId, setEditingAnswerId] = useState(null);
+  const [editingAnswerText, setEditingAnswerText] = useState('');
   const [activeInfoTab, setActiveInfoTab] = useState('description'); // 'description' | 'reviews'
   const [similarLimit, setSimilarLimit] = useState(10);
 
@@ -195,10 +179,10 @@ const ProductDetailsScreen = ({ route, navigation }) => {
     return sold >= product.flash_quantity;
   })();
 
-  const MAX_SIMILAR_ITEMS = 50;
+  const MAX_SIMILAR_ITEMS = 4;
   const visibleSimilarProducts = useMemo(
-    () => similarProducts.slice(0, Math.min(similarLimit, MAX_SIMILAR_ITEMS)),
-    [similarProducts, similarLimit],
+    () => similarProducts.slice(0, MAX_SIMILAR_ITEMS),
+    [similarProducts],
   );
 
   const handleSeeAllSimilar = useCallback(() => {
@@ -458,7 +442,7 @@ const ProductDetailsScreen = ({ route, navigation }) => {
   const featuredReviews = getFeaturedReviews(reviews);
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top', 'right', 'bottom', 'left']}>
       {/* Image Header - single hero image */}
       <View style={styles.imageHeader}>
         {images.length > 0 && (
@@ -910,20 +894,104 @@ const ProductDetailsScreen = ({ route, navigation }) => {
                         </View>
                         <Text style={styles.questionText}>{q.text}</Text>
 
-                        {brandAnswers.map((a) => (
-                          <View key={a.id} style={styles.brandReplyBubble}>
-                            <View style={styles.replyHeaderRow}>
-                              <Text style={styles.replyUserName}>Brand Owner</Text>
-                              <View style={styles.brandBadge}>
-                                <Text style={styles.brandBadgeText}>Brand Owner</Text>
+                              {brandAnswers.map((a) => {
+                          const isOwnBrandAnswer = ownsProduct && a.user_id === authUserId;
+                          const isEditing = editingAnswerId === a.id;
+                          return (
+                            <View key={a.id} style={styles.brandReplyBubble}>
+                              <View style={styles.replyHeaderRow}>
+                                <View style={styles.brandReplyHeaderLeft}>
+                                  <Text style={styles.replyUserName}>Brand Owner</Text>
+                                  <View style={styles.brandBadge}>
+                                    <Text style={styles.brandBadgeText}>Official reply</Text>
+                                  </View>
+                                </View>
+                                {isOwnBrandAnswer && !isEditing && (
+                                  <View style={styles.brandReplyActionsRow}>
+                                    <TouchableOpacity
+                                      onPress={() => {
+                                        setEditingAnswerId(a.id);
+                                        setEditingAnswerText(a.text || '');
+                                      }}
+                                    >
+                                      <Text style={styles.brandReplyActionText}>Edit</Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity
+                                      onPress={async () => {
+                                        try {
+                                          await deleteProductAnswer({ answerId: a.id, userId: authUserId });
+                                          setAnswersMap((prev) => ({
+                                            ...prev,
+                                            [q.id]: (prev[q.id] || []).filter((ans) => ans.id !== a.id),
+                                          }));
+                                        } catch (e) {
+                                          Alert.alert('Error', 'Failed to delete answer.');
+                                        }
+                                      }}
+                                      style={{ marginLeft: 8 }}
+                                    >
+                                      <Text style={styles.brandReplyActionText}>Delete</Text>
+                                    </TouchableOpacity>
+                                  </View>
+                                )}
                               </View>
+
+                              {isEditing ? (
+                                <View style={styles.editAnswerSection}>
+                                  <TextInput
+                                    style={styles.editAnswerInput}
+                                    value={editingAnswerText}
+                                    onChangeText={setEditingAnswerText}
+                                    multiline
+                                  />
+                                  <View style={styles.editAnswerButtonsRow}>
+                                    <TouchableOpacity
+                                      onPress={() => {
+                                        setEditingAnswerId(null);
+                                        setEditingAnswerText('');
+                                      }}
+                                    >
+                                      <Text style={styles.brandReplyActionText}>Cancel</Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity
+                                      style={styles.saveEditButton}
+                                      onPress={async () => {
+                                        const text = (editingAnswerText || '').trim();
+                                        if (!text) return;
+                                        try {
+                                          const updated = await updateProductAnswer({
+                                            answerId: a.id,
+                                            userId: authUserId,
+                                            text,
+                                          });
+                                          setAnswersMap((prev) => ({
+                                            ...prev,
+                                            [q.id]: (prev[q.id] || []).map((ans) =>
+                                              ans.id === a.id ? { ...ans, text: updated.text } : ans,
+                                            ),
+                                          }));
+                                          setEditingAnswerId(null);
+                                          setEditingAnswerText('');
+                                        } catch (e) {
+                                          Alert.alert('Error', 'Failed to update answer.');
+                                        }
+                                      }}
+                                    >
+                                      <Text style={styles.saveEditButtonText}>Save</Text>
+                                    </TouchableOpacity>
+                                  </View>
+                                </View>
+                              ) : (
+                                <>
+                                  <Text style={styles.brandReplyText}>{a.text}</Text>
+                                  <Text style={styles.replyDateText}>
+                                    {formatTimeAgo(a.created_at)}
+                                  </Text>
+                                </>
+                              )}
                             </View>
-                            <Text style={styles.replyText}>{a.text}</Text>
-                            <Text style={styles.replyDateText}>
-                              {formatTimeAgo(a.created_at)}
-                            </Text>
-                          </View>
-                        ))}
+                          );
+                        })}
 
                         {otherAnswers.map((a) => (
                           <View key={a.id} style={styles.userReplyBubble}>
@@ -937,7 +1005,7 @@ const ProductDetailsScreen = ({ route, navigation }) => {
                           </View>
                         ))}
 
-                        {authUserId && (
+                        {authUserId && (!isBrandUser || ownsProduct) && (
                           <View style={styles.replyFormRow}>
                             <TextInput
                               style={styles.textInput}
@@ -1007,7 +1075,7 @@ const ProductDetailsScreen = ({ route, navigation }) => {
             )}
           </View>
 
-          {similarProducts.length > 0 && (
+          {!isBrandUser && similarProducts.length > 0 && (
             <View style={styles.section}>
               <View style={styles.similarHeaderRow}>
                 <Text style={styles.sectionLabel}>You might also like</Text>
@@ -1127,7 +1195,7 @@ const ProductDetailsScreen = ({ route, navigation }) => {
           </TouchableOpacity>
         </View>
       </View>
-    </View>
+    </SafeAreaView>
   );
 };
 
@@ -1762,17 +1830,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#111827',
     lineHeight: 20,
-    marginTop: 4,
-  },
-  reviewPhotosRow: {
-    marginTop: 8,
-  },
-  reviewPhoto: {
-    width: 72,
-    height: 72,
-    borderRadius: 12,
-    marginRight: 8,
-    backgroundColor: '#e5e7eb',
   },
   photoPickerRow: {
     flexDirection: 'row',

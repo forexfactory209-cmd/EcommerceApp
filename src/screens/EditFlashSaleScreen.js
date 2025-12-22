@@ -27,6 +27,19 @@ const EditFlashSaleScreen = ({ route, navigation }) => {
     const qtyNum = flashQuantity ? parseInt(flashQuantity, 10) : null;
     const durationMinutes = parseInt(duration, 10) || 60;
 
+    // Prevent creating a flash sale for products that are out of stock
+    const baseQuantity =
+      product?.quantity != null ? Number(product.quantity) : null;
+
+    if (baseQuantity == null || Number.isNaN(baseQuantity) || baseQuantity <= 0) {
+      setStatusMessage('This product is out of stock. Update quantity before starting a flash sale.');
+      Alert.alert(
+        'Product out of stock',
+        'This product currently has no available stock. Please restock and update its quantity before starting a flash sale.',
+      );
+      return;
+    }
+
     // Compute discount percent relative to the original product price (if available)
     const basePriceNum = product?.price ? Number(product.price) : 0;
     let discountPercent = null;

@@ -110,3 +110,37 @@ export async function createProductAnswer({
 
   return data;
 }
+
+export async function updateProductAnswer({ answerId, userId, text }) {
+  if (!answerId || !userId || !text) return null;
+
+  const { data, error } = await supabase
+    .from('product_answers')
+    .update({ text })
+    .eq('id', answerId)
+    .eq('user_id', userId)
+    .select('*')
+    .single();
+
+  if (error) {
+    console.warn('Error updating product answer', error.message || error);
+    throw error;
+  }
+
+  return data;
+}
+
+export async function deleteProductAnswer({ answerId, userId }) {
+  if (!answerId || !userId) return;
+
+  const { error } = await supabase
+    .from('product_answers')
+    .delete()
+    .eq('id', answerId)
+    .eq('user_id', userId);
+
+  if (error) {
+    console.warn('Error deleting product answer', error.message || error);
+    throw error;
+  }
+}

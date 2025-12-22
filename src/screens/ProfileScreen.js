@@ -13,6 +13,10 @@ import {
   FileText,
   ShieldCheck,
   LogOut as LogOutIcon,
+  ShoppingBag,
+  Truck,
+  Clock3,
+  DollarSign,
 } from 'lucide-react-native';
 
 const ProfileScreen = ({ navigation }) => {
@@ -126,6 +130,11 @@ const ProfileScreen = ({ navigation }) => {
   const displayEmail = userProfile?.email || authEmail || 'No email';
 
   const ADMIN_EMAIL = 'caliaxmed488@gmail.com'; // Change to your admin email
+
+  const [showAllOrders, setShowAllOrders] = useState(false);
+
+  const latestThreeOrders = myOrders.slice(0, 3);
+  const displayedOrders = showAllOrders ? myOrders : latestThreeOrders;
 
   const OrderCard = React.memo(({ item }) => (
     <View style={styles.orderCard}>
@@ -380,151 +389,191 @@ const ProfileScreen = ({ navigation }) => {
     );
   }
 
+  const isBrandRole = authRole === 'brand';
+
   return (
     <SafeAreaView style={styles.container} edges={['top', 'right', 'bottom', 'left']}>
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        <Text style={styles.title}>My Profile</Text>
+      <View style={styles.mainContent}>
+        <View>
+          <Text style={styles.title}>{isBrandRole ? 'Brand Role Profile' : 'My Profile'}</Text>
 
-        {__DEV__ && (
-          <View style={styles.roleSwitcherRow}>
-            <Text style={styles.roleLabel}>Account type:</Text>
-            <View style={styles.roleButtonsRow}>
-              <Text
-                style={userType === 'customer' ? styles.roleButtonActive : styles.roleButton}
-                onPress={() => setUserType('customer')}
-              >
-                Customer
-              </Text>
-              <Text
-                style={userType === 'brand' ? styles.roleButtonActive : styles.roleButton}
-                onPress={() => setUserType('brand')}
-              >
-                Brand
-              </Text>
+          {!isBrandRole && __DEV__ && (
+            <View style={styles.roleSwitcherRow}>
+              <Text style={styles.roleLabel}>Account type:</Text>
+              <View style={styles.roleButtonsRow}>
+                <Text
+                  style={userType === 'customer' ? styles.roleButtonActive : styles.roleButton}
+                  onPress={() => setUserType('customer')}
+                >
+                  Customer
+                </Text>
+                <Text
+                  style={userType === 'brand' ? styles.roleButtonActive : styles.roleButton}
+                  onPress={() => setUserType('brand')}
+                >
+                  Brand
+                </Text>
+              </View>
             </View>
-          </View>
-        )}
+          )}
 
-        {userType !== 'brand' && authRole !== 'admin' && (
-          <TouchableOpacity
-            style={styles.brandButton}
-            onPress={() => navigation.navigate('BrandOnboarding')}
-          >
-            <Text style={styles.brandButtonText}>Become a Brand</Text>
-          </TouchableOpacity>
-        )}
-
-        {authRole === 'brand' && (
-          <>
+          {!isBrandRole && userType !== 'brand' && authRole !== 'admin' && (
             <TouchableOpacity
               style={styles.brandButton}
               onPress={() => navigation.navigate('BrandOnboarding')}
             >
-              <Text style={styles.brandButtonText}>Edit Brand Profile</Text>
+              <Text style={styles.brandButtonText}>Become a Brand</Text>
             </TouchableOpacity>
+          )}
 
-            <TouchableOpacity
-              style={styles.brandButton}
-              disabled={!brandId || brandLoading}
-              onPress={() => {
-                console.log('[ProfileScreen] CreateAnnouncement pressed, brandId:', brandId, typeof brandId);
-                if (!brandId) return;
-                navigation.navigate('CreateAnnouncement', { brandId });
-              }}
-            >
-              <Text style={styles.brandButtonText}>
-                {brandLoading ? 'Loading brand...' : 'Create Announcement'}
-              </Text>
-            </TouchableOpacity>
-          </>
+          {isBrandRole && (
+            <>
+              <TouchableOpacity
+                style={styles.brandButton}
+                onPress={() => navigation.navigate('BrandOnboarding')}
+              >
+                <Text style={styles.brandButtonText}>Edit Brand Profile</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.brandButton}
+                disabled={!brandId || brandLoading}
+                onPress={() => {
+                  console.log('[ProfileScreen] CreateAnnouncement pressed, brandId:', brandId, typeof brandId);
+                  if (!brandId) return;
+                  navigation.navigate('CreateAnnouncement', { brandId });
+                }}
+              >
+                <Text style={styles.brandButtonText}>
+                  {brandLoading ? 'Loading brand...' : 'Create Announcement'}
+                </Text>
+              </TouchableOpacity>
+            </>
+          )}
+
+          {!isBrandRole && authEmail === ADMIN_EMAIL && (
+            <>
+              <TouchableOpacity
+                style={styles.adminButton}
+                onPress={() => navigation.navigate('AdminBrands')}
+              >
+                <Text style={styles.adminButtonText}>Admin: Manage Brands</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.adminButton}
+                onPress={() => navigation.navigate('AdminProducts')}
+              >
+                <Text style={styles.adminButtonText}>Admin: Manage Products</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.adminButton}
+                onPress={() => navigation.navigate('AdminCustomers')}
+              >
+                <Text style={styles.adminButtonText}>Admin: Manage Customers</Text>
+              </TouchableOpacity>
+            </>
+          )}
+
+          {authRole !== 'admin' && (
+            <>
+              <View style={styles.statsRow}>
+                <View style={styles.statCard}>
+                  <View style={styles.statIconWrapper}>
+                    <View style={[styles.iconCircle, styles.iconCircleGray]}>
+                      <ShoppingBag size={16} color="#4B5563" />
+                    </View>
+                  </View>
+                  <Text style={styles.statLabel}>Total Orders</Text>
+                  <Text style={styles.statValue}>{totalOrders}</Text>
+                </View>
+                <View style={styles.statCard}>
+                  <View style={styles.statIconWrapper}>
+                    <View style={[styles.iconCircle, styles.iconCircleGray]}>
+                      <Truck size={16} color="#4B5563" />
+                    </View>
+                  </View>
+                  <Text style={styles.statLabel}>Delivered</Text>
+                  <Text style={styles.statValue}>{deliveredCount}</Text>
+                </View>
+              </View>
+
+              <View style={styles.statsRow}>
+                <View style={styles.statCard}>
+                  <View style={styles.statIconWrapper}>
+                    <View style={[styles.iconCircle, styles.iconCircleGray]}>
+                      <Clock3 size={16} color="#4B5563" />
+                    </View>
+                  </View>
+                  <Text style={styles.statLabel}>Pending</Text>
+                  <Text style={styles.statValue}>{pendingCount}</Text>
+                </View>
+                <View style={styles.statCard}>
+                  <View style={styles.statIconWrapper}>
+                    <View style={[styles.iconCircle, styles.iconCircleGray]}>
+                      <DollarSign size={16} color="#4B5563" />
+                    </View>
+                  </View>
+                  <Text style={styles.statLabel}>Total Spent</Text>
+                  <Text style={styles.statValue}>${totalSpent.toFixed(0)}</Text>
+                </View>
+              </View>
+
+              <View style={styles.orderHistoryHeaderRow}>
+                <Text style={styles.sectionTitle}>Order History</Text>
+                {myOrders.length > 3 && (
+                  <TouchableOpacity
+                    onPress={() => setShowAllOrders((prev) => !prev)}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  >
+                    <Text style={styles.seeAllText}>
+                      {showAllOrders ? 'Show less' : 'See all'}
+                    </Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+
+              {myOrders.length === 0 && (
+                <Text style={styles.emptyText}>You have no orders yet.</Text>
+              )}
+            </>
+          )}
+        </View>
+
+        {authRole !== 'admin' && myOrders.length > 0 && (
+          <View style={styles.ordersListContainer}>
+            <FlatList
+              data={displayedOrders}
+              keyExtractor={(item) => item.id.toString()}
+              renderItem={renderItem}
+              initialNumToRender={6}
+              windowSize={5}
+              maxToRenderPerBatch={10}
+              removeClippedSubviews
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={{ paddingBottom: 16 }}
+            />
+          </View>
         )}
+      </View>
 
-        {authEmail === ADMIN_EMAIL && (
-          <>
-            <TouchableOpacity
-              style={styles.adminButton}
-              onPress={() => navigation.navigate('AdminBrands')}
-            >
-              <Text style={styles.adminButtonText}>Admin: Manage Brands</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.adminButton}
-              onPress={() => navigation.navigate('AdminProducts')}
-            >
-              <Text style={styles.adminButtonText}>Admin: Manage Products</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.adminButton}
-              onPress={() => navigation.navigate('AdminCustomers')}
-            >
-              <Text style={styles.adminButtonText}>Admin: Manage Customers</Text>
-            </TouchableOpacity>
-          </>
-        )}
-
-        {authRole !== 'admin' && (
-          <>
-            <View style={styles.statsRow}>
-              <View style={styles.statCard}>
-                <Text style={styles.statLabel}>Total Orders</Text>
-                <Text style={styles.statValue}>{totalOrders}</Text>
-              </View>
-              <View style={styles.statCard}>
-                <Text style={styles.statLabel}>Delivered</Text>
-                <Text style={styles.statValue}>{deliveredCount}</Text>
-              </View>
-            </View>
-
-            <View style={styles.statsRow}>
-              <View style={styles.statCard}>
-                <Text style={styles.statLabel}>Pending</Text>
-                <Text style={styles.statValue}>{pendingCount}</Text>
-              </View>
-              <View style={styles.statCard}>
-                <Text style={styles.statLabel}>Total Spent</Text>
-                <Text style={styles.statValue}>${totalSpent.toFixed(0)}</Text>
-              </View>
-            </View>
-
-            <Text style={styles.sectionTitle}>Order History</Text>
-
-            {myOrders.length === 0 ? (
-              <Text style={styles.emptyText}>You have no orders yet.</Text>
-            ) : (
-              <FlatList
-                data={myOrders}
-                keyExtractor={(item) => item.id.toString()}
-                renderItem={renderItem}
-                initialNumToRender={8}
-                windowSize={5}
-                maxToRenderPerBatch={10}
-                removeClippedSubviews
-                showsVerticalScrollIndicator={false}
-                contentContainerStyle={{ paddingBottom: 24 }}
-              />
-            )}
-          </>
-        )}
-
-        <TouchableOpacity
-          style={styles.logoutButton}
-          onPress={async () => {
-            try {
-              await supabase.auth.signOut();
-            } catch (e) {
-            }
-            clearAuthUser();
-            setUserProfile({ name: '', email: '' });
-            setUserType('customer');
-            navigation.reset({
-              index: 0,
-              routes: [{ name: 'Welcome' }],
-            });
-          }}
-        >
-          <Text style={styles.logoutText}>Logout</Text>
-        </TouchableOpacity>
-      </ScrollView>
+      <TouchableOpacity
+        style={styles.logoutButton}
+        onPress={async () => {
+          try {
+            await supabase.auth.signOut();
+          } catch (e) {
+          }
+          clearAuthUser();
+          setUserProfile({ name: '', email: '' });
+          setUserType('customer');
+          navigation.reset({
+            index: 0,
+            routes: [{ name: 'Welcome' }],
+          });
+        }}
+      >
+        <Text style={styles.logoutText}>Logout</Text>
+      </TouchableOpacity>
     </SafeAreaView>
   );
 }
@@ -537,6 +586,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#f9fafb',
     paddingHorizontal: 16,
     paddingTop: 0,
+  },
+  mainContent: {
+    flex: 1,
+    paddingTop: 16,
   },
   scrollContent: {
     paddingBottom: 24,
@@ -696,20 +749,31 @@ const styles = StyleSheet.create({
     marginTop: 16,
     marginBottom: 8,
   },
+  orderHistoryHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 16,
+    marginBottom: 8,
+  },
   emptyText: {
     marginTop: 16,
     textAlign: 'center',
     color: '#9ca3af',
   },
+  ordersListContainer: {
+    flex: 1,
+    marginTop: 4,
+  },
   logoutButton: {
-    marginTop: 24,
-    alignSelf: 'center',
     paddingHorizontal: 24,
     paddingVertical: 10,
     borderRadius: 999,
     borderWidth: 1,
     borderColor: '#e5e7eb',
     backgroundColor: '#ffffff',
+    alignSelf: 'center',
+    marginBottom: 16,
   },
   logoutText: {
     fontSize: 14,
@@ -1029,6 +1093,11 @@ const styles = StyleSheet.create({
   },
   orderHistorySection: {
     marginTop: 16,
+  },
+  seeAllText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#2563EB',
   },
   orderCard: {
     backgroundColor: '#ffffff',

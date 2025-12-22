@@ -26,7 +26,7 @@ const WishlistScreen = ({ navigation }) => {
   );
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top', 'right', 'bottom', 'left']}>
       <View style={styles.header}>
         <Text style={styles.title}>Wishlist</Text>
         <Text style={styles.subtitle}>{wishlist.length} items</Text>
@@ -45,13 +45,13 @@ const WishlistScreen = ({ navigation }) => {
           contentContainerStyle={styles.listContent}
         />
       )}
-
+{/* 
       <TouchableOpacity
         style={styles.backProfileButton}
         onPress={() => navigation.navigate('Main', { screen: 'Profile' })}
       >
         <Text style={styles.backProfileText}>Back to Profile</Text>
-      </TouchableOpacity>
+      </TouchableOpacity> */}
     </SafeAreaView>
   );
 };
