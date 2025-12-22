@@ -130,29 +130,29 @@ const AddAddressScreen = () => {
         <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
           <Text style={styles.backIcon}>←</Text>
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>{editingAddress ? 'Edit Address' : 'Address'}</Text>
+        <Text style={styles.headerTitle}>Address Details</Text>
         <View style={{ width: 36 }} />
       </View>
 
       <ScrollView
-        style={{ flex: 1 }}
+        style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.fieldGroup}>
-          <Text style={styles.label}>Name</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="Full name"
-            placeholderTextColor="#9CA3AF"
-            value={name}
-            onChangeText={setName}
-          />
-        </View>
+        <View style={styles.card}>
+          <View style={styles.fieldGroup}>
+            <Text style={styles.label}>Name</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Full name"
+              placeholderTextColor="#9CA3AF"
+              value={name}
+              onChangeText={setName}
+            />
+          </View>
 
-        <View style={styles.rowGroup}>
-          <View style={[styles.fieldGroup, styles.rowItem]}>
+          <View style={styles.fieldGroup}>
             <Text style={styles.label}>Country</Text>
             <TextInput
               style={styles.input}
@@ -162,60 +162,61 @@ const AddAddressScreen = () => {
               onChangeText={setCountry}
             />
           </View>
-          <View style={[styles.fieldGroup, styles.rowItem]}>
+
+          <View style={styles.fieldGroup}>
             <Text style={styles.label}>City</Text>
             <TextInput
               style={styles.input}
-              placeholder="City"
+              placeholder="Select your city"
               placeholderTextColor="#9CA3AF"
               value={city}
               onChangeText={setCity}
             />
           </View>
-        </View>
 
-        <View style={styles.fieldGroup}>
-          <Text style={styles.label}>Phone Number</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="+123 456 7890"
-            placeholderTextColor="#9CA3AF"
-            keyboardType="phone-pad"
-            value={phone}
-            onChangeText={setPhone}
-          />
-        </View>
+          <View style={styles.fieldGroup}>
+            <Text style={styles.label}>Phone Number</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="+123 456 7890"
+              placeholderTextColor="#9CA3AF"
+              keyboardType="phone-pad"
+              value={phone}
+              onChangeText={setPhone}
+            />
+          </View>
 
-        <View style={styles.fieldGroup}>
-          <Text style={styles.label}>Address</Text>
-          <TextInput
-            style={[styles.input, styles.addressInput]}
-            placeholder="Street, building, apartment, etc."
-            placeholderTextColor="#9CA3AF"
-            value={addressLine}
-            onChangeText={setAddressLine}
-            multiline
-          />
-        </View>
+          <View style={styles.fieldGroup}>
+            <Text style={styles.label}>Address</Text>
+            <TextInput
+              style={[styles.input, styles.addressInput]}
+              placeholder="Street, building, apartment, etc."
+              placeholderTextColor="#9CA3AF"
+              value={addressLine}
+              onChangeText={setAddressLine}
+              multiline
+            />
+          </View>
 
-        <View style={styles.switchRow}>
-          <Text style={styles.switchLabel}>Save as primary address</Text>
-          <Switch
-            value={isPrimary}
-            onValueChange={setIsPrimary}
-            thumbColor={isPrimary ? '#ffffff' : '#F9FAFB'}
-            trackColor={{ false: '#E5E7EB', true: '#22C55E' }}
-          />
+          <View style={styles.switchRow}>
+            <Text style={styles.switchLabel}>Save as primary address</Text>
+            <Switch
+              value={isPrimary}
+              onValueChange={setIsPrimary}
+              thumbColor={isPrimary ? '#ffffff' : '#F9FAFB'}
+              trackColor={{ false: '#E5E7EB', true: '#22C55E' }}
+            />
+          </View>
+
+          <TouchableOpacity
+            style={[styles.saveButton, saving && styles.saveButtonDisabled]}
+            onPress={handleSave}
+            disabled={saving}
+          >
+            <Text style={styles.saveButtonText}>{saving ? 'Saving...' : 'Save Changes'}</Text>
+          </TouchableOpacity>
         </View>
       </ScrollView>
-
-      <TouchableOpacity
-        style={[styles.saveButton, saving && styles.saveButtonDisabled]}
-        onPress={handleSave}
-        disabled={saving}
-      >
-        <Text style={styles.saveButtonText}>{saving ? 'Saving...' : 'Save Address'}</Text>
-      </TouchableOpacity>
     </SafeAreaView>
   );
 };
@@ -225,8 +226,8 @@ export default AddAddressScreen;
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
-    paddingHorizontal: 24,
+    backgroundColor: '#E5E7EB',
+    paddingHorizontal: 16,
     paddingTop: 12,
     paddingBottom: 16,
   },
@@ -254,7 +255,24 @@ const styles = StyleSheet.create({
     color: '#111827',
   },
   scrollContent: {
-    paddingBottom: 24,
+    paddingVertical: 8,
+    alignItems: 'center',
+  },
+  scroll: {
+    flex: 1,
+  },
+  card: {
+    width: '100%',
+    maxWidth: 420,
+    borderRadius: 24,
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 16,
+    paddingVertical: 20,
+    shadowColor: '#000',
+    shadowOpacity: 0.08,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 4,
   },
   fieldGroup: {
     marginBottom: 16,

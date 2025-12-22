@@ -248,7 +248,7 @@ const EditProfileScreen = ({ navigation }) => {
     };
 
     return (
-        <SafeAreaView style={styles.container}>
+        <SafeAreaView style={styles.container} edges={['top', 'right', 'bottom', 'left']}>
             <View style={styles.header}>
                 <TouchableOpacity
                     style={styles.backButton}

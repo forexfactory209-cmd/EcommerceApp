@@ -1,14 +1,18 @@
 import React, { useState, useCallback } from 'react';
-import { View, Text, StyleSheet, FlatList, ActivityIndicator, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, FlatList, ActivityIndicator, TouchableOpacity, TextInput, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { supabase } from '../lib/supabase';
+import { sendAdminBroadcast } from '../services/notifications';
 
 const COMMISSION_RATE = 0.15;
 
 const AdminDashboardScreen = ({ navigation }) => {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [broadcastTitle, setBroadcastTitle] = useState('');
+  const [broadcastMessage, setBroadcastMessage] = useState('');
+  const [sendingBroadcast, setSendingBroadcast] = useState(false);
 
   const loadOrders = useCallback(async () => {
     try {
@@ -57,6 +61,29 @@ const AdminDashboardScreen = ({ navigation }) => {
   const grossRevenue = orders.reduce((sum, o) => sum + (o.total || 0), 0);
   const commissionAmount = grossRevenue * COMMISSION_RATE;
   const netToVendors = grossRevenue - commissionAmount;
+
+  const handleSendBroadcast = async () => {
+    const title = (broadcastTitle || '').trim();
+    const message = (broadcastMessage || '').trim();
+
+    if (!title || !message) {
+      Alert.alert('Missing information', 'Please enter both a title and a message.');
+      return;
+    }
+
+    try {
+      setSendingBroadcast(true);
+      await sendAdminBroadcast(title, message, { type: 'admin_broadcast' });
+      setBroadcastTitle('');
+      setBroadcastMessage('');
+      Alert.alert('Broadcast sent', 'Your announcement has been sent to users.');
+    } catch (e) {
+      console.warn('Admin dashboard: failed to send broadcast', e.message || e);
+      Alert.alert('Error', 'Could not send broadcast notification.');
+    } finally {
+      setSendingBroadcast(false);
+    }
+  };
 
   const renderOrder = ({ item }) => (
     <View style={styles.orderCard}>
@@ -142,6 +169,33 @@ const AdminDashboardScreen = ({ navigation }) => {
           <Text style={styles.statValue}>${netToVendors.toFixed(0)}</Text>
           <Text style={styles.statSubValue}>What brands receive</Text>
         </View>
+      </View>
+
+      {/* Admin broadcast form */}
+      <View style={styles.broadcastCard}>
+        <Text style={styles.broadcastTitle}>Send announcement to all users</Text>
+        <TextInput
+          style={styles.broadcastInput}
+          placeholder="Announcement title"
+          value={broadcastTitle}
+          onChangeText={setBroadcastTitle}
+        />
+        <TextInput
+          style={[styles.broadcastInput, styles.broadcastTextArea]}
+          placeholder="What's new? This will be sent as a notification message."
+          value={broadcastMessage}
+          onChangeText={setBroadcastMessage}
+          multiline
+        />
+        <TouchableOpacity
+          style={[styles.broadcastButton, sendingBroadcast && styles.broadcastButtonDisabled]}
+          onPress={handleSendBroadcast}
+          disabled={sendingBroadcast}
+        >
+          <Text style={styles.broadcastButtonText}>
+            {sendingBroadcast ? 'Sending...' : 'Send Broadcast'}
+          </Text>
+        </TouchableOpacity>
       </View>
 
       {loading && orders.length === 0 ? (
@@ -376,5 +430,51 @@ const styles = StyleSheet.create({
   orderExtraAddressText: {
     fontSize: 12,
     color: '#4b5563',
+  },
+  broadcastCard: {
+    marginTop: 12,
+    marginBottom: 12,
+    padding: 14,
+    borderRadius: 16,
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+  },
+  broadcastTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#111827',
+    marginBottom: 8,
+  },
+  broadcastInput: {
+    backgroundColor: '#f9fafb',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 13,
+    color: '#111827',
+    marginBottom: 8,
+  },
+  broadcastTextArea: {
+    minHeight: 70,
+    textAlignVertical: 'top',
+  },
+  broadcastButton: {
+    marginTop: 4,
+    alignSelf: 'flex-end',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 999,
+    backgroundColor: '#111827',
+  },
+  broadcastButtonDisabled: {
+    opacity: 0.6,
+  },
+  broadcastButtonText: {
+    color: '#ffffff',
+    fontSize: 13,
+    fontWeight: '700',
   },
 });

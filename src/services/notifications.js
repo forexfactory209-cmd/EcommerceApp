@@ -70,6 +70,29 @@ export const savePushToken = async (tokenFromParam) => {
   }
 };
 
+// Send an admin broadcast notification to all users (or a configured subset)
+// Requires a PostgreSQL function (RPC) named `notify_all_users` to be defined
+// in your Supabase database.
+export const sendAdminBroadcast = async (title, message, data = {}) => {
+  try {
+    const { data: result, error } = await supabase.rpc('notify_all_users', {
+      p_title: title,
+      p_message: message,
+      p_data: data,
+    });
+
+    if (error) {
+      console.error('[Notifications] notify_all_users RPC error:', error);
+      throw error;
+    }
+
+    return result;
+  } catch (error) {
+    console.error('Error sending admin broadcast notification:', error);
+    throw error;
+  }
+};
+
 // Follow a brand
 export const followBrand = async (brandId) => {
   try {
@@ -384,4 +407,5 @@ export default {
   sendAnnouncementToFollowers,
   sendFlashSaleToFollowers,
   sendDiscountToFollowers,
+  sendAdminBroadcast,
 };

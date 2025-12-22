@@ -4,7 +4,6 @@ import * as ImagePicker from 'expo-image-picker';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { supabase } from '../lib/supabase';
 import { useStore } from '../store/store';
-import { sendDiscountToFollowers } from '../services/notifications';
 
 const BrandOnboardingScreen = ({ navigation }) => {
   const authUserId = useStore((state) => state.authUserId);
@@ -17,13 +16,11 @@ const BrandOnboardingScreen = ({ navigation }) => {
   const [name, setName] = useState('');
   const [slug, setSlug] = useState('');
   const [logoUrl, setLogoUrl] = useState('');
-  const [bannerUrl, setBannerUrl] = useState('');
   const [description, setDescription] = useState('');
   const [contactEmail, setContactEmail] = useState('');
   const [contactPhone, setContactPhone] = useState('');
   const [discountPercentInput, setDiscountPercentInput] = useState('');
   const [uploadingLogo, setUploadingLogo] = useState(false);
-  const [uploadingBanner, setUploadingBanner] = useState(false);
 
   useEffect(() => {
     const loadBrand = async () => {
@@ -47,18 +44,11 @@ const BrandOnboardingScreen = ({ navigation }) => {
           setName(data.name || '');
           setSlug(data.slug || '');
           const currentLogo = data.logo_url || '';
-          const currentBanner = data.banner_url || '';
           setLogoUrl(currentLogo);
           setBrandLogoUrl(currentLogo);
-          setBannerUrl(currentBanner);
           setDescription(data.description || '');
           setContactEmail(data.contact_email || authEmail || '');
           setContactPhone(data.contact_phone || '');
-          const currentDiscount =
-            typeof data.discount_percentage === 'number' && !Number.isNaN(data.discount_percentage)
-              ? String(data.discount_percentage)
-              : '';
-          setDiscountPercentInput(currentDiscount);
         } else {
           setContactEmail(authEmail || '');
         }
@@ -134,67 +124,6 @@ const BrandOnboardingScreen = ({ navigation }) => {
     }
   };
 
-  const handlePickBanner = async () => {
-    if (!authUserId) {
-      Alert.alert('Not signed in', 'You need to be logged in to update your brand banner.');
-      return;
-    }
-
-    try {
-      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (status !== 'granted') {
-        Alert.alert('Permission required', 'We need access to your photos to choose a banner.');
-        return;
-      }
-
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: true,
-        aspect: [3, 1],
-        quality: 0.8,
-      });
-
-      if (result.canceled) return;
-
-      const asset = result.assets && result.assets[0];
-      if (!asset?.uri) return;
-
-      setUploadingBanner(true);
-
-      const fileExt = asset.uri.split('.').pop() || 'jpg';
-      const fileName = `brand-banner-${authUserId}-${Date.now()}.${fileExt}`;
-
-      const response = await fetch(asset.uri);
-      const arrayBuffer = await response.arrayBuffer();
-
-      const { data, error } = await supabase.storage
-        .from('brand-banners')
-        .upload(fileName, arrayBuffer, {
-          cacheControl: '3600',
-          upsert: true,
-          contentType: asset.type || 'image/jpeg',
-        });
-
-      if (error) {
-        Alert.alert('Upload failed', error.message || 'Could not upload banner.');
-        return;
-      }
-
-      const { data: publicData } = supabase.storage
-        .from('brand-banners')
-        .getPublicUrl(data.path);
-
-      if (publicData?.publicUrl) {
-        setBannerUrl(publicData.publicUrl);
-      }
-    } catch (e) {
-      console.warn('Banner upload error', e);
-      Alert.alert('Upload error', 'Something went wrong while uploading the banner.');
-    } finally {
-      setUploadingBanner(false);
-    }
-  };
-
   const handleSubmit = async () => {
     if (!authUserId) {
       Alert.alert('Not signed in', 'You need to be logged in to apply as a brand.');
@@ -209,25 +138,17 @@ const BrandOnboardingScreen = ({ navigation }) => {
     if (loading) return;
     setLoading(true);
 
-    const parsedDiscount = discountPercentInput
-      ? Math.max(0, Math.min(100, parseInt(discountPercentInput, 10) || 0))
-      : null;
-
     const payload = {
       user_id: authUserId,
       name: name.trim(),
       slug: slug.trim() || null,
       logo_url: logoUrl.trim() || null,
-      banner_url: bannerUrl.trim() || null,
       description: description.trim() || null,
       contact_email: contactEmail.trim() || null,
       contact_phone: contactPhone.trim() || null,
-      discount_percentage: parsedDiscount,
     };
 
     try {
-      const previousDiscount = brand?.discount_percentage ?? null;
-
       const { data, error } = await supabase
         .from('brands')
         .upsert([payload], { onConflict: 'user_id' })
@@ -240,22 +161,6 @@ const BrandOnboardingScreen = ({ navigation }) => {
       }
 
       setBrand(data);
-
-      // If discount changed and is > 0, notify followers about the new discount
-      try {
-        const newDiscount = data?.discount_percentage ?? null;
-        const hasNewDiscount = typeof newDiscount === 'number' && !Number.isNaN(newDiscount) && newDiscount > 0;
-        const prev = typeof previousDiscount === 'number' && !Number.isNaN(previousDiscount)
-          ? previousDiscount
-          : null;
-
-        if (hasNewDiscount && newDiscount !== prev && data?.id) {
-          console.log('[BrandOnboarding] Sending discount notification for brand', data.id, 'discount:', newDiscount);
-          await sendDiscountToFollowers(data.id, data.name, newDiscount);
-        }
-      } catch (notifyError) {
-        console.warn('[BrandOnboarding] Failed to send discount notification to followers', notifyError.message || notifyError);
-      }
       Alert.alert(
         'Application submitted',
         'Your brand application has been submitted. An admin can review and approve it.',
@@ -333,22 +238,6 @@ const BrandOnboardingScreen = ({ navigation }) => {
           </Text>
         ) : null}
 
-        <Text style={styles.fieldLabel}>Brand banner (cover)</Text>
-        <TouchableOpacity
-          style={styles.logoButton}
-          onPress={handlePickBanner}
-          disabled={uploadingBanner}
-        >
-          <Text style={styles.logoButtonText}>
-            {uploadingBanner ? 'Uploading banner...' : bannerUrl ? 'Change Banner' : 'Choose Banner'}
-          </Text>
-        </TouchableOpacity>
-        {bannerUrl ? (
-          <Text style={styles.logoHint} numberOfLines={1}>
-            Current banner: {bannerUrl}
-          </Text>
-        ) : null}
-
         <Text style={styles.fieldLabel}>Contact email</Text>
         <TextInput
           style={styles.input}
@@ -375,15 +264,6 @@ const BrandOnboardingScreen = ({ navigation }) => {
           textAlignVertical="top"
           value={description}
           onChangeText={setDescription}
-        />
-
-        <Text style={styles.fieldLabel}>General discount % (optional)</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="e.g. 10 or 15"
-          keyboardType="numeric"
-          value={discountPercentInput}
-          onChangeText={setDiscountPercentInput}
         />
 
         <TouchableOpacity

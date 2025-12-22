@@ -3,7 +3,6 @@ import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   TouchableOpacity,
   ScrollView,
   TextInput,
@@ -11,6 +10,7 @@ import {
   Alert,
   Image,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import * as ImagePicker from 'expo-image-picker';
 import { ArrowLeft, Star } from 'lucide-react-native';
@@ -131,16 +131,14 @@ const ProductWriteReviewScreen = () => {
   };
 
   return (
-    <View style={styles.container}>
-      <SafeAreaView style={styles.safeArea}>
-        <View style={styles.headerRow}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-            <ArrowLeft size={22} color="#111827" />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>{editingReview ? 'Edit Review' : 'Write a Review'}</Text>
-          <View style={{ width: 32 }} />
-        </View>
-      </SafeAreaView>
+    <SafeAreaView style={styles.container} edges={['top', 'right', 'bottom', 'left']}>
+      <View style={styles.headerRow}>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+          <ArrowLeft size={22} color="#111827" />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>{editingReview ? 'Edit Review' : 'Write a Review'}</Text>
+        <View style={{ width: 32 }} />
+      </View>
 
       <ScrollView
         style={styles.scroll}
@@ -297,16 +295,13 @@ const ProductWriteReviewScreen = () => {
           </TouchableOpacity>
         </View>
       </ScrollView>
-    </View>
+    </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#ffffff',
-  },
-  safeArea: {
     backgroundColor: '#ffffff',
   },
   headerRow: {

@@ -312,6 +312,9 @@ export const useStore = create((set, get) => ({
       p.id === product.id ? { ...p, ...product } : p,
     ),
   })),
+  setProducts: (products) => set(() => ({
+    products: Array.isArray(products) ? products : [],
+  })),
   deleteProduct: (id) => set((state) => ({
     products: state.products.filter((p) => p.id !== id),
     cart: state.cart.filter((item) => item.id !== id),

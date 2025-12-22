@@ -6,58 +6,39 @@ import { supabase } from '../lib/supabase';
 
 const WelcomeScreen = ({ navigation }) => {
   const setAuthUser = useStore((state) => state.setAuthUser);
-  const hasSeenCustomerOnboarding = useStore((state) => state.hasSeenCustomerOnboarding);
 
-  const [mode, setMode] = useState('login'); // 'login' | 'register'
-  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [role, setRole] = useState('customer');
   const [loading, setLoading] = useState(false);
 
   const ADMIN_EMAIL = 'caliaxmed488@gmail.com';
 
   const handleAuth = async () => {
-    if (!email.trim() || !password.trim()) {
+    const trimmedEmail = email.trim();
+    const trimmedPassword = password.trim();
+
+    if (!trimmedEmail || !trimmedPassword) {
       Alert.alert('Missing information', 'Please enter your email and password.');
       return;
     }
 
-    if (mode === 'register' && !name.trim()) {
-      Alert.alert('Missing information', 'Please enter your full name for registration.');
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(trimmedEmail)) {
+      Alert.alert('Invalid email', 'Please enter a valid email address.');
+      return;
+    }
+
+    if (trimmedPassword.length < 8) {
+      Alert.alert('Weak password', 'Password must be at least 8 characters long.');
       return;
     }
 
     if (loading) return;
     setLoading(true);
-
     try {
-      if (mode === 'register') {
-        const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
-          email: email.trim(),
-          password: password.trim(),
-        });
-
-        if (signUpError) {
-          Alert.alert('Sign up failed', signUpError.message);
-          return;
-        }
-
-        const user = signUpData.user;
-        if (!user) {
-          Alert.alert('Sign up failed', 'No user returned from Supabase.');
-          return;
-        }
-        Alert.alert(
-          'Account created',
-          'Your account has been created. You can now sign in with your email and password.',
-        );
-        setMode('login');
-        setPassword('');
-      } else {
         const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
-          email: email.trim(),
-          password: password.trim(),
+          email: trimmedEmail,
+          password: trimmedPassword,
         });
 
         if (signInError) {
@@ -104,7 +85,7 @@ const WelcomeScreen = ({ navigation }) => {
         }
 
         // For approved brands, prefer the brand name as the display name
-        let effectiveName = profile?.name || name.trim();
+        let effectiveName = profile?.name || '';
         if (effectiveRole === 'brand' && brandRow?.name) {
           effectiveName = brandRow.name;
         }
@@ -117,7 +98,6 @@ const WelcomeScreen = ({ navigation }) => {
           brandLogoUrl: brandRow?.logo_url || null,
         });
         navigation.replace('Main');
-      }
     } catch (err) {
       Alert.alert('Error', 'Something went wrong with authentication.');
       console.error('Auth error:', err);
@@ -126,153 +106,355 @@ const WelcomeScreen = ({ navigation }) => {
     }
   };
 
-  return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.content}>
-        <View style={styles.header}>
-          <Text style={styles.appName}>CommerceX</Text>
+  const renderLoginContent = () => (
+    <SafeAreaView style={styles.screen}>
+      <View style={styles.background} />
+      <View style={styles.centerWrapper}>
+        <View style={styles.cardStack}>
+          <View style={styles.card}>
+          <View style={styles.logoWrapper}>
+            <View style={styles.logoCircle}>
+              <Text style={styles.logoText}>🛍️</Text>
+            </View>
+          </View>
+
+          <Text style={styles.title}>Welcome Back</Text>
           <Text style={styles.subtitle}>
-            {mode === 'login'
-              ? 'Sign in to continue as a customer or a brand.'
-              : 'Create an account to continue as a customer or a brand.'}
+            Sign in to manage your store and orders.
           </Text>
-        </View>
 
-        <View style={styles.form}>
-          {mode === 'register' && (
-            <>
-              <Text style={styles.label}>Full name</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="John Doe"
-                value={name}
-                onChangeText={setName}
-              />
-            </>
-          )}
+          <View style={styles.form}>
+            <View style={styles.fieldGroup}>
+              <Text style={styles.label}>Email Address</Text>
+              <View style={styles.inputWrapper}>
+                <Text style={styles.inputIcon}>✉️</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="you@example.com"
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  value={email}
+                  onChangeText={setEmail}
+                  placeholderTextColor="#9CA3AF"
+                />
+              </View>
+            </View>
 
-          <Text style={styles.label}>Email</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="you@example.com"
-            keyboardType="email-address"
-            autoCapitalize="none"
-            value={email}
-            onChangeText={setEmail}
-          />
-
-          <Text style={styles.label}>Password</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="••••••••"
-            secureTextEntry
-            value={password}
-            onChangeText={setPassword}
-          />
-
-          {mode === 'register' && (
-            <>
-              <Text style={styles.label}>Continue as</Text>
-              <View style={styles.roleRow}>
-                <TouchableOpacity
-                  style={[styles.roleOption, role === 'customer' && styles.roleOptionActive]}
-                  onPress={() => setRole('customer')}
+            <View style={styles.fieldGroup}>
+              <View style={styles.labelRow}>
+                <Text style={styles.label}>Password</Text>
+                <TouchableOpacity onPress={() => Alert.alert('Forgot Password', 'Password reset coming soon.')}
                 >
-                  <Text style={role === 'customer' ? styles.roleTextActive : styles.roleText}>Customer</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.roleOption, role === 'brand' && styles.roleOptionActive]}
-                  onPress={() => setRole('brand')}
-                >
-                  <Text style={role === 'brand' ? styles.roleTextActive : styles.roleText}>Brand</Text>
+                  <Text style={styles.forgotText}>Forgot Password?</Text>
                 </TouchableOpacity>
               </View>
-            </>
-          )}
-        </View>
+              <View style={styles.inputWrapper}>
+                <Text style={styles.inputIcon}>🔒</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="••••••••"
+                  secureTextEntry
+                  value={password}
+                  onChangeText={setPassword}
+                  placeholderTextColor="#9CA3AF"
+                />
+              </View>
+            </View>
+          </View>
 
-        <TouchableOpacity style={styles.primaryButton} onPress={handleAuth} disabled={loading}>
-          <Text style={styles.primaryButtonText}>
-            {loading ? 'Please wait...' : mode === 'login' ? 'Sign In' : 'Create Account'}
-          </Text>
-        </TouchableOpacity>
+          <TouchableOpacity style={styles.primaryButton} onPress={handleAuth} disabled={loading}>
+            <Text style={styles.primaryButtonText}>
+              {loading ? 'Please wait...' : 'Sign In'}
+            </Text>
+          </TouchableOpacity>
 
-        <View style={{ marginTop: 16, alignItems: 'center' }}>
-          {mode === 'login' ? (
-            <Text style={{ color: '#6b7280', fontSize: 13 }}>
+          <View style={styles.dividerRow}>
+            <View style={styles.divider} />
+            <Text style={styles.dividerText}>Or continue with</Text>
+            <View style={styles.divider} />
+          </View>
+
+          <TouchableOpacity
+            style={styles.googleButton}
+            onPress={() => Alert.alert('Google Sign-In', 'Google sign-in coming soon.')}
+          >
+            <Text style={styles.googleIcon}>G</Text>
+            <Text style={styles.googleButtonText}>Sign in with Google</Text>
+          </TouchableOpacity>
+
+          <View style={styles.footerRow}>
+            <Text style={styles.footerText}>
               Don't have an account?{' '}
               <Text
-                style={{ color: '#2563EB', fontWeight: '600' }}
-                onPress={() => setMode('register')}
+                style={styles.footerLink}
+                onPress={() => navigation.navigate('Signup')}
               >
-                Sign up
+                Create account
               </Text>
             </Text>
-          ) : (
-            <Text style={{ color: '#6b7280', fontSize: 13 }}>
-              Already have an account?{' '}
-              <Text
-                style={{ color: '#2563EB', fontWeight: '600' }}
-                onPress={() => setMode('login')}
-              >
-                Sign in
-              </Text>
-            </Text>
-          )}
+          </View>
+          </View>
+          <View style={styles.cardBottomAccent} />
         </View>
       </View>
     </SafeAreaView>
   );
-};
 
+  return renderLoginContent();
+}
 export default WelcomeScreen;
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#f9fafb',
+  logoWrapper: {
+    alignItems: 'center',
+    marginBottom: 16,
   },
-  content: {
-    flex: 1,
-    paddingHorizontal: 24,
-    paddingTop: 32,
-    paddingBottom: 24,
-    justifyContent: 'space-between',
+  logoCircle: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: '#EEF2FF',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  header: {
-    marginTop: 32,
+  logoText: {
+    fontSize: 28,
   },
-  appName: {
+  title: {
     fontSize: 32,
-    fontWeight: '800',
+    fontWeight: '700',
     color: '#111827',
-    marginBottom: 8,
+    textAlign: 'center',
+    marginTop: 8,
   },
   subtitle: {
-    fontSize: 14,
-    color: '#6b7280',
+    fontSize: 13,
+    color: '#6B7280',
+    textAlign: 'center',
+    marginTop: 6,
+    marginBottom: 20,
   },
   form: {
-    marginTop: 32,
+    marginTop: 4,
+    paddingVertical:20,
+    // paddingHorizontal:30,
+  },
+  screen: {
+    flex: 1,
+    backgroundColor: '#E5EDFF', // soft blue background similar to design
+  },
+  centerWrapper: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  cardStack: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  card: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 28,
+    paddingHorizontal: 75,
+    paddingVertical: 100,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.08,
+    shadowRadius: 24,
+    elevation: 8,
+  },
+  progressHeader: {
+    marginBottom: 8,
+  },
+  progressTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+  },
+  backButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  backIcon: {
+    fontSize: 16,
+    color: '#111827',
+  },
+  progressTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#111827',
+  },
+  progressHelpIcon: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#EEF2FF',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  progressHelpText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#4F46E5',
+  },
+  stepperRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  stepperItem: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  stepCircleWrapper: {
+    marginBottom: 4,
+  },
+  stepCircle: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    borderWidth: 2,
+    borderColor: '#E5E7EB',
+    backgroundColor: '#FFFFFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  stepCircleActive: {
+    borderColor: '#11126F',
+    backgroundColor: '#11126F',
+  },
+  stepCircleCompleted: {
+    borderColor: '#4F46E5',
+    backgroundColor: '#4F46E5',
+  },
+  stepCircleText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#6B7280',
+  },
+  stepCircleTextActive: {
+    color: '#FFFFFF',
+  },
+  stepLabel: {
+    fontSize: 11,
+    color: '#6B7280',
+    marginBottom: 2,
+  },
+  stepConnector: {
+    position: 'absolute',
+    top: 14,
+    right: -20,
+    width: 40,
+    height: 2,
+    backgroundColor: '#E5E7EB',
+  },
+  wizardScrollContent: {
+    paddingBottom: 16,
+  },
+  wizardSection: {
+    marginTop: 24,
+  },
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#111827',
+    marginBottom: 4,
+  },
+  sectionSubtitle: {
+    fontSize: 13,
+    color: '#6B7280',
+    marginBottom: 20,
+  },
+  avatarPlaceholderSection: {
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  avatarCircle: {
+    width: 96,
+    height: 96,
+    borderRadius: 48,
+    backgroundColor: '#FEE2E2',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  avatarInitial: {
+    fontSize: 36,
+    fontWeight: '700',
+    color: '#1F2937',
+  },
+  avatarUploadText: {
+    fontSize: 12,
+    color: '#4F46E5',
+    fontWeight: '500',
+  },
+  fieldGroup: {
+    marginBottom: 14,
+  },
+  labelRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 6,
   },
   label: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '600',
-    color: '#374151',
-    marginBottom: 8,
-    marginTop: 12,
+    color: '#4B5563',
+    paddingVertical:2,
+    // paddingHorizontal:20,
+    marginBottom: 6,
+
+  },
+  forgotText: {
+    fontSize: 12,
+    color: '#4F46E5',
+    fontWeight: '500',
+  },
+  inputWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F9FAFB',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+  },
+  inputWrapperMultiline: {
+    backgroundColor: '#F9FAFB',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    paddingHorizontal: 14,
+    paddingTop: 10,
+  },
+  inputIcon: {
+    fontSize: 16,
+    marginRight: 8,
+    color: '#9CA3AF',
   },
   input: {
-    backgroundColor: '#ffffff',
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
+    flex: 1,
+    paddingVertical: 18,
+    fontSize: 15,
+    color: '#111827',
+  },
+  inputMultiline: {
+    minHeight: 72,
+    fontSize: 14,
+    color: '#111827',
+    textAlignVertical: 'top',
   },
   roleRow: {
     flexDirection: 'row',
-    backgroundColor: '#e5e7eb',
+    backgroundColor: '#F3F4F6',
     borderRadius: 999,
     padding: 4,
     marginTop: 4,
@@ -280,31 +462,123 @@ const styles = StyleSheet.create({
   roleOption: {
     flex: 1,
     borderRadius: 999,
-    paddingVertical: 10,
+    paddingVertical: 8,
     alignItems: 'center',
   },
   roleOptionActive: {
     backgroundColor: '#111827',
   },
   roleText: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '600',
-    color: '#4b5563',
+    color: '#4B5563',
   },
   roleTextActive: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '700',
-    color: '#ffffff',
+    color: '#FFFFFF',
   },
   primaryButton: {
-    backgroundColor: '#2563EB',
-    borderRadius: 16,
-    paddingVertical: 16,
+    marginTop: 8,
+    backgroundColor: '#11126F',
+    borderRadius: 18,
+    paddingVertical: 14,
     alignItems: 'center',
   },
   primaryButtonText: {
-    color: '#ffffff',
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  helperText: {
+    marginTop: 4,
+    fontSize: 11,
+    color: '#9CA3AF',
+  },
+  helperTextOptional: {
+    marginTop: 4,
+    fontSize: 11,
+    color: '#9CA3AF',
+    fontStyle: 'italic',
+  },
+  dividerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 18,
+    marginBottom: 12,
+  },
+  divider: {
+    flex: 1,
+    height: 1,
+    backgroundColor: '#E5E7EB',
+  },
+  dividerText: {
+    marginHorizontal: 8,
+    fontSize: 11,
+    color: '#9CA3AF',
+  },
+  googleButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    paddingVertical: 12,
+  },
+  googleIcon: {
     fontSize: 16,
     fontWeight: '700',
+    color: '#EA4335',
+    marginRight: 8,
+  },
+  googleButtonText: {
+    fontSize: 14,
+    color: '#111827',
+    fontWeight: '600',
+  },
+  footerRow: {
+    marginTop: 18,
+    alignItems: 'center',
+  },
+  footerText: {
+    fontSize: 12,
+    color: '#6B7280',
+  },
+  footerLink: {
+    color: '#11126F',
+    fontWeight: '600',
+  },
+  genderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 8,
+  },
+  genderOption: {
+    flex: 1,
+    marginHorizontal: 4,
+    paddingVertical: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    alignItems: 'center',
+  },
+  genderOptionActive: {
+    backgroundColor: '#11126F',
+    borderColor: '#11126F',
+  },
+  genderText: {
+    fontSize: 13,
+    color: '#374151',
+    fontWeight: '500',
+  },
+  genderTextActive: {
+    fontSize: 13,
+    color: '#FFFFFF',
+    fontWeight: '600',
+  },
+  wizardFooter: {
+    paddingTop: 8,
+    paddingBottom: 4,
   },
 });

@@ -3,7 +3,6 @@ import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   TouchableOpacity,
   ScrollView,
   TextInput,
@@ -11,6 +10,7 @@ import {
   Alert,
   Image,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useNavigation, useRoute } from '@react-navigation/native';
 import * as ImagePicker from 'expo-image-picker';
 import { ArrowLeft, Star } from 'lucide-react-native';
@@ -19,8 +19,11 @@ import { useStore } from '../store/store';
 import {
   fetchProductReviews,
   fetchReviewReplies,
+  addReviewReply,
   createProductReview,
   updateProductReview,
+  updateReviewReply,
+  deleteReviewReply,
 } from '../services/reviews';
 import { supabase } from '../lib/supabase';
 
@@ -57,6 +60,15 @@ const ProductReviewsScreen = () => {
 
   const authUserId = useStore((state) => state.authUserId);
   const userName = useStore((state) => state.userName);
+  const authRole = useStore((state) => state.authRole);
+  const products = useStore((state) => state.products) || [];
+
+  const isBrandRole = authRole === 'brand';
+  const ownsProduct = !!(
+    isBrandRole &&
+    authUserId &&
+    products.find((p) => p.id === productId && p.brand_user_id === authUserId)
+  );
 
   const [reviews, setReviews] = useState([]);
   const [reviewsPage, setReviewsPage] = useState(1);
@@ -76,6 +88,11 @@ const ProductReviewsScreen = () => {
   const [reviewPhotos, setReviewPhotos] = useState([]);
   const [submittingReview, setSubmittingReview] = useState(false);
   const [editingReviewId, setEditingReviewId] = useState(null);
+
+  const [replyTextByReview, setReplyTextByReview] = useState({});
+  const [submittingReplyId, setSubmittingReplyId] = useState(null);
+  const [editingReplyId, setEditingReplyId] = useState(null);
+  const [editingReplyText, setEditingReplyText] = useState('');
 
   const toggleTag = (tag) => {
     setReviewTags((prev) => {
@@ -121,6 +138,26 @@ const ProductReviewsScreen = () => {
       loadReviews(true);
     }, [productId, ratingFilter, withPhotosFilter, withSizeInfoFilter, reviewsSortBy])
   );
+
+  const handleSubmitReply = async (reviewId) => {
+    const text = (replyTextByReview[reviewId] || '').trim();
+    if (!text || !authUserId || !isBrandRole || !ownsProduct) return;
+
+    try {
+      setSubmittingReplyId(reviewId);
+      await addReviewReply({ reviewId, userId: authUserId, text, isBrandOwner: true });
+
+      setReplyTextByReview((prev) => ({ ...prev, [reviewId]: '' }));
+
+      const map = await fetchReviewReplies([reviewId]);
+      setReviewRepliesMap((prev) => ({ ...prev, ...map }));
+    } catch (e) {
+      console.warn('Failed to submit review reply', e.message || e);
+      Alert.alert('Error', 'Failed to submit reply.');
+    } finally {
+      setSubmittingReplyId(null);
+    }
+  };
 
   const handleSubmitReview = async () => {
     try {
@@ -211,16 +248,14 @@ const ProductReviewsScreen = () => {
   };
 
   return (
-    <View style={styles.container}>
-      <SafeAreaView style={styles.safeArea}>
-        <View style={styles.headerRow}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-            <ArrowLeft size={22} color="#111827" />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Reviews</Text>
-          <View style={{ width: 32 }} />
-        </View>
-      </SafeAreaView>
+    <SafeAreaView style={styles.container} edges={['top', 'right', 'bottom', 'left']}>
+      <View style={styles.headerRow}>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+          <ArrowLeft size={22} color="#111827" />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Reviews</Text>
+        <View style={{ width: 32 }} />
+      </View>
 
       <ScrollView
         style={styles.scroll}
@@ -251,17 +286,19 @@ const ProductReviewsScreen = () => {
               </View>
             </View>
           </View>
-          <TouchableOpacity
-            style={styles.addReviewButton}
-            onPress={() => {
-              navigation.navigate('ProductWriteReview', {
-                productId,
-                productName,
-              });
-            }}
-          >
-            <Text style={styles.addReviewButtonText}>Add Review</Text>
-          </TouchableOpacity>
+          {!isBrandRole && (
+            <TouchableOpacity
+              style={styles.addReviewButton}
+              onPress={() => {
+                navigation.navigate('ProductWriteReview', {
+                  productId,
+                  productName,
+                });
+              }}
+            >
+              <Text style={styles.addReviewButtonText}>Add Review</Text>
+            </TouchableOpacity>
+          )}
         </View>
 
         <View style={styles.filtersRow}>
@@ -384,6 +421,8 @@ const ProductReviewsScreen = () => {
               ? 'Bigger'
               : null;
           const isOwner = authUserId && review.user_id === authUserId;
+          const replies = reviewRepliesMap[review.id] || [];
+          const brandOwnerId = isBrandRole && ownsProduct ? authUserId : null;
           return (
             <View key={review.id} style={styles.reviewCard}>
               <View style={styles.reviewHeaderRow}>
@@ -415,7 +454,7 @@ const ProductReviewsScreen = () => {
                       />
                     ))}
                   </View>
-                  {isOwner && (
+                  {isOwner && !isBrandRole && (
                     <TouchableOpacity
                       style={styles.editReviewButton}
                       activeOpacity={0.85}
@@ -459,6 +498,150 @@ const ProductReviewsScreen = () => {
                   ))}
                 </ScrollView>
               ) : null}
+
+              {replies.length > 0 && (
+                <View style={styles.repliesSection}>
+                  {replies.map((reply) => {
+                    const isBrandOwnerReply = !!reply.is_brand_owner;
+                    const isOwnBrandReply =
+                      !!brandOwnerId && reply.user_id && reply.user_id === brandOwnerId;
+                    const isEditingThis = editingReplyId === reply.id;
+
+                    return (
+                      <View key={reply.id} style={styles.replyItem}>
+                        <View style={styles.replyHeaderRow}>
+                          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                            {!isBrandOwnerReply && (
+                              <Text style={styles.replyAuthorText}>User</Text>
+                            )}
+                            {isBrandOwnerReply && (
+                              <View style={styles.brandReplyBadge}>
+                                <Text style={styles.brandReplyBadgeText}>Brand owner</Text>
+                              </View>
+                            )}
+                          </View>
+                          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                            <Text style={styles.replyDateText}>
+                              {formatTimeAgo(reply.created_at)}
+                            </Text>
+                            {isOwnBrandReply && !isEditingThis && (
+                              <View style={styles.replyActionsRow}>
+                                <TouchableOpacity
+                                  onPress={() => {
+                                    setEditingReplyId(reply.id);
+                                    setEditingReplyText(reply.text || '');
+                                  }}
+                                >
+                                  <Text style={styles.replyActionText}>Edit</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                  style={{ marginLeft: 8 }}
+                                  onPress={async () => {
+                                    try {
+                                      await deleteReviewReply({
+                                        replyId: reply.id,
+                                        userId: brandOwnerId,
+                                      });
+                                      setReviewRepliesMap((prev) => ({
+                                        ...prev,
+                                        [review.id]: (prev[review.id] || []).filter(
+                                          (r) => r.id !== reply.id,
+                                        ),
+                                      }));
+                                    } catch (e) {
+                                      Alert.alert('Error', 'Failed to delete reply.');
+                                    }
+                                  }}
+                                >
+                                  <Text style={styles.replyActionText}>Delete</Text>
+                                </TouchableOpacity>
+                              </View>
+                            )}
+                          </View>
+                        </View>
+
+                        {isEditingThis && isOwnBrandReply ? (
+                          <View style={styles.editReplySection}>
+                            <TextInput
+                              style={styles.editReplyInput}
+                              value={editingReplyText}
+                              onChangeText={setEditingReplyText}
+                              multiline
+                            />
+                            <View style={styles.editReplyButtonsRow}>
+                              <TouchableOpacity
+                                onPress={() => {
+                                  setEditingReplyId(null);
+                                  setEditingReplyText('');
+                                }}
+                              >
+                                <Text style={styles.replyActionText}>Cancel</Text>
+                              </TouchableOpacity>
+                              <TouchableOpacity
+                                style={styles.saveReplyButton}
+                                onPress={async () => {
+                                  const nextText = (editingReplyText || '').trim();
+                                  if (!nextText) return;
+                                  try {
+                                    const updated = await updateReviewReply({
+                                      replyId: reply.id,
+                                      userId: brandOwnerId,
+                                      text: nextText,
+                                    });
+                                    setReviewRepliesMap((prev) => ({
+                                      ...prev,
+                                      [review.id]: (prev[review.id] || []).map((r) =>
+                                        r.id === reply.id ? { ...r, text: updated.text } : r,
+                                      ),
+                                    }));
+                                    setEditingReplyId(null);
+                                    setEditingReplyText('');
+                                  } catch (e) {
+                                    Alert.alert('Error', 'Failed to update reply.');
+                                  }
+                                }}
+                              >
+                                <Text style={styles.saveReplyButtonText}>Save</Text>
+                              </TouchableOpacity>
+                            </View>
+                          </View>
+                        ) : (
+                          <Text style={styles.replyText}>{reply.text}</Text>
+                        )}
+                      </View>
+                    );
+                  })}
+                </View>
+              )}
+
+              {isBrandRole && ownsProduct && (
+                <View style={styles.replyInputSection}>
+                  <TextInput
+                    style={styles.replyInput}
+                    placeholder="Reply as brand owner..."
+                    value={replyTextByReview[review.id] || ''}
+                    onChangeText={(text) =>
+                      setReplyTextByReview((prev) => ({ ...prev, [review.id]: text }))
+                    }
+                    multiline
+                  />
+                  <TouchableOpacity
+                    style={styles.replyButton}
+                    disabled={
+                      submittingReplyId === review.id ||
+                      !replyTextByReview[review.id] ||
+                      !replyTextByReview[review.id]?.trim()
+                    }
+                    onPress={() => handleSubmitReply(review.id)}
+                  >
+                    {submittingReplyId === review.id ? (
+                      <ActivityIndicator color="#ffffff" />
+                    ) : (
+                      <Text style={styles.replyButtonText}>Reply</Text>
+                    )}
+                  </TouchableOpacity>
+                </View>
+              )}
             </View>
           );
         })}
@@ -612,16 +795,13 @@ const ProductReviewsScreen = () => {
           </TouchableOpacity>
         )}
       </ScrollView>
-    </View>
+    </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#ffffff',
-  },
-  safeArea: {
     backgroundColor: '#ffffff',
   },
   headerRow: {
@@ -837,6 +1017,124 @@ const styles = StyleSheet.create({
     height: 72,
     borderRadius: 12,
     marginRight: 8,
+  },
+  repliesSection: {
+    marginTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: '#e5e7eb',
+    paddingTop: 8,
+  },
+  replyItem: {
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    borderRadius: 12,
+    backgroundColor: '#f9fafb',
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    marginBottom: 6,
+  },
+  replyHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 2,
+  },
+  replyAuthorText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#111827',
+  },
+  replyDateText: {
+    fontSize: 11,
+    color: '#6b7280',
+  },
+  replyText: {
+    fontSize: 13,
+    color: '#111827',
+    marginTop: 4,
+  },
+  brandReplyBadge: {
+    marginLeft: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 999,
+    backgroundColor: '#dcfce7',
+    borderWidth: 1,
+    borderColor: '#22c55e',
+  },
+  brandReplyBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#15803d',
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+  },
+  replyActionsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginLeft: 8,
+  },
+  replyActionText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#0369a1',
+  },
+  editReplySection: {
+    marginTop: 6,
+  },
+  editReplyInput: {
+    minHeight: 60,
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    fontSize: 13,
+    textAlignVertical: 'top',
+    backgroundColor: '#ffffff',
+  },
+  editReplyButtonsRow: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    alignItems: 'center',
+    marginTop: 6,
+  },
+  saveReplyButton: {
+    marginLeft: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: '#111827',
+  },
+  saveReplyButtonText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#ffffff',
+  },
+  replyInputSection: {
+    marginTop: 10,
+  },
+  replyInput: {
+    minHeight: 60,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    fontSize: 13,
+    textAlignVertical: 'top',
+    marginBottom: 6,
+  },
+  replyButton: {
+    alignSelf: 'flex-end',
+    backgroundColor: '#111827',
+    borderRadius: 999,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+  },
+  replyButtonText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#ffffff',
   },
   formSection: {
     marginTop: 16,

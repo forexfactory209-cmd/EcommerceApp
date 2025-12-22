@@ -99,7 +99,7 @@ const AllProductsScreen = ({ navigation }) => {
     return list;
   }, [baseData, searchQuery]);
 
-  const renderCategoryItem = ({ item }) => (
+  const renderCategoryItem = useCallback(({ item }) => (
     <TouchableOpacity
       style={styles.categoryCard}
       activeOpacity={0.9}
@@ -117,10 +117,10 @@ const AllProductsScreen = ({ navigation }) => {
         <Text style={styles.categoryCount}>{item.count} Products</Text>
       </View>
     </TouchableOpacity>
-  );
+  ), [navigation]);
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top', 'right', 'bottom', 'left']}>
       <View style={styles.headerRow}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
           <Text style={styles.backButtonIcon}>{'<'}</Text>

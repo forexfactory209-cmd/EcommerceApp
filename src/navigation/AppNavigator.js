@@ -28,6 +28,7 @@ import AdminBrandsScreen from '../screens/AdminBrandsScreen';
 import AdminVendorScreen from '../screens/AdminVendorScreen';
 import WishlistScreen from '../screens/WishlistScreen';
 import WelcomeScreen from '../screens/WelcomeScreen';
+import SignupScreen from '../screens/SignupScreen';
 import EditProductScreen from '../screens/EditProductScreen';
 import AllProductsScreen from '../screens/AllProductsScreen';
 import CategoryProductsScreen from '../screens/CategoryProductsScreen';
@@ -180,6 +181,7 @@ export default function AppNavigator() {
       <Stack.Navigator initialRouteName="CustomerOnboarding" screenOptions={{ headerShown: false }}>
         <Stack.Screen name="CustomerOnboarding" component={CustomerOnboardingScreen} />
         <Stack.Screen name="Welcome" component={WelcomeScreen} />
+        <Stack.Screen name="Signup" component={SignupScreen} />
         <Stack.Screen name="Main" component={TabNavigator} />
         <Stack.Screen name="Notifications" component={NotificationsScreen} />
         <Stack.Screen name="EditProfile" component={EditProfileScreen} />

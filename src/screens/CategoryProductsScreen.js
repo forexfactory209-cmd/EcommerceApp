@@ -4,6 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { useStore } from '../store/store';
 import { fetchProductsFromSupabase } from '../services/products';
+import { getFlashSaleState } from '../utils/flashSale';
 
 const CategoryProductsScreen = ({ navigation, route }) => {
   const { categoryId, categoryName } = route.params || {};
@@ -58,8 +59,11 @@ const CategoryProductsScreen = ({ navigation, route }) => {
     return result;
   }, [baseData, categoryId, searchQuery]);
 
-  const renderItem = ({ item }) => {
+  const renderItem = useCallback(({ item }) => {
     const inWishlist = wishlist.some((w) => w.id === item.id);
+
+    const { currentPrice, flashPrice, isFlashActive } = getFlashSaleState(item);
+    const isOutOfStock = (item.quantity ?? 0) === 0;
 
     return (
       <TouchableOpacity
@@ -69,7 +73,12 @@ const CategoryProductsScreen = ({ navigation, route }) => {
       >
         <View style={styles.productImageWrapper}>
           <Image source={{ uri: item.image }} style={styles.productImage} resizeMode="cover" />
-          {(item.quantity ?? 0) === 0 && (
+          {isFlashActive && (
+            <View style={styles.outOfStockBanner}>
+              <Text style={styles.outOfStockText}>Flash Sale</Text>
+            </View>
+          )}
+          {isOutOfStock && !isFlashActive && (
             <View style={styles.outOfStockBanner}>
               <Text style={styles.outOfStockText}>Out of stock</Text>
             </View>
@@ -93,10 +102,17 @@ const CategoryProductsScreen = ({ navigation, route }) => {
         </View>
         <Text style={styles.productBrand}>{item.brand}</Text>
         <Text style={styles.productName} numberOfLines={1}>{item.name}</Text>
-        <Text style={styles.productPrice}>${item.price}</Text>
+        {isFlashActive && flashPrice != null && flashPrice > 0 ? (
+          <View>
+            <Text style={[styles.productPrice, { textDecorationLine: 'line-through', color: '#9ca3af', fontSize: 12 }]}>${currentPrice.toFixed(2)}</Text>
+            <Text style={[styles.productPrice, { marginTop: 2 }]}>${flashPrice.toFixed(2)}</Text>
+          </View>
+        ) : (
+          <Text style={styles.productPrice}>${currentPrice.toFixed(2)}</Text>
+        )}
       </TouchableOpacity>
     );
-  };
+  }, [wishlist, authRole, addToWishlist, removeFromWishlist, navigation]);
 
   return (
     <SafeAreaView style={styles.container}>

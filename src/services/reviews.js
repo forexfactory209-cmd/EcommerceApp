@@ -141,6 +141,43 @@ export async function fetchReviewReplies(reviewIds) {
   return map;
 }
 
+export async function updateReviewReply({ replyId, userId, text }) {
+  if (!replyId || !userId || !text) return null;
+
+  const trimmed = text.trim();
+  if (!trimmed) return null;
+
+  const { data, error } = await supabase
+    .from('product_review_replies')
+    .update({ text: trimmed })
+    .eq('id', replyId)
+    .eq('user_id', userId)
+    .select('*')
+    .single();
+
+  if (error) {
+    console.warn('Error updating review reply', error.message || error);
+    throw error;
+  }
+
+  return data;
+}
+
+export async function deleteReviewReply({ replyId, userId }) {
+  if (!replyId || !userId) return;
+
+  const { error } = await supabase
+    .from('product_review_replies')
+    .delete()
+    .eq('id', replyId)
+    .eq('user_id', userId);
+
+  if (error) {
+    console.warn('Error deleting review reply', error.message || error);
+    throw error;
+  }
+}
+
 export async function updateProductReview({
   reviewId,
   userId,
