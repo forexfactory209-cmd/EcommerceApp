@@ -1,14 +1,16 @@
 import React, { useState, useCallback } from 'react';
-import { View, Text, FlatList, Image, TouchableOpacity, StyleSheet, TextInput, Alert } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, TextInput, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Trash2, Plus, Truck, CheckCircle } from 'lucide-react-native';
+import { Plus } from 'lucide-react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useStore } from '../store/store';
 import { supabase } from '../lib/supabase';
 import { sendDiscountToFollowers } from '../services/notifications';
+import { FlashList } from '@shopify/flash-list';
+import { Image } from 'expo-image';
 
-const VendorScreen = ({ navigation }) => {
-  const [tab, setTab] = useState('orders'); // 'products' or 'orders'
+const VendorScreen = ({ navigation, route }) => {
+  const [tab] = useState('orders');
   const { orders, deleteProduct, updateOrderStatus, authUserId, setOrders } = useStore();
   const deletedProductIds = useStore((state) => state.deletedProductIds || []);
 
@@ -115,6 +117,9 @@ const VendorScreen = ({ navigation }) => {
               payment_method: row.payment_method || 'cash_on_delivery',
               delivery_address: row.delivery_address || '',
               promo_code: row.promo_code || null,
+              customer_name: row.customer_name || null,
+              customer_phone: row.customer_phone || null,
+              customer_secondary_phone: row.customer_secondary_phone || null,
             }));
             setOrders(mapped);
           }
@@ -131,10 +136,6 @@ const VendorScreen = ({ navigation }) => {
     }, [authUserId, setOrders]),
   );
 
-  const myProducts = Array.isArray(remoteProducts)
-    ? remoteProducts.filter((p) => !deletedProductIds.includes(p.id))
-    : [];
-
   const myOrders = Array.isArray(orders)
     ? orders.filter((o) => !authUserId || o.brand_user_id === authUserId)
     : [];
@@ -146,36 +147,6 @@ const VendorScreen = ({ navigation }) => {
   const netRevenue = grossRevenue - commissionAmount;
   const deliveredOrdersCount = myOrders.filter((o) => o.status === 'Delivered').length;
   const pendingOrdersCount = myOrders.length - deliveredOrdersCount;
-
-  const handleDeleteProduct = async (productId) => {
-    if (!productId) return;
-
-    console.log('[Vendor] Requesting delete for product id:', productId);
-
-    try {
-      const { data, error } = await supabase
-        .from('products')
-        .update({ is_deleted: true })
-        .eq('id', productId);
-
-      if (error) {
-        console.warn('Vendor delete product error:', error.message || error);
-        Alert.alert('Error', error.message || 'Could not delete product.');
-        return;
-      }
-
-      console.log('[Vendor] Supabase delete succeeded for product id:', productId, 'response data:', data);
-
-      // Remove from local vendor list
-      setRemoteProducts((prev) => (Array.isArray(prev) ? prev.filter((p) => p.id !== productId) : prev));
-
-      // Also update in-memory catalog for other screens
-      deleteProduct(productId);
-    } catch (e) {
-      console.warn('Vendor delete product exception:', e.message || e);
-      Alert.alert('Error', 'Something went wrong while deleting this product.');
-    }
-  };
 
   const handleApplyDiscount = async () => {
     if (!authUserId) return;
@@ -354,37 +325,25 @@ const VendorScreen = ({ navigation }) => {
     }
   };
 
-  const handleMarkDelivered = async (orderId) => {
-    // Optimistic UI update
-    updateOrderStatus(orderId, 'Delivered');
+  const handleUpdateOrderStatus = async (orderId, newStatus, extraFields = {}) => {
+    if (!orderId || !newStatus) return;
+
+    // Optimistic UI update for local store
+    updateOrderStatus(orderId, newStatus);
 
     try {
       const { error } = await supabase
         .from('orders')
-        .update({ status: 'Delivered' })
+        .update({ status: newStatus, ...extraFields })
         .eq('id', orderId);
 
       if (error) {
-        console.warn('Error updating order status in Supabase:', error.message || error);
+        console.warn('Vendor: failed to update order status in Supabase:', error.message || error);
       }
     } catch (e) {
-      console.warn('Error updating order status in Supabase:', e.message || e);
+      console.warn('Vendor: exception while updating order status in Supabase:', e.message || e);
     }
   };
-
-  const TabButton = ({ title, value }) => (
-    <TouchableOpacity
-      onPress={() => setTab(value)}
-      style={[
-        styles.tabButton,
-        tab === value ? styles.tabButtonActive : styles.tabButtonInactive,
-      ]}
-    >
-      <Text style={tab === value ? styles.tabButtonTextActive : styles.tabButtonText}>
-        {title}
-      </Text>
-    </TouchableOpacity>
-  );
 
   return (
     <SafeAreaView style={styles.container}>
@@ -473,175 +432,14 @@ const VendorScreen = ({ navigation }) => {
         </View>
       )}
 
-
-      {/* Internal Tabs */}
-      <View style={styles.tabsRow}>
-        <TabButton title="My Products" value="products" />
-        <TabButton title="Delivery & Orders" value="orders" />
+      <View style={styles.manageWrapper}>
+        <TouchableOpacity
+          style={styles.manageButton}
+          onPress={() => navigation.navigate('VendorOrders')}
+        >
+          <Text style={styles.manageButtonText}>Manage Products & Orders</Text>
+        </TouchableOpacity>
       </View>
-
-      {/* Content */}
-      {tab === 'products' ? (
-        <FlatList
-          data={myProducts}
-          keyExtractor={(item) => item.id.toString()}
-          contentContainerStyle={{ paddingBottom: 100 }}
-          renderItem={({ item }) => (
-            <TouchableOpacity
-              style={styles.productRow}
-              activeOpacity={0.8}
-              onPress={() => navigation.navigate('EditProduct', { product: item })}
-            >
-              <Image
-                source={{ uri: item.image }}
-                style={styles.productImage}
-              />
-              <View style={styles.productInfo}>
-                <Text style={styles.productName}>{item.name}</Text>
-                {(() => {
-                  const trimmed = (discountInput || '').toString().trim();
-                  const value = parseFloat(trimmed.replace('%', ''));
-                  const hasValidDiscount = !!trimmed && !Number.isNaN(value) && value > 0 && value < 100;
-
-                  const currentPrice = Number(item.price) || 0;
-
-                  if (!hasValidDiscount || currentPrice <= 0) {
-                    return <Text style={styles.productMeta}>${currentPrice.toFixed(2)}</Text>;
-                  }
-
-                  const factor = 1 - value / 100;
-                  if (factor <= 0) {
-                    return <Text style={styles.productMeta}>${currentPrice.toFixed(2)}</Text>;
-                  }
-
-                  const originalPrice = Number((currentPrice / factor).toFixed(2));
-
-                  return (
-                    <View style={styles.productPriceRow}>
-                      <Text style={styles.productPriceOriginal}>${originalPrice.toFixed(2)}</Text>
-                      <Text style={styles.productPriceDiscount}>${currentPrice.toFixed(2)}</Text>
-                    </View>
-                  );
-                })()}
-              </View>
-              <TouchableOpacity
-                onPress={() => navigation.navigate('EditProduct', { product: item })}
-                style={styles.deleteButton}
-              >
-                <Text style={{ color: '#2563EB', fontWeight: '600', marginRight: 4 }}>Edit</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={() => navigation.navigate('EditFlashSale', { product: item })}
-                style={styles.deleteButton}
-              >
-                <Text style={{ color: '#111827', fontWeight: '600', marginRight: 4 }}>Flash</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={() => {
-                  Alert.alert(
-                    'Delete product',
-                    'Are you sure you want to delete this product? This action cannot be undone.',
-                    [
-                      { text: 'Cancel', style: 'cancel' },
-                      {
-                        text: 'Delete',
-                        style: 'destructive',
-                        onPress: () => handleDeleteProduct(item.id),
-                      },
-                    ],
-                  );
-                }}
-                style={styles.deleteButton}
-              >
-                <Trash2 size={18} color="#EF4444" />
-              </TouchableOpacity>
-            </TouchableOpacity>
-          )}
-        />
-      ) : (
-        <FlatList
-          data={myOrders}
-          keyExtractor={(item) => item.id.toString()}
-          ListEmptyComponent={
-            <Text style={styles.emptyText}>No orders yet</Text>
-          }
-          contentContainerStyle={{ paddingBottom: 100 }}
-          renderItem={({ item }) => (
-            <View style={styles.orderCard}>
-              <View style={styles.orderHeaderRow}>
-                <Text style={styles.orderTitle}>Order #{item.id}</Text>
-                <Text style={styles.orderDate}>{item.date}</Text>
-              </View>
-              <Text style={styles.orderMeta}>
-                {item.items.length} items 
-                <Text style={styles.orderMetaBold}>
-                  • Total: ${item.total.toFixed(2)}
-                </Text>
-              </Text>
-              {item.promo_code ? (
-                <Text style={styles.orderPromoMeta}>
-                  Promo code used: <Text style={styles.orderPromoCode}>{item.promo_code}</Text>
-                </Text>
-              ) : null}
-
-              {Array.isArray(item.items) && item.items.length > 0 && (
-                <View style={styles.orderItemsList}>
-                  {item.items.slice(0, 3).map((prod) => (
-                    <Text key={prod.id} style={styles.orderItemLine}>
-                      {prod.quantity}x {prod.name}
-                    </Text>
-                  ))}
-                  {item.items.length > 3 && (
-                    <Text style={styles.orderItemMore}>
-                      +{item.items.length - 3} more
-                    </Text>
-                  )}
-                </View>
-              )}
-
-              <View style={styles.orderExtraRow}>
-                <Text style={styles.orderExtraLabel}>Payment:</Text>
-                <Text style={styles.orderExtraValue}>{item.payment_method || 'N/A'}</Text>
-              </View>
-              {item.delivery_address ? (
-                <View style={styles.orderExtraAddress}>
-                  <Text style={styles.orderExtraLabel}>Address:</Text>
-                  <Text style={styles.orderExtraAddressText} numberOfLines={2}>
-                    {item.delivery_address}
-                  </Text>
-                </View>
-              ) : null}
-
-              <View style={styles.statusRow}>
-                <View style={styles.statusLeft}>
-                  {item.status === 'Delivered' ? (
-                    <CheckCircle color="green" size={20} />
-                  ) : (
-                    <Truck color="#2563EB" size={20} />
-                  )}
-                  <Text
-                    style={
-                      item.status === 'Delivered'
-                        ? styles.statusDelivered
-                        : styles.statusPending
-                    }
-                  >
-                    {item.status}
-                  </Text>
-                </View>
-                {item.status !== 'Delivered' && (
-                  <TouchableOpacity
-                    onPress={() => handleMarkDelivered(item.id)}
-                    style={styles.markDeliveredButton}
-                  >
-                    <Text style={styles.markDeliveredText}>Mark Delivered</Text>
-                  </TouchableOpacity>
-                )}
-              </View>
-            </View>
-          )}
-        />
-      )}
     </SafeAreaView>
   );
 };
@@ -703,6 +501,29 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
     color: '#ffffff',
+  },
+  manageWrapper: {
+    marginTop: 8,
+    marginBottom: 16,
+  },
+  manageButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 14,
+    borderRadius: 999,
+    backgroundColor: '#11126F',
+    shadowColor: '#11126F',
+    shadowOpacity: 0.25,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 5,
+  },
+  manageButtonText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#ffffff',
+    letterSpacing: 0.4,
   },
   discountCard: {
     backgroundColor: '#ffffff',
@@ -964,32 +785,78 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     backgroundColor: '#f3f4f6',
-    padding: 8,
-    borderRadius: 12,
+    padding: 10,
+    borderRadius: 14,
   },
   statusLeft: {
     flexDirection: 'row',
     alignItems: 'center',
   },
-  statusDelivered: {
-    marginLeft: 8,
-    fontWeight: '700',
-    color: '#16a34a',
+  statusIconWrapper: {
+    width: 28,
+    height: 28,
+    borderRadius: 999,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#e0edff',
   },
-  statusPending: {
+  statusBadge: {
     marginLeft: 8,
-    fontWeight: '700',
-    color: '#2563EB',
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
   },
-  markDeliveredButton: {
+  statusBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#111827',
+  },
+  statusBadgePending: {
+    backgroundColor: '#dbeafe',
+  },
+  statusBadgeAccepted: {
+    backgroundColor: '#e0f2fe',
+  },
+  statusBadgeOnTheWay: {
+    backgroundColor: '#dcfce7',
+  },
+  statusBadgeDelivered: {
+    backgroundColor: '#bbf7d0',
+  },
+  statusActionsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  primaryStatusButton: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 999,
     backgroundColor: '#111827',
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 8,
   },
-  markDeliveredText: {
-    color: '#ffffff',
-    fontWeight: '700',
+  primaryStatusButtonWide: {
+    paddingHorizontal: 16,
+    paddingVertical: 9,
+    borderRadius: 999,
+    backgroundColor: '#111827',
+    alignItems: 'center',
+  },
+  primaryStatusButtonText: {
     fontSize: 12,
+    fontWeight: '700',
+    color: '#ffffff',
+  },
+  secondaryStatusButton: {
+    marginLeft: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 999,
+    backgroundColor: '#fef2f2',
+    borderWidth: 1,
+    borderColor: '#fecaca',
+  },
+  secondaryStatusButtonText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#b91c1c',
   },
 });

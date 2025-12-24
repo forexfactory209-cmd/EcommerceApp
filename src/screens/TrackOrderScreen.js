@@ -73,6 +73,7 @@ const COLORS = {
   primary: '#246BFD',
   status: {
     Delivered: ['#22C55E', '#16A34A'],
+    CustomerConfirmed: ['#090966', '#090966'],
     'Out for Delivery': ['#A855F7', '#7C3AED'],
     Shipped: ['#3B82F6', '#1D4ED8'],
     Confirmed: ['#6366F1', '#4F46E5'],
@@ -118,16 +119,29 @@ const TrackOrderScreen = () => {
       }
 
       const mapped = Array.isArray(data)
-        ? data.map((row) => ({
-            id: row.id,
-            status: row.status || 'Pending',
-            total: Number(row.total) || 0,
-            placedAt: row.placed_at ? new Date(row.placed_at).toLocaleDateString() : '',
-            items: Array.isArray(row.items) ? row.items : [],
-            trackingNumber: null,
-            sellerName: null,
-            shippingMethod: row.shipping_method || null,
-          }))
+        ? data.map((row) => {
+            const raw = (row.status || 'pending').toLowerCase();
+
+            // Normalize backend statuses into the three buckets used by the UI
+            let normalizedStatus = 'Pending';
+            if (raw === 'delivered' || raw === 'customer_confirmed') {
+              normalizedStatus = 'Delivered';
+            } else if (raw === 'declined' || raw === 'canceled' || raw === 'cancelled') {
+              normalizedStatus = 'Canceled';
+            }
+
+            return {
+              id: row.id,
+              status: normalizedStatus,
+              rawStatus: raw,
+              total: Number(row.total) || 0,
+              placedAt: row.placed_at ? new Date(row.placed_at).toLocaleDateString() : '',
+              items: Array.isArray(row.items) ? row.items : [],
+              trackingNumber: null,
+              sellerName: null,
+              shippingMethod: row.shipping_method || null,
+            };
+          })
         : [];
 
       setOrdersList(mapped);
@@ -174,7 +188,10 @@ const TrackOrderScreen = () => {
   }, [ordersList]);
 
   const renderOrderListRow = ({ item }) => {
-    const pill = mapStatusToPill(item.status || 'Pending');
+    const isCustomerConfirmed = (item.rawStatus || '').toLowerCase() === 'customer_confirmed';
+    const pill = mapStatusToPill(
+      isCustomerConfirmed ? 'CustomerConfirmed' : item.status || 'Pending',
+    );
     const itemCount = Array.isArray(item.items) ? item.items.length : 0;
     const firstItems = Array.isArray(item.items) ? item.items.slice(0, 2) : [];
     const isMostRecent = item.id === mostRecentOrderId;

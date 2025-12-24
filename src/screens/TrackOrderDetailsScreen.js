@@ -10,6 +10,7 @@ import {
   Animated,
   Easing,
   Linking,
+  Alert,
 } from 'react-native';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
@@ -72,7 +73,7 @@ const mapStatusToPill = (status) => {
 const TrackOrderDetailsScreen = () => {
   const route = useRoute();
   const navigation = useNavigation();
-  const { orderId } = route.params || {};
+  const { orderId, brandDecisionMode } = route.params || {};
 
   const palette = COLORS.dark;
 
@@ -80,6 +81,9 @@ const TrackOrderDetailsScreen = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [supportVisible, setSupportVisible] = useState(false);
+  const [decisionVisible, setDecisionVisible] = useState(false);
+  const [declineStep, setDeclineStep] = useState(false);
+  const [declineReason, setDeclineReason] = useState('');
 
   const headerAnim = useRef(new Animated.Value(0)).current;
   const currentStepPulse = useRef(new Animated.Value(1)).current;
@@ -134,6 +138,43 @@ const TrackOrderDetailsScreen = () => {
         sellerPhone: data.seller_phone || null,
       };
 
+  const handleAcceptOrder = async () => {
+    if (!orderId) return;
+    try {
+      await supabase
+        .from('orders')
+        .update({ status: 'accepted' })
+        .eq('id', orderId);
+      setDecisionVisible(false);
+      setDeclineStep(false);
+      setDeclineReason('');
+      await loadOrder();
+    } catch (e) {
+      console.warn('TrackOrderDetails: failed to accept order', e.message || e);
+    }
+  };
+
+  const handleSelectDecline = () => {
+    setDeclineStep(true);
+  };
+
+  const handleDeclineWithReason = async (reason) => {
+    if (!orderId) return;
+    try {
+      await supabase
+        .from('orders')
+        .update({ status: 'declined', decline_reason: reason })
+        .eq('id', orderId);
+      setDeclineReason(reason);
+      setDecisionVisible(false);
+      setDeclineStep(false);
+      // Simple thank-you message via navigation param or alert; here we just reload order
+      await loadOrder();
+    } catch (e) {
+      console.warn('TrackOrderDetails: failed to decline order', e.message || e);
+    }
+  };
+
       setOrder(mapped);
     } catch (e) {
       console.warn('TrackOrderDetails: exception loading order', e.message || e);
@@ -147,6 +188,9 @@ const TrackOrderDetailsScreen = () => {
   useFocusEffect(
     useCallback(() => {
       loadOrder();
+      if (brandDecisionMode) {
+        setDecisionVisible(true);
+      }
     }, [loadOrder]),
   );
 
@@ -212,6 +256,84 @@ const TrackOrderDetailsScreen = () => {
       </View>
     </View>
   );
+
+  const VendorActions = () => {
+    if (!brandDecisionMode || !order) return null;
+
+    const rawStatus = (order.status || '').toLowerCase();
+
+    if (rawStatus === 'pending') {
+      return (
+        <View style={styles.actionsRow}>
+          <TouchableOpacity
+            style={[styles.actionButton, styles.actionButtonPrimary]}
+            onPress={() => handleSetStatus('accepted')}
+          >
+            <Text style={styles.actionButtonPrimaryText}>Accept order</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.actionButton, styles.actionButtonSecondary]}
+            onPress={() => {
+              Alert.alert(
+                'Decline order',
+                'Select a reason for declining this order',
+                [
+                  {
+                    text: 'Out of stock',
+                    onPress: () => handleSetStatus('declined', { decline_reason: 'Out of stock' }),
+                  },
+                  {
+                    text: 'Cannot deliver to this area',
+                    onPress: () =>
+                      handleSetStatus('declined', { decline_reason: 'Cannot deliver to this area' }),
+                  },
+                  {
+                    text: 'Other',
+                    onPress: () => handleSetStatus('declined', { decline_reason: 'Other' }),
+                  },
+                  { text: 'Cancel', style: 'cancel' },
+                ],
+              );
+            }}
+          >
+            <Text style={styles.actionButtonSecondaryText}>Decline</Text>
+          </TouchableOpacity>
+        </View>
+      );
+    }
+
+    if (rawStatus === 'accepted') {
+      return (
+        <View style={styles.actionsRow}>
+          <TouchableOpacity
+            style={[styles.actionButton, styles.actionButtonPrimary]}
+            onPress={() =>
+              handleSetStatus('on_the_way', { on_the_way_at: new Date().toISOString() })
+            }
+          >
+            <Text style={styles.actionButtonPrimaryText}>Mark as on the way</Text>
+          </TouchableOpacity>
+        </View>
+      );
+    }
+
+    if (rawStatus === 'on_the_way') {
+      return (
+        <View style={styles.actionsRow}>
+          <TouchableOpacity
+            style={[styles.actionButton, styles.actionButtonPrimary]}
+            onPress={() =>
+              handleSetStatus('delivered', { delivered_at: new Date().toISOString() })
+            }
+          >
+            <Text style={styles.actionButtonPrimaryText}>Mark as delivered</Text>
+          </TouchableOpacity>
+        </View>
+      );
+    }
+
+    return null;
+  };
 
   const renderTimelineStep = ({ item, index }) => {
     const isCompleted = item.isCompleted;
@@ -282,6 +404,19 @@ const TrackOrderDetailsScreen = () => {
   };
 
   const statusPill = mapStatusToPill(order?.status || 'Pending');
+
+  const handleSetStatus = async (newStatus, extraFields = {}) => {
+    if (!orderId) return;
+    try {
+      await supabase
+        .from('orders')
+        .update({ status: newStatus, ...extraFields })
+        .eq('id', orderId);
+      await loadOrder();
+    } catch (e) {
+      console.warn('TrackOrderDetails: failed to update status', e.message || e);
+    }
+  };
 
   const handleOpenSupport = () => {
     setSupportVisible(true);
@@ -769,6 +904,7 @@ const TrackOrderDetailsScreen = () => {
           </View>
         )}
 
+        {order && <VendorActions />}
         {order && <ActionsBar />}
       </ScrollView>
       {supportVisible && (

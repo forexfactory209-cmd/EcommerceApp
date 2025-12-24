@@ -1,10 +1,12 @@
 import React, { useState, useCallback, useMemo } from 'react';
-import { View, Text, FlatList, Image, TouchableOpacity, StyleSheet, Alert, TextInput } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Alert, TextInput, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { useStore } from '../store/store';
 import { fetchProductsFromSupabase } from '../services/products';
 import { getFlashSaleState } from '../utils/flashSale';
+import { Image } from 'expo-image';
+import { FlashList } from '@shopify/flash-list';
 
 const CategoryProductsScreen = ({ navigation, route }) => {
   const { categoryId, categoryName } = route.params || {};
@@ -72,7 +74,13 @@ const CategoryProductsScreen = ({ navigation, route }) => {
         activeOpacity={0.9}
       >
         <View style={styles.productImageWrapper}>
-          <Image source={{ uri: item.image }} style={styles.productImage} resizeMode="cover" />
+          <Image
+            source={{ uri: item.image }}
+            style={styles.productImage}
+            contentFit="cover"
+            cachePolicy="disk"
+            transition={200}
+          />
           {isFlashActive && (
             <View style={styles.outOfStockBanner}>
               <Text style={styles.outOfStockText}>Flash Sale</Text>
@@ -133,16 +141,21 @@ const CategoryProductsScreen = ({ navigation, route }) => {
         />
       </View>
 
-      <FlatList
-        data={data}
-        keyExtractor={(item) => item.id.toString()}
-        numColumns={2}
-        columnWrapperStyle={styles.columnWrapper}
-        contentContainerStyle={styles.listContent}
-        renderItem={renderItem}
-        refreshing={loading}
-        onRefresh={loadProducts}
-      />
+      {loading ? (
+        <View style={styles.loadingWrapper}>
+          <ActivityIndicator size="small" color="#111827" />
+        </View>
+      ) : (
+        <FlashList
+          data={data}
+          keyExtractor={(item) => item.id.toString()}
+          numColumns={2}
+          columnWrapperStyle={styles.columnWrapper}
+          contentContainerStyle={styles.listContent}
+          renderItem={renderItem}
+          estimatedItemSize={240}
+        />
+      )}
     </SafeAreaView>
   );
 };
@@ -208,7 +221,7 @@ const styles = StyleSheet.create({
   },
   productCard: {
     flex: 1,
-    maxWidth: '48%',
+    maxWidth: '95%',
     backgroundColor: '#ffffff',
     borderRadius: 20,
     padding: 10,

@@ -19,8 +19,8 @@ const STATUS_STEPS = ['Order Placed', 'On the Way', 'Delivered'];
 
 const mapOrderStatusToStepIndex = (status) => {
   const v = (status || '').toLowerCase();
-  if (v === 'delivered') return 2;
-  if (v === 'shipped' || v === 'out for delivery' || v === 'confirmed') return 1;
+  if (v === 'delivered' || v === 'customer_confirmed') return 2;
+  if (v === 'on_the_way' || v === 'shipped' || v === 'out for delivery' || v === 'confirmed') return 1;
   // pending or anything else
   return 0;
 };
@@ -49,7 +49,7 @@ const SimpleOrderTrackingScreen = () => {
 
       const { data, error: dbError } = await supabase
         .from('orders')
-        .select('id, status, customer_confirmed')
+        .select('id, status, customer_confirmed, decline_reason, items, total, shipping_method, delivery_address')
         .eq('id', orderId)
         .maybeSingle();
 
@@ -72,6 +72,11 @@ const SimpleOrderTrackingScreen = () => {
         code: `ORD-${data.id}`,
         status: data.status || 'Pending',
         customerConfirmed: !!data.customer_confirmed,
+        declineReason: data.decline_reason || null,
+        items: Array.isArray(data.items) ? data.items : [],
+        total: typeof data.total === 'number' ? data.total : Number(data.total) || 0,
+        shippingMethod: data.shipping_method || null,
+        deliveryAddress: data.delivery_address || null,
       };
 
       setOrder(mapped);
@@ -201,6 +206,47 @@ const SimpleOrderTrackingScreen = () => {
           <Text style={styles.statusEstimate}>{estimatedText}</Text>
         </View>
 
+        {/* Order items summary */}
+        {Array.isArray(order?.items) && order.items.length > 0 && (
+          <View style={styles.itemsCard}>
+            <Text style={styles.itemsTitle}>Items in this order</Text>
+            {order.items.map((prod, idx) => {
+              const details = [];
+              if (prod.color) details.push(`Color: ${prod.color}`);
+              if (prod.size) details.push(`Size: ${prod.size}`);
+              if (prod.delivery_type) details.push(`Delivery: ${prod.delivery_type}`);
+
+              return (
+                <View key={`${prod.id || idx}`} style={styles.itemRow}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.itemName}>
+                      {prod.quantity || 1}x {prod.name || 'Item'}
+                    </Text>
+                    {details.length > 0 && (
+                      <Text style={styles.itemDetails}>{details.join(' · ')}</Text>
+                    )}
+                  </View>
+                  {typeof prod.price === 'number' && (
+                    <Text style={styles.itemPrice}>${(prod.price * (prod.quantity || 1)).toFixed(2)}</Text>
+                  )}
+                </View>
+              );
+            })}
+            <View style={styles.itemsFooterRow}>
+              <Text style={styles.itemsFooterLabel}>Order total</Text>
+              <Text style={styles.itemsFooterValue}>${order.total.toFixed(2)}</Text>
+            </View>
+            {order.shippingMethod ? (
+              <Text style={styles.itemsMeta}>Delivery type: {order.shippingMethod}</Text>
+            ) : null}
+            {order.deliveryAddress ? (
+              <Text style={styles.itemsMeta} numberOfLines={2}>
+                Address: {order.deliveryAddress}
+              </Text>
+            ) : null}
+          </View>
+        )}
+
         {/* Confirm delivered button (only on delivered step).
             Before confirmation: tappable primary button.
             After confirmation: static black "CONFIRMED" button without any action. */}
@@ -221,7 +267,11 @@ const SimpleOrderTrackingScreen = () => {
                 try {
                   await supabase
                     .from('orders')
-                    .update({ customer_confirmed: true })
+                    .update({
+                      customer_confirmed: true,
+                      status: 'customer_confirmed',
+                      customer_confirmed_at: new Date().toISOString(),
+                    })
                     .eq('id', orderId)
                     .eq('customer_user_id', authUserId);
                 } catch (e) {
@@ -393,6 +443,66 @@ const styles = StyleSheet.create({
     marginTop: 16,
     fontSize: 12,
     color: COLORS.textMuted,
+  },
+  itemsCard: {
+    marginTop: 24,
+    marginHorizontal: 4,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: COLORS.divider,
+    backgroundColor: '#F9FAFB',
+  },
+  itemsTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: COLORS.textPrimary,
+    marginBottom: 8,
+  },
+  itemRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 6,
+  },
+  itemName: {
+    fontSize: 13,
+    color: COLORS.textPrimary,
+  },
+  itemDetails: {
+    marginTop: 2,
+    fontSize: 11,
+    color: COLORS.textSecondary,
+  },
+  itemPrice: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: COLORS.textPrimary,
+    marginLeft: 8,
+  },
+  itemsFooterRow: {
+    marginTop: 8,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    borderTopWidth: 1,
+    borderTopColor: COLORS.divider,
+    paddingTop: 8,
+  },
+  itemsFooterLabel: {
+    fontSize: 12,
+    color: COLORS.textSecondary,
+  },
+  itemsFooterValue: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: COLORS.textPrimary,
+  },
+  itemsMeta: {
+    marginTop: 4,
+    fontSize: 11,
+    color: COLORS.textSecondary,
   },
   confirmButton: {
     marginTop: 40,

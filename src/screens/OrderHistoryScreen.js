@@ -37,13 +37,21 @@ const OrderHistoryScreen = ({ navigation }) => {
       )}
       <View style={styles.statusRow}>
         <Text style={styles.statusLabel}>Status</Text>
-        <Text
-          style={
-            item.status === 'Delivered' ? styles.statusDelivered : styles.statusPending
-          }
-        >
-          {item.status}
-        </Text>
+        {(() => {
+          const raw = (item.status || '').toLowerCase();
+          const isDeliveredLike = raw === 'delivered' || raw === 'customer_confirmed';
+          const label = isDeliveredLike
+            ? raw === 'customer_confirmed'
+              ? 'Delivered · Confirmed'
+              : 'Delivered'
+            : item.status;
+
+          return (
+            <Text style={isDeliveredLike ? styles.statusDelivered : styles.statusPending}>
+              {label}
+            </Text>
+          );
+        })()}
       </View>
       <View style={styles.extraRow}>
         <Text style={styles.extraLabel}>Payment:</Text>

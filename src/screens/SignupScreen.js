@@ -20,6 +20,7 @@ const SignupScreen = ({ navigation }) => {
   const [country, setCountry] = useState('');
   const [city, setCity] = useState('');
   const [district, setDistrict] = useState('');
+  const [phone, setPhone] = useState('');
   const [address, setAddress] = useState('');
   const [addressDescr, setAddressDescr] = useState('');
   const [avatarPreviewUri, setAvatarPreviewUri] = useState(null); // local preview only; upload happens in EditProfile
@@ -82,6 +83,19 @@ const SignupScreen = ({ navigation }) => {
     if (step === 3) {
       if (!country.trim() || !city.trim()) {
         Alert.alert('Missing information', 'Please enter at least your country and city.');
+        return false;
+      }
+
+      const trimmedPhone = phone.trim();
+      if (!trimmedPhone) {
+        Alert.alert('Missing information', 'Please enter your phone number.');
+        return false;
+      }
+
+      // Basic phone sanity check: at least 7 chars and must contain a digit
+      const hasDigit = /[0-9]/.test(trimmedPhone);
+      if (trimmedPhone.length < 7 || !hasDigit) {
+        Alert.alert('Invalid phone', 'Please enter a valid phone number.');
         return false;
       }
     }
@@ -231,6 +245,30 @@ const SignupScreen = ({ navigation }) => {
       if (profileError) {
         console.log('[SignupWizard] profile upsert error', profileError);
         Alert.alert('Warning', 'Account created, but failed to save profile details. You can edit them later.');
+      } else {
+        // Also create a primary saved address record if the user entered address info.
+        const hasAnyAddress =
+          country.trim() || city.trim() || district.trim() || address.trim() || addressDescr.trim();
+
+        if (hasAnyAddress) {
+          try {
+            const payload = {
+              user_id: user.id,
+              name: name.trim() || null,
+              country: country.trim() || null,
+              city: city.trim() || null,
+              phone: phone.trim() || null,
+              secondary_phone: null,
+              address_line: address.trim() || null,
+              is_primary: true,
+            };
+
+            await supabase.from('customer_addresses').insert([payload]);
+          } catch (addrErr) {
+            console.log('[SignupWizard] customer_addresses insert error', addrErr);
+            // Non-fatal: profile was created; user can add address later from Saved Addresses.
+          }
+        }
       }
 
       Alert.alert(
@@ -512,6 +550,21 @@ const SignupScreen = ({ navigation }) => {
                       ))}
                     </View>
                   )}
+                </View>
+
+                <View style={styles.fieldGroup}>
+                  <Text style={styles.label}>Phone Number</Text>
+                  <View style={styles.inputWrapper}>
+                    <Text style={styles.inputIcon}>📞</Text>
+                    <TextInput
+                      style={styles.input}
+                      placeholder="e.g. +252 61 234 5678"
+                      keyboardType="phone-pad"
+                      value={phone}
+                      onChangeText={setPhone}
+                      placeholderTextColor="#9CA3AF"
+                    />
+                  </View>
                 </View>
 
                 <View style={styles.fieldGroup}>

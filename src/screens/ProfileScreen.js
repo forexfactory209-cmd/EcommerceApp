@@ -471,6 +471,12 @@ const ProfileScreen = ({ navigation }) => {
               >
                 <Text style={styles.adminButtonText}>Admin: Manage Customers</Text>
               </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.adminButton}
+                onPress={() => navigation.navigate('AdminSupportTickets')}
+              >
+                <Text style={styles.adminButtonText}>Admin: Customer Reports</Text>
+              </TouchableOpacity>
             </>
           )}
 
@@ -518,28 +524,32 @@ const ProfileScreen = ({ navigation }) => {
                 </View>
               </View>
 
-              <View style={styles.orderHistoryHeaderRow}>
-                <Text style={styles.sectionTitle}>Order History</Text>
-                {myOrders.length > 3 && (
-                  <TouchableOpacity
-                    onPress={() => setShowAllOrders((prev) => !prev)}
-                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                  >
-                    <Text style={styles.seeAllText}>
-                      {showAllOrders ? 'Show less' : 'See all'}
-                    </Text>
-                  </TouchableOpacity>
-                )}
-              </View>
+              {!isBrandRole && (
+                <>
+                  <View style={styles.orderHistoryHeaderRow}>
+                    <Text style={styles.sectionTitle}>Order History</Text>
+                    {myOrders.length > 3 && (
+                      <TouchableOpacity
+                        onPress={() => setShowAllOrders((prev) => !prev)}
+                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                      >
+                        <Text style={styles.seeAllText}>
+                          {showAllOrders ? 'Show less' : 'See all'}
+                        </Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
 
-              {myOrders.length === 0 && (
-                <Text style={styles.emptyText}>You have no orders yet.</Text>
+                  {myOrders.length === 0 && (
+                    <Text style={styles.emptyText}>You have no orders yet.</Text>
+                  )}
+                </>
               )}
             </>
           )}
         </View>
 
-        {authRole !== 'admin' && myOrders.length > 0 && (
+        {authRole !== 'admin' && !isBrandRole && myOrders.length > 0 && (
           <View style={styles.ordersListContainer}>
             <FlatList
               data={displayedOrders}

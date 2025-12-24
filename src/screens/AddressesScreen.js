@@ -19,7 +19,7 @@ const AddressesScreen = ({ navigation }) => {
       setLoading(true);
       const { data, error } = await supabase
         .from('customer_addresses')
-        .select('id, name, country, city, phone, address_line, is_primary')
+        .select('id, name, country, city, phone, secondary_phone, address_line, is_primary')
         .eq('user_id', authUserId)
         .order('is_primary', { ascending: false })
         .order('created_at', { ascending: false });
@@ -82,12 +82,17 @@ const AddressesScreen = ({ navigation }) => {
     >
       <View style={styles.addressCardHeaderRow}>
         <View style={styles.addressCardTitleRow}>
-          <Text style={styles.addressLabel}>{item.name || 'Address'}</Text>
-          {isPrimaryCard && (
-            <View style={styles.defaultBadge}>
-              <Text style={styles.defaultBadgeText}>Default</Text>
-            </View>
-          )}
+          <View style={styles.addressAvatar}>
+            <Text style={styles.addressAvatarText}>
+              {(item.name || 'H').charAt(0).toUpperCase()}
+            </Text>
+          </View>
+          <View>
+            <Text style={styles.addressLabel}>{item.name || 'Address'}</Text>
+            {isPrimaryCard && (
+              <Text style={styles.addressSubLabel}>Default</Text>
+            )}
+          </View>
         </View>
         <View style={styles.addressCardActionsRow}>
           <TouchableOpacity
@@ -114,6 +119,9 @@ const AddressesScreen = ({ navigation }) => {
           {item.country}
         </Text>
         {item.phone ? <Text style={styles.addressPhone}>{item.phone}</Text> : null}
+        {item.secondary_phone ? (
+          <Text style={styles.addressPhone}>{item.secondary_phone}</Text>
+        ) : null}
       </View>
     </View>
   );
@@ -141,6 +149,13 @@ const AddressesScreen = ({ navigation }) => {
           <Text style={styles.emptyText}>
             Add your first delivery address so checkout is faster next time.
           </Text>
+          <TouchableOpacity
+            style={[styles.addAddressButton, { marginTop: 24 }]}
+            onPress={() => navigation.navigate('AddAddress')}
+          >
+            <Text style={styles.addAddressPlus}>＋</Text>
+            <Text style={styles.addAddressText}>Add New Address</Text>
+          </TouchableOpacity>
         </View>
       ) : (
         <ScrollView
@@ -151,14 +166,14 @@ const AddressesScreen = ({ navigation }) => {
           <View style={styles.cardContainer}>
             {primaryAddress && (
               <View style={styles.section}>
-                <Text style={styles.sectionLabel}>PRIMARY ADDRESS</Text>
+                <Text style={styles.sectionLabel}>Primary Address</Text>
                 {renderAddressCard(primaryAddress, true)}
               </View>
             )}
 
             {otherAddresses.length > 0 && (
               <View style={styles.section}>
-                <Text style={styles.sectionLabel}>OTHER ADDRESSES</Text>
+                <Text style={styles.sectionLabel}>Other Addresses</Text>
                 {otherAddresses.map((addr) => renderAddressCard(addr, false))}
               </View>
             )}
@@ -182,16 +197,18 @@ export default AddressesScreen;
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: '#E5E7EB',
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 16,
+    backgroundColor: '#F3F4F6',
   },
   headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 12,
+    paddingHorizontal: 16,
+    paddingTop: 10,
+    paddingBottom: 12,
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#E5E7EB',
   },
   headerBackButton: {
     width: 32,
@@ -208,7 +225,7 @@ const styles = StyleSheet.create({
     color: '#111827',
   },
   headerTitle: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '700',
     color: '#111827',
   },
@@ -221,69 +238,72 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    paddingVertical: 8,
-    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 24,
   },
   cardContainer: {
-    width: '100%',
-    maxWidth: 420,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 24,
-    paddingHorizontal: 16,
-    paddingVertical: 20,
-    shadowColor: '#000',
-    shadowOpacity: 0.08,
-    shadowRadius: 18,
-    shadowOffset: { width: 0, height: 8 },
-    elevation: 4,
+    gap: 16,
   },
   section: {
     marginBottom: 16,
   },
   sectionLabel: {
-    fontSize: 11,
+    fontSize: 13,
     fontWeight: '600',
-    color: '#9CA3AF',
+    color: '#6B7280',
     marginBottom: 8,
+    textTransform: 'uppercase',
   },
   addressCard: {
+    backgroundColor: '#FFFFFF',
     borderRadius: 16,
+    padding: 14,
     borderWidth: 1,
     borderColor: '#E5E7EB',
-    backgroundColor: '#FFFFFF',
-    padding: 14,
-    marginBottom: 12,
+    shadowColor: '#000',
+    shadowOpacity: 0.03,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 2,
   },
   addressCardPrimary: {
-    borderColor: '#11126F',
-    backgroundColor: '#EEF2FF',
+    borderColor: '#090966',
   },
   addressCardHeaderRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 6,
+    marginBottom: 8,
   },
   addressCardTitleRow: {
     flexDirection: 'row',
     alignItems: 'center',
   },
-  addressLabel: {
+  addressAvatar: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#EEF2FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
+  },
+  addressAvatarText: {
     fontSize: 14,
     fontWeight: '700',
+    color: '#090966',
+  },
+  addressLabel: {
+    fontSize: 14,
+    fontWeight: '600',
     color: '#111827',
   },
-  defaultBadge: {
-    marginLeft: 8,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 999,
-    backgroundColor: '#11126F',
-  },
-  defaultBadgeText: {
-    fontSize: 10,
+  addressSubLabel: {
+    fontSize: 11,
     fontWeight: '600',
-    color: '#FFFFFF',
+    color: '#6B7280',
+    marginTop: 2,
   },
   addressCardActionsRow: {
     flexDirection: 'row',
@@ -308,20 +328,20 @@ const styles = StyleSheet.create({
     fontSize: 13,
   },
   addressContent: {
-    marginTop: 2,
+    marginTop: 4,
   },
   addressName: {
     fontSize: 13,
     fontWeight: '600',
     color: '#111827',
-    marginBottom: 4,
   },
   addressLine: {
-    fontSize: 13,
+    fontSize: 12,
     color: '#4B5563',
+    marginTop: 2,
   },
   addressPhone: {
-    fontSize: 13,
+    fontSize: 12,
     color: '#6B7280',
     marginTop: 4,
   },
@@ -329,7 +349,6 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 32,
   },
   emptyTitle: {
     fontSize: 18,
@@ -343,13 +362,14 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   addAddressButton: {
-    marginTop: 8,
+    marginTop: 16,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 14,
+    paddingHorizontal: 14,
     borderRadius: 999,
-    backgroundColor: '#11126F',
+    backgroundColor: '#090966',
   },
   addAddressPlus: {
     fontSize: 18,
@@ -357,7 +377,7 @@ const styles = StyleSheet.create({
     marginRight: 6,
   },
   addAddressText: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '600',
     color: '#FFFFFF',
   },

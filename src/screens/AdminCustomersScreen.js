@@ -70,34 +70,39 @@ const AdminCustomersScreen = ({ navigation }) => {
         }
       });
 
-      const customerIds = Array.from(byCustomer.keys());
+      // Load ALL customer profiles and merge them into the map so that
+      // customers without any orders are still visible in the admin list.
+      try {
+        const { data: profileRows, error: profileError } = await supabase
+          .from('profiles')
+          .select('user_id, name')
+          .eq('role', 'customer');
 
-      if (customerIds.length > 0) {
-        try {
-          const { data: profileRows, error: profileError } = await supabase
-            .from('profiles')
-            .select('user_id, name')
-            .in('user_id', customerIds);
+        if (profileError) {
+          console.warn('Admin customers: error loading profiles', profileError.message || profileError);
+        } else if (Array.isArray(profileRows)) {
+          profileRows.forEach((p) => {
+            if (!p?.user_id) return;
+            const id = p.user_id;
 
-          if (profileError) {
-            console.warn('Admin customers: error loading profiles', profileError.message || profileError);
-          } else if (Array.isArray(profileRows)) {
-            const profileById = new Map();
-            profileRows.forEach((p) => {
-              if (!p?.user_id) return;
-              profileById.set(p.user_id, p);
-            });
-
-            byCustomer.forEach((value, id) => {
-              const profile = profileById.get(id);
-              if (profile) {
-                value.name = profile.name || value.name;
-              }
-            });
-          }
-        } catch (e) {
-          console.warn('Admin customers: exception loading profiles', e.message || e);
+            if (!byCustomer.has(id)) {
+              byCustomer.set(id, {
+                id,
+                name: p.name || null,
+                email: null,
+                totalOrders: 0,
+                totalSpent: 0,
+                lastOrderDate: null,
+                segment: 'Prospect',
+              });
+            } else {
+              const existing = byCustomer.get(id);
+              existing.name = p.name || existing.name;
+            }
+          });
         }
+      } catch (e) {
+        console.warn('Admin customers: exception loading profiles', e.message || e);
       }
 
       const result = Array.from(byCustomer.values()).map((c) => {
