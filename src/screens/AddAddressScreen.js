@@ -15,6 +15,7 @@ const AddAddressScreen = () => {
   const [country, setCountry] = useState('');
   const [city, setCity] = useState('');
   const [phone, setPhone] = useState('');
+  const [secondaryPhone, setSecondaryPhone] = useState('');
   const [addressLine, setAddressLine] = useState('');
   const [isPrimary, setIsPrimary] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -25,6 +26,7 @@ const AddAddressScreen = () => {
     setCountry(editingAddress.country || '');
     setCity(editingAddress.city || '');
     setPhone(editingAddress.phone || '');
+    setSecondaryPhone(editingAddress.secondary_phone || '');
     setAddressLine(editingAddress.address_line || '');
     setIsPrimary(!!editingAddress.is_primary);
   }, [editingAddress]);
@@ -34,6 +36,7 @@ const AddAddressScreen = () => {
     const trimmedCountry = country.trim();
     const trimmedCity = city.trim();
     const trimmedPhone = phone.trim();
+    const trimmedSecondaryPhone = secondaryPhone.trim();
     const trimmedAddress = addressLine.trim();
 
     if (!authUserId) {
@@ -87,6 +90,7 @@ const AddAddressScreen = () => {
             country: trimmedCountry,
             city: trimmedCity,
             phone: trimmedPhone || null,
+            secondary_phone: trimmedSecondaryPhone || null,
             address_line: trimmedAddress,
             is_primary: isPrimary,
           })
@@ -101,6 +105,7 @@ const AddAddressScreen = () => {
             country: trimmedCountry,
             city: trimmedCity,
             phone: trimmedPhone || null,
+            secondary_phone: trimmedSecondaryPhone || null,
             address_line: trimmedAddress,
             is_primary: isPrimary,
           },
@@ -187,6 +192,18 @@ const AddAddressScreen = () => {
           </View>
 
           <View style={styles.fieldGroup}>
+            <Text style={styles.label}>Second Phone (optional)</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="+123 456 7890"
+              placeholderTextColor="#9CA3AF"
+              keyboardType="phone-pad"
+              value={secondaryPhone}
+              onChangeText={setSecondaryPhone}
+            />
+          </View>
+
+          <View style={styles.fieldGroup}>
             <Text style={styles.label}>Address</Text>
             <TextInput
               style={[styles.input, styles.addressInput]}
@@ -226,22 +243,24 @@ export default AddAddressScreen;
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#E5E7EB',
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 16,
+    backgroundColor: '#F3F4F6',
   },
   headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 16,
+    paddingHorizontal: 16,
+    paddingTop: 10,
+    paddingBottom: 12,
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#E5E7EB',
   },
   backButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#F4F4FF',
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#F3F4F6',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -250,44 +269,48 @@ const styles = StyleSheet.create({
     color: '#111827',
   },
   headerTitle: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '700',
     color: '#111827',
-  },
-  scrollContent: {
-    paddingVertical: 8,
-    alignItems: 'center',
   },
   scroll: {
     flex: 1,
   },
+  scrollContent: {
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 24,
+    alignItems: 'center',
+  },
   card: {
     width: '100%',
     maxWidth: 420,
-    borderRadius: 24,
+    borderRadius: 16,
     backgroundColor: '#FFFFFF',
     paddingHorizontal: 16,
     paddingVertical: 20,
     shadowColor: '#000',
-    shadowOpacity: 0.08,
-    shadowRadius: 18,
-    shadowOffset: { width: 0, height: 8 },
-    elevation: 4,
+    shadowOpacity: 0.03,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 2,
   },
   fieldGroup: {
     marginBottom: 16,
   },
   label: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#6B7280',
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#111827',
     marginBottom: 6,
   },
   input: {
-    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 10,
     backgroundColor: '#F9FAFB',
-    paddingHorizontal: 14,
-    paddingVertical: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
     fontSize: 14,
     color: '#111827',
   },
@@ -316,9 +339,9 @@ const styles = StyleSheet.create({
   saveButton: {
     width: '100%',
     alignSelf: 'center',
-    paddingVertical: 16,
-    borderRadius: 20,
-    backgroundColor: '#8B5CF6',
+    paddingVertical: 14,
+    borderRadius: 999,
+    backgroundColor: '#090966',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -326,8 +349,8 @@ const styles = StyleSheet.create({
     opacity: 0.7,
   },
   saveButtonText: {
-    fontSize: 16,
-    fontWeight: '700',
+    fontSize: 14,
+    fontWeight: '600',
     color: '#FFFFFF',
   },
 });

@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, Alert, Linking } from 'react-native';
 import { Image } from 'expo-image';
+import { FlashList } from '@shopify/flash-list';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ArrowLeft, Star } from 'lucide-react-native';
 import { useStore } from '../store/store';
@@ -157,6 +158,16 @@ const BrandScreen = ({ route, navigation }) => {
 
     loadRatingStats();
   }, [ratingProductIds]);
+
+  useEffect(() => {
+    const urls = (brandProducts || [])
+      .map((item) => item.image)
+      .filter((u) => typeof u === 'string' && u.length > 0);
+
+    urls.forEach((uri) => {
+      Image.prefetch(uri);
+    });
+  }, [brandProducts]);
 
   useEffect(() => {
     const computeAndPersistBrandRating = async () => {
@@ -458,14 +469,14 @@ const BrandScreen = ({ route, navigation }) => {
       {brandProducts.length === 0 ? (
         <Text style={styles.emptyText}>No products for this brand yet.</Text>
       ) : (
-        <FlatList
+        <FlashList
           data={brandProducts}
           keyExtractor={(item) => item.id.toString()}
           numColumns={2}
           contentContainerStyle={styles.listContent}
           columnWrapperStyle={styles.columnWrapper}
           renderItem={renderItem}
-          showsVerticalScrollIndicator={false}
+          estimatedItemSize={240}
         />
       )}
     </SafeAreaView>
@@ -637,7 +648,7 @@ const styles = StyleSheet.create({
   },
   productCard: {
     flex: 1,
-    maxWidth: '48%',
+    maxWidth: '95%',
     backgroundColor: '#ffffff',
     borderRadius: 20,
     padding: 10,

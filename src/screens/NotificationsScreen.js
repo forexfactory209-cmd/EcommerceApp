@@ -97,7 +97,16 @@ const NotificationsScreen = () => {
       const data = item.data || {};
       const type = data.type;
 
-      // Any brand-related notification (flash sale, announcement, etc.):
+      // Order created for a brand/vendor: open order details with accept/decline popup
+      if (type === 'order_created' && data.order_id) {
+        navigation.navigate('TrackOrderDetails', {
+          orderId: data.order_id,
+          brandDecisionMode: true,
+        });
+        return;
+      }
+
+      // Any other brand-related notification (flash sale, announcement, etc.):
       // take user to that brand's product list screen
       if (item.brand_id) {
         navigation.navigate('Brand', {

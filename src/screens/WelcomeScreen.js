@@ -36,68 +36,73 @@ const WelcomeScreen = ({ navigation }) => {
     if (loading) return;
     setLoading(true);
     try {
-        const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
-          email: trimmedEmail,
-          password: trimmedPassword,
-        });
+      const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+        email: trimmedEmail,
+        password: trimmedPassword,
+      });
 
-        if (signInError) {
-          Alert.alert('Login failed', signInError.message);
-          return;
-        }
+      if (signInError) {
+        Alert.alert('Login failed', signInError.message);
+        return;
+      }
 
-        const user = signInData.user;
-        if (!user) {
-          Alert.alert('Login failed', 'No user returned from Supabase.');
-          return;
-        }
+      const user = signInData.user;
+      if (!user) {
+        Alert.alert('Login failed', 'No user returned from Supabase.');
+        return;
+      }
 
-        const { data: profile, error: profileError } = await supabase
+      // Fetch profile and brand metadata in parallel to reduce wait time
+      const [
+        { data: profile, error: profileError },
+        { data: brandRow, error: brandError },
+      ] = await Promise.all([
+        supabase
           .from('profiles')
           .select('*')
           .eq('user_id', user.id)
-          .maybeSingle();
-
-        if (profileError && profileError.code !== 'PGRST116') {
-          Alert.alert('Error', profileError.message || 'Failed to load profile.');
-          return;
-        }
-
-        const { data: brandRow, error: brandError } = await supabase
+          .maybeSingle(),
+        supabase
           .from('brands')
           .select('id, name, status, logo_url')
           .eq('user_id', user.id)
-          .maybeSingle();
+          .maybeSingle(),
+      ]);
 
-        if (brandError) {
-          // Non-fatal: log but don't block login
-          console.warn('Error loading brand for user:', brandError.message);
-        }
+      if (profileError && profileError.code !== 'PGRST116') {
+        Alert.alert('Error', profileError.message || 'Failed to load profile.');
+        return;
+      }
 
-        const hasBrand = !!brandRow;
-        const hasApprovedBrand = brandRow?.status === 'approved';
+      if (brandError) {
+        // Non-fatal: log but don't block login
+        console.warn('Error loading brand for user:', brandError.message || brandError);
+      }
 
-        let effectiveRole = 'customer';
-        if (user.email === ADMIN_EMAIL) {
-          effectiveRole = 'admin';
-        } else if (hasApprovedBrand) {
-          effectiveRole = 'brand';
-        }
+      const hasBrand = !!brandRow;
+      const hasApprovedBrand = brandRow?.status === 'approved';
 
-        // For approved brands, prefer the brand name as the display name
-        let effectiveName = profile?.name || '';
-        if (effectiveRole === 'brand' && brandRow?.name) {
-          effectiveName = brandRow.name;
-        }
+      let effectiveRole = 'customer';
+      if (user.email === ADMIN_EMAIL) {
+        effectiveRole = 'admin';
+      } else if (hasApprovedBrand) {
+        effectiveRole = 'brand';
+      }
 
-        setAuthUser({
-          id: user.id,
-          email: user.email,
-          role: effectiveRole,
-          name: effectiveName,
-          brandLogoUrl: brandRow?.logo_url || null,
-        });
-        navigation.replace('Main');
+      // For approved brands, prefer the brand name as the display name
+      let effectiveName = profile?.name || '';
+      if (effectiveRole === 'brand' && brandRow?.name) {
+        effectiveName = brandRow.name;
+      }
+
+      setAuthUser({
+        id: user.id,
+        email: user.email,
+        role: effectiveRole,
+        name: effectiveName,
+        brandLogoUrl: brandRow?.logo_url || null,
+      });
+      navigation.replace('Main');
     } catch (err) {
       Alert.alert('Error', 'Something went wrong with authentication.');
       console.error('Auth error:', err);
@@ -424,8 +429,8 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     borderWidth: 1,
     borderColor: '#E5E7EB',
-    paddingHorizontal: 14,
-    paddingVertical: 8,
+    // paddingHorizontal: 2,
+    // paddingVertical: 1,
   },
   inputWrapperMultiline: {
     backgroundColor: '#F9FAFB',

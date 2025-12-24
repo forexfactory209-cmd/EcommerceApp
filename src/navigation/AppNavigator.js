@@ -2,6 +2,7 @@ import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { NavigationContainer } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Home, ShoppingBag, User, Store, Heart, Zap, Tag } from 'lucide-react-native';
 import { View, Text, StyleSheet } from 'react-native';
 
@@ -12,6 +13,7 @@ import CartScreen from '../screens/CartScreen';
 import BillingScreen from '../screens/BillingScreen';
 import SuccessScreen from '../screens/SuccessScreen';
 import VendorScreen from '../screens/VendorScreen';
+import VendorOrdersScreen from '../screens/VendorOrdersScreen';
 import FlashSaleScreen from '../screens/FlashSaleScreen';
 import EditFlashSaleScreen from '../screens/EditFlashSaleScreen';
 import AddProductScreen from '../screens/AddProductScreen';
@@ -42,6 +44,8 @@ import TermsConditionsScreen from '../screens/TermsConditionsScreen';
 import PrivacyPolicyScreen from '../screens/PrivacyPolicyScreen';
 import AdminCustomersScreen from '../screens/AdminCustomersScreen';
 import AdminCustomerDetailsScreen from '../screens/AdminCustomerDetailsScreen';
+import AdminSupportTicketsScreen from '../screens/AdminSupportTicketsScreen';
+import AdminSupportTicketDetailsScreen from '../screens/AdminSupportTicketDetailsScreen';
 import TrackOrderScreen from '../screens/TrackOrderScreen';
 import TrackOrderDetailsScreen from '../screens/TrackOrderDetailsScreen';
 import SimpleOrderTrackingScreen from '../screens/SimpleOrderTrackingScreen';
@@ -55,6 +59,7 @@ const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
 
 const TabNavigator = () => {
+  const insets = useSafeAreaInsets();
   const cartItems = useStore((state) => state.cart.length);
   const pendingOrders = useStore((state) =>
     state.orders.filter((o) => o.status !== 'Delivered').length,
@@ -71,9 +76,11 @@ const TabNavigator = () => {
           backgroundColor: '#ffffff',
           borderTopWidth: 0,
           elevation: 0,
-          height: 82,
-          paddingBottom: 10,
-          paddingTop: 9,
+          // Base height plus safe area at the bottom so the bar sits above
+          // gesture/navigation areas on modern devices.
+          height: 60 + insets.bottom,
+          paddingBottom: Math.max(insets.bottom, 8),
+          paddingTop: 8,
         },
         tabBarActiveTintColor: '#2563EB',
         tabBarInactiveTintColor: '#9CA3AF',
@@ -190,6 +197,7 @@ export default function AppNavigator() {
         <Stack.Screen name="ProductDetails" component={ProductDetailsScreen} />
         <Stack.Screen name="Home" component={HomeScreen} />
         <Stack.Screen name="Vendor" component={VendorScreen} />
+        <Stack.Screen name="VendorOrders" component={VendorOrdersScreen} />
         <Stack.Screen name="FlashSale" component={FlashSaleScreen} />
         <Stack.Screen name="EditFlashSale" component={EditFlashSaleScreen} />
         <Stack.Screen name="Billing" component={BillingScreen} />
@@ -208,6 +216,8 @@ export default function AppNavigator() {
         <Stack.Screen name="AllBrands" component={AllBrandsScreen} />
         <Stack.Screen name="AdminCustomers" component={AdminCustomersScreen} />
         <Stack.Screen name="AdminCustomerDetails" component={AdminCustomerDetailsScreen} />
+        <Stack.Screen name="AdminSupportTickets" component={AdminSupportTicketsScreen} />
+        <Stack.Screen name="AdminSupportTicketDetails" component={AdminSupportTicketDetailsScreen} />
         <Stack.Screen name="TrackOrder" component={TrackOrderScreen} />
         <Stack.Screen name="TrackOrderDetails" component={TrackOrderDetailsScreen} />
         <Stack.Screen name="SimpleOrderTracking" component={SimpleOrderTrackingScreen} />

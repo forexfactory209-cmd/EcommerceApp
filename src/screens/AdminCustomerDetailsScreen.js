@@ -20,7 +20,7 @@ const AdminCustomerDetailsScreen = ({ route, navigation }) => {
       const [profileResult, ordersResult] = await Promise.all([
         supabase
           .from('profiles')
-          .select('name, role, notification_tc')
+          .select('name, role, notification_token')
           .eq('user_id', customerId)
           .maybeSingle(),
         supabase
@@ -175,12 +175,12 @@ const AdminCustomerDetailsScreen = ({ route, navigation }) => {
             ) : (
               <Text style={styles.profileRole}>Customer</Text>
             )}
-            {profile?.notification_tc ? (
+            {profile?.notification_token ? (
               <Text
                 style={styles.profileNote}
                 numberOfLines={2}
               >
-                {profile.notification_tc}
+                {profile.notification_token}
               </Text>
             ) : null}
           </View>

@@ -83,12 +83,22 @@ const EditProfileScreen = ({ navigation }) => {
             return;
         }
 
-        const result = await ImagePicker.launchImageLibraryAsync({
-            mediaTypes: ImagePicker.MediaType.Images,
+        const pickerOptions = {
             allowsEditing: true,
             aspect: [1, 1],
             quality: 0.7,
-        });
+        };
+
+        if (ImagePicker.MediaType && ImagePicker.MediaType.Images) {
+            pickerOptions.mediaTypes = ImagePicker.MediaType.Images;
+        } else if (
+            ImagePicker.MediaTypeOptions &&
+            ImagePicker.MediaTypeOptions.Images
+        ) {
+            pickerOptions.mediaTypes = ImagePicker.MediaTypeOptions.Images;
+        }
+
+        const result = await ImagePicker.launchImageLibraryAsync(pickerOptions);
 
         if (result.canceled) {
             return;

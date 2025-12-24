@@ -3,13 +3,18 @@ import { View, Text, FlatList, Image, TouchableOpacity, StyleSheet } from 'react
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Trash2, Minus, Plus, ArrowLeft } from 'lucide-react-native';
 import { useStore } from '../store/store';
+import { getFlashSaleState } from '../utils/flashSale';
 
 const circleColors = ['#FFE5D9', '#E0F2FE', '#E0F7EA', '#FDE68A'];
 
 const CartScreen = ({ navigation }) => {
   const { cart, removeFromCart, clearCart, increaseQuantity, decreaseQuantity } = useStore();
 
-  const subtotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+  const subtotal = cart.reduce((sum, item) => {
+    const { currentPrice, flashPrice, isFlashActive } = getFlashSaleState(item);
+    const unit = isFlashActive && flashPrice != null && flashPrice > 0 ? flashPrice : currentPrice;
+    return sum + unit * (item.quantity || 1);
+  }, 0);
 
   const shipping = cart.reduce((sum, item) => {
     const options = Array.isArray(item.deliveryOptions)
@@ -39,7 +44,15 @@ const CartScreen = ({ navigation }) => {
       <View style={styles.itemInfo}>
         <Text style={styles.itemName} numberOfLines={1}>{item.name}</Text>
         <Text style={styles.itemBrand}>{item.brand}</Text>
-        <Text style={styles.itemPrice}>${item.price}</Text>
+        {(() => {
+          const { currentPrice, flashPrice, isFlashActive } = getFlashSaleState(item);
+          const unit = isFlashActive && flashPrice != null && flashPrice > 0 ? flashPrice : currentPrice;
+          return (
+            <Text style={styles.itemPrice}>
+              ${unit.toFixed(2)}
+            </Text>
+          );
+        })()}
         {(() => {
           const options = Array.isArray(item.deliveryOptions)
             ? item.deliveryOptions

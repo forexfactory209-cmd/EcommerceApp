@@ -1,6 +1,7 @@
 import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, TextInput, FlatList, StyleSheet, Alert, Dimensions, Modal, Animated } from 'react-native';
 import { Image } from 'expo-image';
+import { FlashList } from '@shopify/flash-list';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Search, ShoppingBag, Heart, Bell, Star, Mic, Menu } from 'lucide-react-native';
 import { useStore } from '../store/store';
@@ -12,6 +13,9 @@ import { supabase } from '../lib/supabase';
 import { getFlashSaleState } from '../utils/flashSale';
 
 const windowWidth = Dimensions.get('window').width;
+
+const PRODUCTS_TTL_MS = 60000; // 60 seconds
+const BRANDS_TTL_MS = 60000;
 
 const HomeScreen = ({ navigation }) => {
   const products = useStore((state) => state.products);
@@ -43,21 +47,37 @@ const HomeScreen = ({ navigation }) => {
   const [categorySheetVisible, setCategorySheetVisible] = useState(false);
   const [pendingCategory, setPendingCategory] = useState('all');
   const categorySlide = useRef(new Animated.Value(0)).current; // 0 = hidden, 1 = visible
+  const productsLoadedAtRef = useRef(null);
+  const brandsLoadedAtRef = useRef(null);
 
   const loadProducts = useCallback(async ({ reset = false } = {}) => {
     try {
+      const now = Date.now();
+      if (!reset && productsLoadedAtRef.current && now - productsLoadedAtRef.current < PRODUCTS_TTL_MS) {
+        return;
+      }
+
       setLoading(true);
       const data = await fetchProductsFromSupabase();
       if (Array.isArray(data) && data.length > 0) {
         setRemoteProducts(data);
         setProducts(data);
+        productsLoadedAtRef.current = now;
+
+        const urls = data
+          .map((item) => getProductCardUri(item))
+          .filter((u) => typeof u === 'string' && u.length > 0);
+
+        urls.forEach((uri) => {
+          Image.prefetch(uri);
+        });
       }
     } catch (e) {
       Alert.alert('Supabase error', e.message || 'Failed to load products from Supabase');
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [setProducts]);
 
   const loadUnreadNotifications = useCallback(async () => {
     try {
@@ -85,10 +105,24 @@ const HomeScreen = ({ navigation }) => {
 
   const loadBrands = useCallback(async () => {
     try {
+      const now = Date.now();
+      if (brandsLoadedAtRef.current && now - brandsLoadedAtRef.current < BRANDS_TTL_MS) {
+        return;
+      }
+
       setBrandsLoading(true);
       const data = await fetchApprovedBrandsFromSupabase();
       if (Array.isArray(data)) {
         setBrands(data);
+        brandsLoadedAtRef.current = now;
+
+        const logoUrls = data
+          .map((brand) => getBrandLogoThumbUri(brand))
+          .filter((u) => typeof u === 'string' && u.length > 0);
+
+        logoUrls.forEach((uri) => {
+          Image.prefetch(uri);
+        });
       }
     } catch (e) {
       console.warn('Supabase brands error', e.message || e);
@@ -300,12 +334,17 @@ const HomeScreen = ({ navigation }) => {
   }, [brands]);
 
   useEffect(() => {
-    const loadRatingStats = async () => {
+    let isActive = true;
+
+    const handle = setTimeout(async () => {
       try {
-        const ids = baseProducts
-          .filter((item) => filterByCategory(item) && filterByAudience(item) && filterBySearch(item))
+        // Only consider the currently visible filtered products, and cap the number of IDs
+        const ids = filteredProducts
+          .slice(0, 100)
           .map((p) => p.id)
           .filter(Boolean);
+
+        if (!isActive) return;
 
         if (ids.length === 0) {
           setRatingStats({});
@@ -313,14 +352,20 @@ const HomeScreen = ({ navigation }) => {
         }
 
         const result = await fetchManyProductRatingSummaries(ids);
+        if (!isActive) return;
         setRatingStats(result || {});
       } catch (e) {
-        console.warn('Failed to load rating stats', e.message || e);
+        if (isActive) {
+          console.warn('Failed to load rating stats', e.message || e);
+        }
       }
-    };
+    }, 250); // debounce slightly so we don't refetch on every keystroke
 
-    loadRatingStats();
-  }, [baseProducts, selectedCategory, selectedAudience, searchQuery]);
+    return () => {
+      isActive = false;
+      clearTimeout(handle);
+    };
+  }, [filteredProducts]);
 
   const handleFindByCode = () => {
     const trimmed = searchCode.trim();
@@ -341,16 +386,36 @@ const HomeScreen = ({ navigation }) => {
   };
   
   const getProductThumbUri = (item) => {
-    if (item.image_thumb_url) return item.image_thumb_url;
-    if (item.image_full_url) return item.image_full_url;
-    return item.image || '';
+    const toThumbCdn = (url) => {
+      if (!url) return '';
+      if (url.includes('/storage/v1/object/')) {
+        return url
+          .replace('/storage/v1/object/', '/storage/v1/render/image/')
+          .concat('?width=400&height=400&resize=contain&quality=75');
+      }
+      return url;
+    };
+
+    if (item.image_thumb_url) return toThumbCdn(item.image_thumb_url);
+    if (item.image_full_url) return toThumbCdn(item.image_full_url);
+    return toThumbCdn(item.image || '');
   };
 
   // Use a stronger, full image for the main product cards on HomeScreen
   const getProductCardUri = (item) => {
-    if (item.image_full_url) return item.image_full_url;
-    if (item.image) return item.image;
-    if (item.image_thumb_url) return item.image_thumb_url;
+    const toProductCdn = (url) => {
+      if (!url) return '';
+      if (url.includes('/storage/v1/object/')) {
+        return url
+          .replace('/storage/v1/object/', '/storage/v1/render/image/')
+          .concat('?width=720&height=720&resize=contain&quality=80');
+      }
+      return url;
+    };
+
+    if (item.image_full_url) return toProductCdn(item.image_full_url);
+    if (item.image) return toProductCdn(item.image);
+    if (item.image_thumb_url) return toProductCdn(item.image_thumb_url);
     return '';
   };
 
@@ -381,118 +446,8 @@ const HomeScreen = ({ navigation }) => {
 
     return '';
   };
-
-  const renderProduct = ({ item }) => {
-    const inWishlist = wishlist.some((w) => w.id === item.id);
-    const stats = ratingStats[item.id];
-    const rating = stats?.avg ?? 0;
-    const ratingCount = stats?.count ?? 0;
-    const { currentPrice, flashPrice, isFlashActive } = getFlashSaleState(item);
-    const isOutOfStock = Number(item.quantity) === 0;
-
-    return (
-      <TouchableOpacity 
-        style={styles.productCard}
-        onPress={() => navigation.navigate('ProductDetails', { product: item })}
-        activeOpacity={0.9}
-      >
-        <View style={styles.productImageWrapper}>
-          <Image
-            source={{ uri: getProductCardUri(item) }}
-            style={styles.productImage}
-            contentFit="cover"
-            cachePolicy="disk"
-            transition={200}
-          />
-          {isFlashActive && (
-            <View style={styles.flashBadge}>
-              <Text style={styles.flashBadgeText}>Flash Sale</Text>
-            </View>
-          )}
-          {isOutOfStock && !isFlashActive && (
-            <View style={styles.outOfStockBadge}>
-              <Text style={styles.outOfStockBadgeText}>Out of stock</Text>
-            </View>
-          )}
-          <TouchableOpacity
-            style={styles.wishlistIcon}
-            onPress={(e) => {
-              e.stopPropagation();
-              if (authRole === 'admin') {
-                return;
-              }
-              if (inWishlist) {
-                removeFromWishlist(item.id);
-              } else {
-                addToWishlist(item);
-              }
-            }}
-          >
-            <Heart
-              size={18}
-              color={inWishlist ? '#ef4444' : '#9ca3af'}
-              fill={inWishlist ? '#ef4444' : 'transparent'}
-            />
-          </TouchableOpacity>
-        </View>
-        <Text style={styles.productBrand}>{item.brand}</Text>
-        <Text style={styles.productName} numberOfLines={1}>{item.name}</Text>
-        <View style={styles.productFooterRow}>
-          <View style={styles.productRatingRow}>
-            <Star
-              size={14}
-              color={rating ? '#FBBF24' : '#D1D5DB'}
-              fill={rating ? '#FBBF24' : 'transparent'}
-            />
-            <Text style={styles.productRatingText}>
-              {rating ? rating.toFixed(1) : '0.0'}
-              {ratingCount > 0 ? ` (${ratingCount})` : ''}
-            </Text>
-          </View>
-          {(() => {
-            if (isFlashActive && flashPrice != null && flashPrice > 0) {
-              const original = currentPrice > 0 ? currentPrice : flashPrice;
-              return (
-                <View style={styles.productPriceCol}>
-                  <Text style={styles.productPriceOriginal}>${original.toFixed(2)}</Text>
-                  <Text style={styles.productPriceDiscount}>${flashPrice.toFixed(2)}</Text>
-                </View>
-              );
-            }
-
-            const byUser = item.brand_user_id
-              ? brandDiscountLookup[`user:${item.brand_user_id}`]
-              : null;
-            const byName = !byUser && item.brand
-              ? brandDiscountLookup[`name:${item.brand}`]
-              : null;
-            const discount = byUser != null ? byUser : byName;
-
-            if (!discount || currentPrice <= 0) {
-              return <Text style={styles.productPrice}>${currentPrice.toFixed(2)}</Text>;
-            }
-
-            const factor = 1 - discount / 100;
-            if (factor <= 0) {
-              return <Text style={styles.productPrice}>${currentPrice.toFixed(2)}</Text>;
-            }
-
-            const originalPrice = Number((currentPrice / factor).toFixed(2));
-
-            return (
-              <View style={styles.productPriceCol}>
-                <Text style={styles.productPriceOriginal}>${originalPrice.toFixed(2)}</Text>
-                <Text style={styles.productPriceDiscount}>${currentPrice.toFixed(2)}</Text>
-              </View>
-            );
-          })()}
-        </View>
-      </TouchableOpacity>
-    );
-  };
-
-  return (
-    <SafeAreaView style={styles.container} edges={['top', 'right', 'bottom', 'left']}>
+  const renderListHeader = useMemo(() => (
+    <View style={styles.listHeaderWrapper}>
       <Modal
         visible={categorySheetVisible}
         transparent
@@ -562,7 +517,7 @@ const HomeScreen = ({ navigation }) => {
           />
         </SafeAreaView>
       </Modal>
-      <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false}>
+      <View style={styles.scroll}>
         <View style={styles.topBarRow}>
           <TouchableOpacity
             style={styles.categoryIconButton}
@@ -690,7 +645,7 @@ const HomeScreen = ({ navigation }) => {
           </View> */}
         </View>
 
-        {trendingProducts.length > 0 && (
+        {authRole !== 'brand' && userType !== 'brand' && trendingProducts.length > 0 && (
           <View style={styles.trendingSection}>
             <View style={styles.productsHeader}>
               <Text style={styles.sectionTitle}>Trending products</Text>
@@ -789,7 +744,17 @@ const HomeScreen = ({ navigation }) => {
             <View style={styles.productsGrid}>
               {myBrandProducts.map((item, index) => (
                 <View key={`${item.id}-${index}`} style={styles.productWrapper}>
-                  {renderProduct({ item })}
+                  <ProductCard
+                    item={item}
+                    navigation={navigation}
+                    wishlist={wishlist}
+                    ratingStats={ratingStats}
+                    brandDiscountLookup={brandDiscountLookup}
+                    authRole={authRole}
+                    addToWishlist={addToWishlist}
+                    removeFromWishlist={removeFromWishlist}
+                    getProductCardUri={getProductCardUri}
+                  />
                 </View>
               ))}
             </View>
@@ -889,23 +854,198 @@ const HomeScreen = ({ navigation }) => {
                 })}
               </ScrollView>
             </View>
-
-            <View style={styles.productsGrid}>
-              {filteredProducts.map((item, index) => (
-                <View key={`${item.id}-${index}`} style={styles.productWrapper}>
-                  {renderProduct({ item })}
-                </View>
-              ))}
-            </View>
           </>
         )}
-        <View style={styles.bottomSpacer} /> 
-      </ScrollView>
+      </View>
+    </View>
+  ), [
+    categorySheetVisible,
+    pendingCategory,
+    selectedCategory,
+    selectedAudience,
+    searchMode,
+    searchCode,
+    searchQuery,
+    trendingProducts,
+    trendingIndex,
+    unreadNotifications,
+    brands,
+    userType,
+    authRole,
+    authUserId,
+    myBrandProducts,
+    wishlist,
+    ratingStats,
+    brandDiscountLookup,
+    brandLogoUrl,
+    navigation,
+  ]);
+
+  const renderProductItem = useCallback(
+    ({ item }) => (
+      <View style={styles.productWrapper}>
+        <ProductCard
+          item={item}
+          navigation={navigation}
+          wishlist={wishlist}
+          ratingStats={ratingStats}
+          brandDiscountLookup={brandDiscountLookup}
+          authRole={authRole}
+          addToWishlist={addToWishlist}
+          removeFromWishlist={removeFromWishlist}
+          getProductCardUri={getProductCardUri}
+        />
+      </View>
+    ),
+    [
+      navigation,
+      wishlist,
+      ratingStats,
+      brandDiscountLookup,
+      authRole,
+      addToWishlist,
+      removeFromWishlist,
+      getProductCardUri,
+    ],
+  );
+
+  return (
+    <SafeAreaView style={styles.container} edges={['top', 'right', 'bottom', 'left']}>
+      <FlashList
+        data={userType !== 'brand' && authRole !== 'brand' ? filteredProducts : []}
+        keyExtractor={(item) => item.id.toString()}
+        renderItem={renderProductItem}
+        numColumns={2}
+        columnWrapperStyle={styles.productsGrid}
+        contentContainerStyle={{ paddingBottom: 24 }}
+        showsVerticalScrollIndicator={false}
+        ListHeaderComponent={renderListHeader}
+        estimatedItemSize={260}
+      />
     </SafeAreaView>
   );
-};
+}
 
 export default HomeScreen;
+
+const ProductCard = React.memo(
+  ({
+    item,
+    navigation,
+    wishlist,
+    ratingStats,
+    brandDiscountLookup,
+    authRole,
+    addToWishlist,
+    removeFromWishlist,
+    getProductCardUri,
+  }) => {
+    const inWishlist = wishlist.some((w) => w.id === item.id);
+    const stats = ratingStats[item.id];
+    const rating = stats?.avg ?? 0;
+    const ratingCount = stats?.count ?? 0;
+    const { currentPrice, flashPrice, isFlashActive } = getFlashSaleState(item);
+    const isOutOfStock = Number(item.quantity) === 0;
+
+    return (
+      <TouchableOpacity
+        style={styles.productCard}
+        onPress={() => navigation.navigate('ProductDetails', { product: item })}
+        activeOpacity={0.9}
+      >
+        <View style={styles.productImageWrapper}>
+          <Image
+            source={{ uri: getProductCardUri(item) }}
+            style={styles.productImage}
+            contentFit="cover"
+            cachePolicy="disk"
+            transition={200}
+          />
+          {isFlashActive && (
+            <View style={styles.flashBadge}>
+              <Text style={styles.flashBadgeText}>Flash Sale</Text>
+            </View>
+          )}
+          {isOutOfStock && !isFlashActive && (
+            <View style={styles.outOfStockBadge}>
+              <Text style={styles.outOfStockBadgeText}>Out of stock</Text>
+            </View>
+          )}
+          <TouchableOpacity
+            style={styles.wishlistIcon}
+            onPress={(e) => {
+              e.stopPropagation();
+              if (authRole === 'admin') {
+                return;
+              }
+              if (inWishlist) {
+                removeFromWishlist(item.id);
+              } else {
+                addToWishlist(item);
+              }
+            }}
+          >
+            <Heart
+              size={18}
+              color={inWishlist ? '#ef4444' : '#9ca3af'}
+              fill={inWishlist ? '#ef4444' : 'transparent'}
+            />
+          </TouchableOpacity>
+        </View>
+        <Text style={styles.productBrand}>{item.brand}</Text>
+        <Text style={styles.productName} numberOfLines={1}>
+          {item.name}
+        </Text>
+        <View style={styles.productFooterRow}>
+          <View style={styles.productRatingRow}>
+            <Star
+              size={14}
+              color={rating ? '#FBBF24' : '#D1D5DB'}
+              fill={rating ? '#FBBF24' : 'transparent'}
+            />
+            <Text style={styles.productRatingText}>
+              {rating ? rating.toFixed(1) : '0.0'}
+              {ratingCount > 0 ? ` (${ratingCount})` : ''}
+            </Text>
+          </View>
+          {(() => {
+            if (isFlashActive && flashPrice != null && flashPrice > 0) {
+              const original = currentPrice > 0 ? currentPrice : flashPrice;
+              return (
+                <View style={styles.productPriceCol}>
+                  <Text style={styles.productPriceOriginal}>${original.toFixed(2)}</Text>
+                  <Text style={styles.productPriceDiscount}>${flashPrice.toFixed(2)}</Text>
+                </View>
+              );
+            }
+
+            const byUser = item.brand_user_id ? brandDiscountLookup[`user:${item.brand_user_id}`] : null;
+            const byName = !byUser && item.brand ? brandDiscountLookup[`name:${item.brand}`] : null;
+            const discount = byUser != null ? byUser : byName;
+
+            if (!discount || currentPrice <= 0) {
+              return <Text style={styles.productPrice}>${currentPrice.toFixed(2)}</Text>;
+            }
+
+            const factor = 1 - discount / 100;
+            if (factor <= 0) {
+              return <Text style={styles.productPrice}>${currentPrice.toFixed(2)}</Text>;
+            }
+
+            const originalPrice = Number((currentPrice / factor).toFixed(2));
+
+            return (
+              <View style={styles.productPriceCol}>
+                <Text style={styles.productPriceOriginal}>${originalPrice.toFixed(2)}</Text>
+                <Text style={styles.productPriceDiscount}>${currentPrice.toFixed(2)}</Text>
+              </View>
+            );
+          })()}
+        </View>
+      </TouchableOpacity>
+    );
+  },
+);
 
 const styles = StyleSheet.create({
   container: {
@@ -1167,7 +1307,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   productWrapper: {
-    width: '48%',
+    width: '95%',
     marginBottom: 18,
   },
   productCard: {

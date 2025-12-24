@@ -1,4 +1,6 @@
 import { create } from 'zustand';
+import { persist, createJSONStorage } from 'zustand/middleware';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '../lib/supabase';
 
 // --- MOCK DATA ---
@@ -73,7 +75,9 @@ export const PRODUCTS = [
 ];
 
 // --- STORE (State Management) ---
-export const useStore = create((set, get) => ({
+export const useStore = create(
+  persist(
+    (set, get) => ({
   // Catalog and orders
   products: PRODUCTS,
   orders: [],
@@ -345,4 +349,15 @@ export const useStore = create((set, get) => ({
   clearWishlistByProductIds: (ids) => set((state) => ({
     wishlist: state.wishlist.filter((item) => !ids.includes(item.id)),
   })),
-}));
+}),
+    {
+      name: 'ecommerce-store',
+      storage: createJSONStorage(() => AsyncStorage),
+      // Only persist cart and wishlist; everything else stays in-memory or Supabase-backed
+      partialize: (state) => ({
+        cart: state.cart,
+        wishlist: state.wishlist,
+      }),
+    },
+  ),
+);
