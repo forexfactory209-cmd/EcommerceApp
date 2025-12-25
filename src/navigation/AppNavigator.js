@@ -46,6 +46,7 @@ import AdminCustomersScreen from '../screens/AdminCustomersScreen';
 import AdminCustomerDetailsScreen from '../screens/AdminCustomerDetailsScreen';
 import AdminSupportTicketsScreen from '../screens/AdminSupportTicketsScreen';
 import AdminSupportTicketDetailsScreen from '../screens/AdminSupportTicketDetailsScreen';
+import AdminOrdersScreen from '../screens/AdminOrdersScreen';
 import TrackOrderScreen from '../screens/TrackOrderScreen';
 import TrackOrderDetailsScreen from '../screens/TrackOrderDetailsScreen';
 import SimpleOrderTrackingScreen from '../screens/SimpleOrderTrackingScreen';
@@ -218,6 +219,7 @@ export default function AppNavigator() {
         <Stack.Screen name="AdminCustomerDetails" component={AdminCustomerDetailsScreen} />
         <Stack.Screen name="AdminSupportTickets" component={AdminSupportTicketsScreen} />
         <Stack.Screen name="AdminSupportTicketDetails" component={AdminSupportTicketDetailsScreen} />
+        <Stack.Screen name="AdminOrders" component={AdminOrdersScreen} />
         <Stack.Screen name="TrackOrder" component={TrackOrderScreen} />
         <Stack.Screen name="TrackOrderDetails" component={TrackOrderDetailsScreen} />
         <Stack.Screen name="SimpleOrderTracking" component={SimpleOrderTrackingScreen} />

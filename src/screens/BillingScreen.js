@@ -386,6 +386,29 @@ const BillingScreen = ({ navigation }) => {
 
         addOrder(order);
         try {
+          // Load seller/brand info for this order so we can denormalize
+          // seller_name and seller_phone into the orders table.
+          let sellerName = null;
+          let sellerPhone = null;
+          if (order.brand_user_id) {
+            try {
+              const { data: brandRow, error: brandError } = await supabase
+                .from('brands')
+                .select('name, contact_phone')
+                .eq('user_id', order.brand_user_id)
+                .maybeSingle();
+
+              if (brandError) {
+                console.warn('Billing: failed to load brand for seller info', brandError.message || brandError);
+              } else if (brandRow) {
+                sellerName = brandRow.name || null;
+                sellerPhone = brandRow.contact_phone || null;
+              }
+            } catch (e) {
+              console.warn('Billing: exception loading brand for seller info', e.message || e);
+            }
+          }
+
           const { data: orderRow, error: orderError } = await supabase
             .from('orders')
             .insert([
@@ -405,6 +428,8 @@ const BillingScreen = ({ navigation }) => {
                 customer_name: order.customer_name,
                 customer_phone: order.customer_phone,
                 customer_secondary_phone: order.customer_secondary_phone,
+                seller_name: sellerName,
+                seller_phone: sellerPhone,
               },
             ])
             .select()

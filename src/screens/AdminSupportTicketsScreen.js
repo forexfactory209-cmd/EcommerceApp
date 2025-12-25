@@ -280,6 +280,7 @@ const styles = StyleSheet.create({
   summaryCardPrimary: {
     backgroundColor: '#2563EB',
     borderColor: '#1d4ed8',
+    color: '#ffffff',
   },
   summaryCardSoft: {
     backgroundColor: '#EFF6FF',

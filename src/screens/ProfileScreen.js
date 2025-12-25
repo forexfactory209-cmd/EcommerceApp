@@ -477,6 +477,12 @@ const ProfileScreen = ({ navigation }) => {
               >
                 <Text style={styles.adminButtonText}>Admin: Customer Reports</Text>
               </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.adminButton}
+                onPress={() => navigation.navigate('AdminOrders')}
+              >
+                <Text style={styles.adminButtonText}>Admin: Manage Orders</Text>
+              </TouchableOpacity>
             </>
           )}
 
