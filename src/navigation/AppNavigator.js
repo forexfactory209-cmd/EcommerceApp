@@ -1,10 +1,10 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { NavigationContainer } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Home, ShoppingBag, User, Store, Heart, Zap, Tag } from 'lucide-react-native';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, Linking } from 'react-native';
 
 // Import Screens
 import HomeScreen from '../screens/HomeScreen';
@@ -42,6 +42,8 @@ import HelpFAQScreen from '../screens/HelpFAQScreen';
 import ReportProblemScreen from '../screens/ReportProblemScreen';
 import TermsConditionsScreen from '../screens/TermsConditionsScreen';
 import PrivacyPolicyScreen from '../screens/PrivacyPolicyScreen';
+import ForgotPasswordScreen from '../screens/ForgotPasswordScreen';
+import ResetPasswordScreen from '../screens/ResetPasswordScreen';
 import AdminCustomersScreen from '../screens/AdminCustomersScreen';
 import AdminCustomerDetailsScreen from '../screens/AdminCustomerDetailsScreen';
 import AdminSupportTicketsScreen from '../screens/AdminSupportTicketsScreen';
@@ -55,6 +57,16 @@ import PromoCodesScreen from '../screens/PromoCodesScreen';
 import ProductReviewsScreen from '../screens/ProductReviewsScreen';
 import ProductWriteReviewScreen from '../screens/ProductWriteReviewScreen';
 import { useStore } from '../store/store';
+
+const linking = {
+  prefixes: ['ecommerceapp://'],
+  config: {
+    screens: {
+      Welcome: 'auth-callback',
+      ResetPassword: 'reset-password',
+    },
+  },
+};
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -183,13 +195,37 @@ const TabNavigator = () => {
   );
 };
 
-export default function AppNavigator() {
+const RootStackNavigator = () => {
+  const [initialRoute, setInitialRoute] = useState(null);
+
+  useEffect(() => {
+    const determineInitialRoute = async () => {
+      try {
+        const url = await Linking.getInitialURL();
+        if (url && url.startsWith('ecommerceapp://reset-password')) {
+          setInitialRoute('ResetPassword');
+        } else {
+          setInitialRoute('CustomerOnboarding');
+        }
+      } catch (e) {
+        setInitialRoute('CustomerOnboarding');
+      }
+    };
+
+    determineInitialRoute();
+  }, []);
+
+  if (!initialRoute) {
+    return null;
+  }
+
   return (
-    <NavigationContainer>
-      <Stack.Navigator initialRouteName="CustomerOnboarding" screenOptions={{ headerShown: false }}>
+      <Stack.Navigator initialRouteName={initialRoute} screenOptions={{ headerShown: false }}>
         <Stack.Screen name="CustomerOnboarding" component={CustomerOnboardingScreen} />
         <Stack.Screen name="Welcome" component={WelcomeScreen} />
         <Stack.Screen name="Signup" component={SignupScreen} />
+        <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
+        <Stack.Screen name="ResetPassword" component={ResetPasswordScreen} />
         <Stack.Screen name="Main" component={TabNavigator} />
         <Stack.Screen name="Notifications" component={NotificationsScreen} />
         <Stack.Screen name="EditProfile" component={EditProfileScreen} />
@@ -232,6 +268,13 @@ export default function AppNavigator() {
         <Stack.Screen name="TermsConditions" component={TermsConditionsScreen} />
         <Stack.Screen name="PrivacyPolicy" component={PrivacyPolicyScreen} />
       </Stack.Navigator>
+  );
+};
+
+export default function AppNavigator() {
+  return (
+    <NavigationContainer linking={linking}>
+      <RootStackNavigator />
     </NavigationContainer>
   );
 }

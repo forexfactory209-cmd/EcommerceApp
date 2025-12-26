@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, KeyboardAvoidingView, Platform, StatusBar, Linking } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useStore } from '../store/store';
 import { supabase } from '../lib/supabase';
@@ -10,8 +10,107 @@ const WelcomeScreen = ({ navigation }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
 
   const ADMIN_EMAIL = 'caliaxmed488@gmail.com';
+
+  useEffect(() => {
+    const extractParamsFromUrl = (urlString) => {
+      if (!urlString) return { accessToken: null, refreshToken: null, type: null };
+
+      const hashIndex = urlString.indexOf('#');
+      const queryIndex = urlString.indexOf('?');
+
+      let paramsString = '';
+      if (hashIndex !== -1) {
+        paramsString = urlString.slice(hashIndex + 1);
+      } else if (queryIndex !== -1) {
+        paramsString = urlString.slice(queryIndex + 1);
+      }
+
+      const searchParams = new URLSearchParams(paramsString);
+      return {
+        accessToken: searchParams.get('access_token'),
+        refreshToken: searchParams.get('refresh_token'),
+        type: searchParams.get('type'),
+      };
+    };
+
+    const handleRecoveryLink = async () => {
+      try {
+        const url = await Linking.getInitialURL();
+        if (!url) return;
+
+        const { accessToken, refreshToken, type } = extractParamsFromUrl(url);
+
+        if (accessToken && refreshToken) {
+          await supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken });
+
+          if (type === 'recovery') {
+            navigation.replace('ResetPassword');
+          } else {
+            navigation.replace('Main');
+          }
+        }
+      } catch (err) {
+        console.error('WelcomeScreen recovery link handling error:', err);
+      }
+    };
+
+    handleRecoveryLink();
+  }, [navigation]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const checkExistingSession = async () => {
+      try {
+        const { data, error } = await supabase.auth.getSession();
+        if (!isMounted) return;
+
+        if (!error && data?.session) {
+          navigation.replace('Main');
+        }
+      } catch (err) {
+        console.error('WelcomeScreen session check error:', err);
+      }
+    };
+
+    checkExistingSession();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [navigation]);
+
+  const handleGoogleSignIn = async () => {
+    if (googleLoading) return;
+    setGoogleLoading(true);
+
+    try {
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          // This should match a redirect URL allowed in Supabase and your app's scheme
+          redirectTo: 'ecommerceapp://auth-callback',
+        },
+      });
+
+      if (error) {
+        Alert.alert('Google Sign-In failed', error.message || 'Unable to sign in with Google.');
+        return;
+      }
+
+      if (data?.url) {
+        await Linking.openURL(data.url);
+      }
+    } catch (err) {
+      console.error('Google sign-in error:', err);
+      Alert.alert('Error', 'Something went wrong with Google sign-in.');
+    } finally {
+      setGoogleLoading(false);
+    }
+  };
 
   const handleAuth = async () => {
     const trimmedEmail = email.trim();
@@ -59,7 +158,7 @@ const WelcomeScreen = ({ navigation }) => {
       ] = await Promise.all([
         supabase
           .from('profiles')
-          .select('*')
+          .select('user_id, name, username')
           .eq('user_id', user.id)
           .maybeSingle(),
         supabase
@@ -113,10 +212,19 @@ const WelcomeScreen = ({ navigation }) => {
 
   const renderLoginContent = () => (
     <SafeAreaView style={styles.screen}>
-      <View style={styles.background} />
-      <View style={styles.centerWrapper}>
-        <View style={styles.cardStack}>
-          <View style={styles.card}>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={Platform.select({
+          ios: 60,
+          android: StatusBar.currentHeight ? StatusBar.currentHeight + 10 : 0,
+          default: 0,
+        })}
+      >
+        <View style={styles.background} />
+        <View style={styles.centerWrapper}>
+          <View style={styles.cardStack}>
+            <View style={styles.card}>
           <View style={styles.logoWrapper}>
             <View style={styles.logoCircle}>
               <Text style={styles.logoText}>🛍️</Text>
@@ -148,10 +256,6 @@ const WelcomeScreen = ({ navigation }) => {
             <View style={styles.fieldGroup}>
               <View style={styles.labelRow}>
                 <Text style={styles.label}>Password</Text>
-                <TouchableOpacity onPress={() => Alert.alert('Forgot Password', 'Password reset coming soon.')}
-                >
-                  <Text style={styles.forgotText}>Forgot Password?</Text>
-                </TouchableOpacity>
               </View>
               <View style={styles.inputWrapper}>
                 <Text style={styles.inputIcon}>🔒</Text>
@@ -164,6 +268,9 @@ const WelcomeScreen = ({ navigation }) => {
                   placeholderTextColor="#9CA3AF"
                 />
               </View>
+              <TouchableOpacity onPress={() => navigation.navigate('ForgotPassword')}>
+                <Text style={styles.forgotText}>Forgot Password?</Text>
+              </TouchableOpacity>
             </View>
           </View>
 
@@ -181,10 +288,15 @@ const WelcomeScreen = ({ navigation }) => {
 
           <TouchableOpacity
             style={styles.googleButton}
-            onPress={() => Alert.alert('Google Sign-In', 'Google sign-in coming soon.')}
+            onPress={handleGoogleSignIn}
+            disabled={googleLoading}
           >
-            <Text style={styles.googleIcon}>G</Text>
-            <Text style={styles.googleButtonText}>Sign in with Google</Text>
+            <View style={styles.googleIconWrapper}>
+              <Text style={styles.googleIcon}>G</Text>
+            </View>
+            <Text style={styles.googleButtonText}>
+              {googleLoading ? 'Signing in...' : 'Sign in with Google'}
+            </Text>
           </TouchableOpacity>
 
           <View style={styles.footerRow}>
@@ -202,6 +314,7 @@ const WelcomeScreen = ({ navigation }) => {
           <View style={styles.cardBottomAccent} />
         </View>
       </View>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 
@@ -421,6 +534,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#4F46E5',
     fontWeight: '500',
+
   },
   inputWrapper: {
     flexDirection: 'row',
@@ -526,21 +640,32 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 16,
+    borderRadius: 999,
     borderWidth: 1,
     borderColor: '#E5E7EB',
-    paddingVertical: 12,
+    backgroundColor: '#FFFFFF',
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    marginTop: 4,
+  },
+  googleIconWrapper: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 8,
   },
   googleIcon: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: '700',
     color: '#EA4335',
-    marginRight: 8,
   },
   googleButtonText: {
     fontSize: 14,
     color: '#111827',
-    fontWeight: '600',
+    fontWeight: '500',
   },
   footerRow: {
     marginTop: 18,
