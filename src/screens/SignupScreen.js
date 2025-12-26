@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ScrollView, Image } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ScrollView, Image, KeyboardAvoidingView, Platform, StatusBar } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useStore } from '../store/store';
 import { supabase } from '../lib/supabase';
@@ -14,6 +14,8 @@ const SignupScreen = ({ navigation }) => {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [step, setStep] = useState(1); // 1: account, 2: personal, 3: address
+
+  const [createdAuthUser, setCreatedAuthUser] = useState(null);
 
   const [gender, setGender] = useState('');
   const [dob, setDob] = useState('');
@@ -103,8 +105,72 @@ const SignupScreen = ({ navigation }) => {
     return true;
   };
 
-  const handleNextStep = () => {
+  const handleNextStep = async () => {
     if (!validateStep()) return;
+
+    if (step === 1) {
+      const trimmedUsername = username.trim();
+      const trimmedEmail = email.trim();
+      const trimmedPassword = password.trim();
+
+      try {
+        if (trimmedUsername) {
+          const { data: existingProfile, error: usernameCheckError } = await supabase
+            .from('profiles')
+            .select('user_id, username')
+            .eq('username', trimmedUsername)
+            .maybeSingle();
+
+          if (usernameCheckError && usernameCheckError.code !== 'PGRST116') {
+            console.log('[SignupWizard] username check error', usernameCheckError);
+          }
+
+          if (existingProfile) {
+            Alert.alert('Username taken', 'This username is already in use. Please choose another one.');
+            return;
+          }
+        }
+
+        if (!createdAuthUser || createdAuthUser.email !== trimmedEmail) {
+          const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+            email: trimmedEmail,
+            password: trimmedPassword,
+          });
+
+          if (signUpError) {
+            const msg = signUpError.message || '';
+
+            if (
+              signUpError.code === 'user_already_exists' ||
+              msg.toLowerCase().includes('already registered') ||
+              msg.toLowerCase().includes('already exists')
+            ) {
+              Alert.alert(
+                'Email already in use',
+                'An account with this email already exists. Please sign in instead.',
+              );
+            } else {
+              Alert.alert('Sign up failed', msg || 'Unable to create your account.');
+            }
+
+            return;
+          }
+
+          const user = signUpData.user;
+          if (!user) {
+            Alert.alert('Sign up failed', 'No user returned from Supabase.');
+            return;
+          }
+
+          setCreatedAuthUser(user);
+        }
+      } catch (err) {
+        console.error('Signup step 1 error:', err);
+        Alert.alert('Error', 'Something went wrong while creating your account.');
+        return;
+      }
+    }
+
     if (step < 3) {
       setStep(step + 1);
     }
@@ -170,57 +236,10 @@ const SignupScreen = ({ navigation }) => {
     setLoading(true);
 
     try {
-      // Check if username is already taken (exact match)
-      const trimmedUsername = username.trim();
-      if (trimmedUsername) {
-        const { data: existingProfile, error: usernameCheckError } = await supabase
-          .from('profiles')
-          .select('user_id, username')
-          .eq('username', trimmedUsername)
-          .maybeSingle();
-
-        if (usernameCheckError && usernameCheckError.code !== 'PGRST116') {
-          console.log('[SignupWizard] username check error', usernameCheckError);
-        }
-
-        if (existingProfile) {
-          Alert.alert('Username taken', 'This username is already in use. Please choose another one.');
-          setLoading(false);
-          return;
-        }
-      }
-
-      const trimmedEmail = email.trim();
-      const trimmedPassword = password.trim();
-
-      const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
-        email: trimmedEmail,
-        password: trimmedPassword,
-      });
-
-      if (signUpError) {
-        const msg = signUpError.message || '';
-
-        if (
-          signUpError.code === 'user_already_exists' ||
-          msg.toLowerCase().includes('already registered') ||
-          msg.toLowerCase().includes('already exists')
-        ) {
-          Alert.alert(
-            'Email already in use',
-            'An account with this email already exists. Please sign in instead.',
-          );
-        } else {
-          Alert.alert('Sign up failed', msg || 'Unable to create your account.');
-        }
-
-        setLoading(false);
-        return;
-      }
-
-      const user = signUpData.user;
+      const user = createdAuthUser;
       if (!user) {
-        Alert.alert('Sign up failed', 'No user returned from Supabase.');
+        Alert.alert('Sign up failed', 'We could not confirm your account. Please go back to step 1 and try again.');
+        setLoading(false);
         return;
       }
 
@@ -342,14 +361,24 @@ const SignupScreen = ({ navigation }) => {
 
   return (
     <SafeAreaView style={styles.screen} edges={['top', 'right', 'bottom', 'left']}>
-      <View style={styles.background} />
-      <View style={styles.centerWrapperFull}>
-        <View style={styles.cardFullHeight}>
-          {renderProgressHeader()}
-          <ScrollView
-            contentContainerStyle={styles.wizardScrollContent}
-            showsVerticalScrollIndicator={false}
-          >
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={Platform.select({
+          ios: 60,
+          android: StatusBar.currentHeight ? StatusBar.currentHeight + 10 : 0,
+          default: 0,
+        })}
+      >
+        <View style={styles.background} />
+        <View style={styles.centerWrapperFull}>
+          <View style={styles.cardFullHeight}>
+            {renderProgressHeader()}
+            <ScrollView
+              contentContainerStyle={styles.wizardScrollContent}
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+            >
             {step === 1 && (
               <View style={styles.wizardSection}>
                 <Text style={styles.sectionTitle}>Let's get started</Text>
@@ -632,9 +661,9 @@ const SignupScreen = ({ navigation }) => {
                 </View>
               </View>
             )}
-          </ScrollView>
+            </ScrollView>
 
-          <View style={styles.wizardFooter}>
+            <View style={styles.wizardFooter}>
             {step < 3 ? (
               <TouchableOpacity
                 style={styles.primaryButton}
@@ -656,9 +685,9 @@ const SignupScreen = ({ navigation }) => {
                 </Text>
               </TouchableOpacity>
             )}
-          </View>
+            </View>
 
-          <View style={styles.footerRowCentered}>
+            <View style={styles.footerRowCentered}>
             <Text style={styles.footerText}>
               Already have an account?{' '}
               <Text
@@ -669,8 +698,9 @@ const SignupScreen = ({ navigation }) => {
               </Text>
             </Text>
           </View>
+          </View>
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 };
