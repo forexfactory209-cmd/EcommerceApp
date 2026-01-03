@@ -431,30 +431,10 @@ const HomeScreen = ({ navigation }) => {
   };
 
   const getBrandLogoThumbUri = (brand) => {
-    // Helper to turn any storage object URL into a square, contained CDN image
-    const toSquareCdn = (url) => {
-      if (!url) return '';
-      if (url.includes('/storage/v1/object/')) {
-        return url
-          .replace('/storage/v1/object/', '/storage/v1/render/image/')
-          .concat('?width=200&height=200&resize=contain&quality=80');
-      }
-      return url;
-    };
-
-    // Prefer an explicit full logo URL, but render it as a square contained image when possible
-    if (brand.logo_full_url) {
-      return toSquareCdn(brand.logo_full_url);
-    }
-
-    // Next, derive a square CDN-rendered image from the raw storage logo_url
-    if (brand.logo_url) {
-      return toSquareCdn(brand.logo_url);
-    }
-
-    // Fall back to any stored thumbnail URL
+    // Use the raw URLs so anything that works in a browser also renders in the app.
+    if (brand.logo_full_url) return brand.logo_full_url;
+    if (brand.logo_url) return brand.logo_url;
     if (brand.logo_thumb_url) return brand.logo_thumb_url;
-
     return '';
   };
   const renderListHeader = useMemo(() => (
@@ -776,7 +756,7 @@ const HomeScreen = ({ navigation }) => {
           <>
             <View style={styles.productsHeader}>
               <Text style={styles.sectionTitle}>Top brands</Text>
-              {brands.length > 8 && (
+              {brands.length > 7 && (
                 <TouchableOpacity onPress={() => navigation.navigate('AllBrands')}>
                   <Text style={styles.seeAllText}>See all</Text>
                 </TouchableOpacity>
@@ -788,7 +768,7 @@ const HomeScreen = ({ navigation }) => {
               style={styles.brandsScroll}
               contentContainerStyle={styles.brandsRow}
             >
-              {brands.slice(0, 8).map((brand, index) => (
+              {brands.slice(0, 7).map((brand, index) => (
                 <TouchableOpacity
                   key={`${brand.id}-${index}`}
                   style={styles.brandItem}
