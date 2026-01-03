@@ -8,6 +8,8 @@ import {
     ScrollView,
     Alert,
     Image,
+    KeyboardAvoidingView,
+    Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ChevronLeft } from 'lucide-react-native';
@@ -25,7 +27,7 @@ const EditProfileScreen = ({ navigation }) => {
     const [username, setUsername] = useState('');
     const [gender, setGender] = useState('');
     const [dob, setDob] = useState('');
-    const [country, setCountry] = useState('');
+    const [country, setCountry] = useState('Somaliland');
     const [city, setCity] = useState('');
     const [district, setDistrict] = useState('');
     const [address, setAddress] = useState('');
@@ -34,6 +36,17 @@ const EditProfileScreen = ({ navigation }) => {
     const [avatarUrl, setAvatarUrl] = useState(null);
     const [localAvatarUri, setLocalAvatarUri] = useState(null);
     const [uploadingAvatar, setUploadingAvatar] = useState(false);
+
+    const [cityDropdownOpen, setCityDropdownOpen] = useState(false);
+    const [districtDropdownOpen, setDistrictDropdownOpen] = useState(false);
+
+    const CITY_OPTIONS = ['Mogadishu', 'Hargeisa', 'Kismayo', 'Baidoa'];
+    const DISTRICT_OPTIONS_BY_CITY = {
+        Mogadishu: ['Hodan', 'Hamar Weyne', 'Wadajir', 'Waberi'],
+        Hargeisa: ['Maroodi Jeex', 'Ibrahim Koodbuur'],
+        Kismayo: ['Farjano', 'Alanley'],
+        Baidoa: ['Isha', 'Howl Wadaag'],
+    };
 
     useEffect(() => {
         loadUserProfile();
@@ -60,7 +73,7 @@ const EditProfileScreen = ({ navigation }) => {
                 setUsername(data.username || '');
                 setGender(data.gender || '');
                 setDob(data.dob || '');
-                setCountry(data.country || '');
+                setCountry(data.country || 'Somaliland');
                 setCity(data.city || '');
                 setDistrict(data.district || '');
                 setAddress(data.address || '');
@@ -270,159 +283,209 @@ const EditProfileScreen = ({ navigation }) => {
                 <View style={styles.placeholder} />
             </View>
 
-            <ScrollView contentContainerStyle={styles.scrollContent}>
-                <View style={styles.avatarSection}>
-                    <View style={styles.avatarWrapper}>
-                        {avatarUrl || localAvatarUri ? (
-                            <Image
-                                source={{ uri: localAvatarUri || avatarUrl }}
-                                style={styles.avatarImage}
-                            />
-                        ) : (
-                            <View style={styles.avatarPlaceholder}>
-                                <Text style={styles.avatarPlaceholderText}>
-                                    {name ? name[0].toUpperCase() : 'A'}
-                                </Text>
-                            </View>
-                        )}
+            <KeyboardAvoidingView
+                style={{ flex: 1 }}
+                behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+                keyboardVerticalOffset={Platform.select({ ios: 60, android: 0, default: 0 })}
+            >
+                <ScrollView contentContainerStyle={styles.scrollContent}>
+                    <View style={styles.avatarSection}>
+                        <View style={styles.avatarWrapper}>
+                            {avatarUrl || localAvatarUri ? (
+                                <Image
+                                    source={{ uri: localAvatarUri || avatarUrl }}
+                                    style={styles.avatarImage}
+                                />
+                            ) : (
+                                <View style={styles.avatarPlaceholder}>
+                                    <Text style={styles.avatarPlaceholderText}>
+                                        {name ? name[0].toUpperCase() : 'A'}
+                                    </Text>
+                                </View>
+                            )}
+                        </View>
+                        <TouchableOpacity
+                            style={styles.changePhotoButton}
+                            onPress={handlePickAvatar}
+                            disabled={uploadingAvatar}
+                        >
+                            <Text style={styles.changePhotoText}>
+                                {uploadingAvatar ? 'Uploading...' : 'Change Photo'}
+                            </Text>
+                        </TouchableOpacity>
                     </View>
+                    <View style={styles.formSection}>
+                        <Text style={styles.label}>Full Name</Text>
+                        <TextInput
+                            style={styles.input}
+                            value={name}
+                            onChangeText={setName}
+                            placeholder="Enter your full name"
+                            placeholderTextColor="#9CA3AF"
+                        />
+                    </View>
+
+                    <View style={styles.formSection}>
+                        <Text style={styles.label}>Username</Text>
+                        <TextInput
+                            style={styles.input}
+                            value={username}
+                            onChangeText={setUsername}
+                            placeholder="Enter your username"
+                            placeholderTextColor="#9CA3AF"
+                            autoCapitalize="none"
+                        />
+                    </View>
+
+                    <View style={styles.formSection}>
+                        <Text style={styles.label}>Email</Text>
+                        <TextInput
+                            style={styles.input}
+                            value={email}
+                            onChangeText={setEmail}
+                            placeholder="Enter your email"
+                            placeholderTextColor="#9CA3AF"
+                            keyboardType="email-address"
+                            autoCapitalize="none"
+                        />
+                    </View>
+
+                    <View style={styles.formRow}>
+                        <View style={[styles.formSection, styles.formSectionHalf]}>
+                            <Text style={styles.label}>Gender</Text>
+                            <TextInput
+                                style={styles.input}
+                                value={gender}
+                                onChangeText={setGender}
+                                placeholder="Male / Female"
+                                placeholderTextColor="#9CA3AF"
+                            />
+                        </View>
+                        <View style={[styles.formSection, styles.formSectionHalf]}>
+                            <Text style={styles.label}>Date of Birth</Text>
+                            <TextInput
+                                style={styles.input}
+                                value={dob}
+                                onChangeText={setDob}
+                                placeholder="YYYY-MM-DD"
+                                placeholderTextColor="#9CA3AF"
+                            />
+                        </View>
+                    </View>
+
+                    <View style={styles.formSection}>
+                        <Text style={styles.label}>Country</Text>
+                        <TextInput
+                            style={styles.input}
+                            value={country}
+                            editable={false}
+                            placeholder="Country"
+                            placeholderTextColor="#9CA3AF"
+                        />
+                    </View>
+
+                    <View style={styles.formRow}>
+                        <View style={[styles.formSection, styles.formSectionHalf]}>
+                            <Text style={styles.label}>City</Text>
+                            <TouchableOpacity
+                                style={styles.input}
+                                activeOpacity={0.9}
+                                onPress={() => {
+                                    setCityDropdownOpen((prev) => !prev);
+                                    setDistrictDropdownOpen(false);
+                                }}
+                            >
+                                <Text style={{ color: city ? '#111827' : '#9CA3AF', fontSize: 16 }}>
+                                    {city || 'Select City'}
+                                </Text>
+                            </TouchableOpacity>
+                            {cityDropdownOpen && (
+                                <View style={styles.dropdownMenu}>
+                                    {CITY_OPTIONS.map((option) => (
+                                        <TouchableOpacity
+                                            key={option}
+                                            style={styles.dropdownItem}
+                                            onPress={() => {
+                                                setCity(option);
+                                                setDistrict('');
+                                                setCityDropdownOpen(false);
+                                            }}
+                                        >
+                                            <Text style={styles.dropdownItemText}>{option}</Text>
+                                        </TouchableOpacity>
+                                    ))}
+                                </View>
+                            )}
+                        </View>
+                        <View style={[styles.formSection, styles.formSectionHalf]}>
+                            <Text style={styles.label}>District</Text>
+                            <TouchableOpacity
+                                style={styles.input}
+                                activeOpacity={0.9}
+                                onPress={() => {
+                                    if (!city) return;
+                                    setDistrictDropdownOpen((prev) => !prev);
+                                    setCityDropdownOpen(false);
+                                }}
+                            >
+                                <Text style={{ color: district ? '#111827' : '#9CA3AF', fontSize: 16 }}>
+                                    {district || (city ? 'Select District' : 'Select City first')}
+                                </Text>
+                            </TouchableOpacity>
+                            {districtDropdownOpen && city && (
+                                <View style={styles.dropdownMenu}>
+                                    {(DISTRICT_OPTIONS_BY_CITY[city] || []).map((option) => (
+                                        <TouchableOpacity
+                                            key={option}
+                                            style={styles.dropdownItem}
+                                            onPress={() => {
+                                                setDistrict(option);
+                                                setDistrictDropdownOpen(false);
+                                            }}
+                                        >
+                                            <Text style={styles.dropdownItemText}>{option}</Text>
+                                        </TouchableOpacity>
+                                    ))}
+                                </View>
+                            )}
+                        </View>
+                    </View>
+
+                    <View style={styles.formSection}>
+                        <Text style={styles.label}>Address</Text>
+                        <TextInput
+                            style={styles.input}
+                            value={address}
+                            onChangeText={setAddress}
+                            placeholder="Street, building, etc."
+                            placeholderTextColor="#9CA3AF"
+                        />
+                    </View>
+
+                    <View style={styles.formSection}>
+                        <Text style={styles.label}>Address Description</Text>
+                        <TextInput
+                            style={[styles.input, styles.inputMultiline]}
+                            value={addressDescr}
+                            onChangeText={setAddressDescr}
+                            placeholder="Extra details to help find your address"
+                            placeholderTextColor="#9CA3AF"
+                            multiline
+                            numberOfLines={3}
+                        />
+                    </View>
+
                     <TouchableOpacity
-                        style={styles.changePhotoButton}
-                        onPress={handlePickAvatar}
-                        disabled={uploadingAvatar}
+                        style={[styles.saveButton, loading && styles.saveButtonDisabled]}
+                        onPress={handleSave}
+                        disabled={loading}
                     >
-                        <Text style={styles.changePhotoText}>
-                            {uploadingAvatar ? 'Uploading...' : 'Change Photo'}
+                        <Text style={styles.saveButtonText}>
+                            {loading ? 'Saving...' : 'Save Changes'}
                         </Text>
                     </TouchableOpacity>
-                </View>
-                <View style={styles.formSection}>
-                    <Text style={styles.label}>Full Name</Text>
-                    <TextInput
-                        style={styles.input}
-                        value={name}
-                        onChangeText={setName}
-                        placeholder="Enter your full name"
-                        placeholderTextColor="#9CA3AF"
-                    />
-                </View>
-
-                <View style={styles.formSection}>
-                    <Text style={styles.label}>Username</Text>
-                    <TextInput
-                        style={styles.input}
-                        value={username}
-                        onChangeText={setUsername}
-                        placeholder="Enter your username"
-                        placeholderTextColor="#9CA3AF"
-                        autoCapitalize="none"
-                    />
-                </View>
-
-                <View style={styles.formSection}>
-                    <Text style={styles.label}>Email</Text>
-                    <TextInput
-                        style={styles.input}
-                        value={email}
-                        onChangeText={setEmail}
-                        placeholder="Enter your email"
-                        placeholderTextColor="#9CA3AF"
-                        keyboardType="email-address"
-                        autoCapitalize="none"
-                    />
-                </View>
-
-                <View style={styles.formRow}>
-                    <View style={[styles.formSection, styles.formSectionHalf]}>
-                        <Text style={styles.label}>Gender</Text>
-                        <TextInput
-                            style={styles.input}
-                            value={gender}
-                            onChangeText={setGender}
-                            placeholder="Male / Female"
-                            placeholderTextColor="#9CA3AF"
-                        />
-                    </View>
-                    <View style={[styles.formSection, styles.formSectionHalf]}>
-                        <Text style={styles.label}>Date of Birth</Text>
-                        <TextInput
-                            style={styles.input}
-                            value={dob}
-                            onChangeText={setDob}
-                            placeholder="YYYY-MM-DD"
-                            placeholderTextColor="#9CA3AF"
-                        />
-                    </View>
-                </View>
-
-                <View style={styles.formSection}>
-                    <Text style={styles.label}>Country</Text>
-                    <TextInput
-                        style={styles.input}
-                        value={country}
-                        onChangeText={setCountry}
-                        placeholder="Enter your country"
-                        placeholderTextColor="#9CA3AF"
-                    />
-                </View>
-
-                <View style={styles.formRow}>
-                    <View style={[styles.formSection, styles.formSectionHalf]}>
-                        <Text style={styles.label}>City</Text>
-                        <TextInput
-                            style={styles.input}
-                            value={city}
-                            onChangeText={setCity}
-                            placeholder="City"
-                            placeholderTextColor="#9CA3AF"
-                        />
-                    </View>
-                    <View style={[styles.formSection, styles.formSectionHalf]}>
-                        <Text style={styles.label}>District</Text>
-                        <TextInput
-                            style={styles.input}
-                            value={district}
-                            onChangeText={setDistrict}
-                            placeholder="District"
-                            placeholderTextColor="#9CA3AF"
-                        />
-                    </View>
-                </View>
-
-                <View style={styles.formSection}>
-                    <Text style={styles.label}>Address</Text>
-                    <TextInput
-                        style={styles.input}
-                        value={address}
-                        onChangeText={setAddress}
-                        placeholder="Street, building, etc."
-                        placeholderTextColor="#9CA3AF"
-                    />
-                </View>
-
-                <View style={styles.formSection}>
-                    <Text style={styles.label}>Address Description</Text>
-                    <TextInput
-                        style={[styles.input, styles.inputMultiline]}
-                        value={addressDescr}
-                        onChangeText={setAddressDescr}
-                        placeholder="Extra details to help find your address"
-                        placeholderTextColor="#9CA3AF"
-                        multiline
-                        numberOfLines={3}
-                    />
-                </View>
-
-                <TouchableOpacity
-                    style={[styles.saveButton, loading && styles.saveButtonDisabled]}
-                    onPress={handleSave}
-                    disabled={loading}
-                >
-                    <Text style={styles.saveButtonText}>
-                        {loading ? 'Saving...' : 'Save Changes'}
-                    </Text>
-                </TouchableOpacity>
-            </ScrollView>
+                </ScrollView>
+            </KeyboardAvoidingView>
         </SafeAreaView>
     );
 };
@@ -467,7 +530,7 @@ const styles = StyleSheet.create({
         height: 96,
         borderRadius: 48,
         borderWidth: 3,
-        borderColor: '#2563EB',
+        borderColor: '#090966',
         justifyContent: 'center',
         alignItems: 'center',
         overflow: 'hidden',
@@ -533,7 +596,7 @@ const styles = StyleSheet.create({
         textAlignVertical: 'top',
     },
     saveButton: {
-        backgroundColor: '#2563EB',
+        backgroundColor: '#090966',
         borderRadius: 12,
         paddingVertical: 14,
         alignItems: 'center',

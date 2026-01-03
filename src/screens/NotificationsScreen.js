@@ -106,6 +106,16 @@ const NotificationsScreen = () => {
         return;
       }
 
+      // New question about a product for a brand owner: jump to product Q&A
+      if (type === 'new_question' && data.product_id) {
+        navigation.navigate('ProductDetails', {
+          product: { id: data.product_id },
+          focusQuestionId: data.question_id || null,
+          initialTab: 'reviews',
+        });
+        return;
+      }
+
       // Any other brand-related notification (flash sale, announcement, etc.):
       // take user to that brand's product list screen
       if (item.brand_id) {

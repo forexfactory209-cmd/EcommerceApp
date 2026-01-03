@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, Alert, Linking } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, Alert } from 'react-native';
 import { Image } from 'expo-image';
 import { FlashList } from '@shopify/flash-list';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -83,7 +83,9 @@ const BrandScreen = ({ route, navigation }) => {
 
         const { data, error } = await supabase
           .from('brands')
-          .select('*')
+          .select(
+            'id,user_id,name,logo_url,discount_percentage,description,followers_count,rating_average,rating_count',
+          )
           .eq(column, value)
           .maybeSingle();
 
@@ -436,33 +438,6 @@ const BrandScreen = ({ route, navigation }) => {
           {brand?.description ? (
             <Text style={styles.brandDescription}>{brand.description}</Text>
           ) : null}
-          {brand?.contact_email ? (
-            <Text style={styles.brandContact}>Email: {brand.contact_email}</Text>
-          ) : null}
-          {brand?.contact_phone ? (
-            <Text style={styles.brandContact}>Phone: {brand.contact_phone}</Text>
-          ) : null}
-
-          {(brand?.contact_email || brand?.contact_phone) && (
-            <View style={styles.contactActionsRow}>
-              {brand?.contact_email ? (
-                <TouchableOpacity
-                  style={[styles.contactActionButton, styles.contactEmailButton]}
-                  onPress={() => Linking.openURL(`mailto:${brand.contact_email}`)}
-                >
-                  <Text style={styles.contactActionText}>Email Brand</Text>
-                </TouchableOpacity>
-              ) : null}
-              {brand?.contact_phone ? (
-                <TouchableOpacity
-                  style={[styles.contactActionButton, styles.contactPhoneButton]}
-                  onPress={() => Linking.openURL(`tel:${brand.contact_phone}`)}
-                >
-                  <Text style={styles.contactActionText}>Call Brand</Text>
-                </TouchableOpacity>
-              ) : null}
-            </View>
-          )}
         </View>
       </View>
 
@@ -562,6 +537,7 @@ const styles = StyleSheet.create({
   brandLogo: {
     width: 56,
     height: 56,
+    borderRadius: 28,
   },
   brandIconText: {
     fontSize: 20,
@@ -570,6 +546,7 @@ const styles = StyleSheet.create({
   },
   brandTextWrapper: {
     flex: 1,
+    gap:4,
   },
   brandName: {
     fontSize: 20,
@@ -609,11 +586,11 @@ const styles = StyleSheet.create({
     marginTop: 8,
     lineHeight: 20,
   },
-  brandContact: {
-    fontSize: 12,
-    color: '#6b7280',
-    marginTop: 4,
-  },
+  // brandContact: {
+  //   fontSize: 12,
+  //   color: '#6b7280',
+  //   marginTop: 4,
+  // },
   contactActionsRow: {
     flexDirection: 'row',
     marginTop: 10,
@@ -627,13 +604,13 @@ const styles = StyleSheet.create({
     backgroundColor: '#f9fafb',
     marginRight: 8,
   },
-  contactEmailButton: {},
-  contactPhoneButton: {},
-  contactActionText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#111827',
-  },
+  // contactEmailButton: {},
+  // contactPhoneButton: {},
+  // contactActionText: {
+  //   fontSize: 12,
+  //   fontWeight: '600',
+  //   color: '#111827',
+  // },
   emptyText: {
     marginTop: 24,
     textAlign: 'center',

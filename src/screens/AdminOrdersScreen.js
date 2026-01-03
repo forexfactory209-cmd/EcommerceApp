@@ -9,6 +9,7 @@ import { supabase } from '../lib/supabase';
 const AdminOrdersScreen = ({ navigation }) => {
   const { setOrders } = useStore();
   const orders = useStore((state) => state.orders || []);
+  const updateOrderStatus = useStore((state) => state.updateOrderStatus);
 
   const [loading, setLoading] = useState(false);
   const [notesByOrderId, setNotesByOrderId] = useState({});
@@ -49,6 +50,7 @@ const AdminOrdersScreen = ({ navigation }) => {
               seller_name: row.seller_name || null,
               seller_phone: row.seller_phone || null,
               admin_note: row.admin_note || '',
+              decline_reason: row.decline_reason || null,
             }));
             setOrders(mapped);
             setNotesByOrderId(
@@ -64,7 +66,6 @@ const AdminOrdersScreen = ({ navigation }) => {
           if (isActive) setLoading(false);
         }
       };
-
       loadOrders();
 
       return () => {
@@ -98,6 +99,25 @@ const AdminOrdersScreen = ({ navigation }) => {
     }
   };
 
+  const handleAdminUpdateStatus = async (orderId, nextStatus, extraFields = {}) => {
+    if (!orderId || !nextStatus) return;
+
+    updateOrderStatus(orderId, nextStatus);
+
+    try {
+      const { error } = await supabase
+        .from('orders')
+        .update({ status: nextStatus, ...extraFields })
+        .eq('id', orderId);
+
+      if (error) {
+        console.warn('AdminOrders: failed to update order status:', error.message || error);
+      }
+    } catch (e) {
+      console.warn('AdminOrders: exception updating order status:', e.message || e);
+    }
+  };
+
   const renderOrder = ({ item }) => {
     return (
       <View style={styles.orderCard}>
@@ -113,7 +133,49 @@ const AdminOrdersScreen = ({ navigation }) => {
         </Text>
 
         <View style={styles.statusRow}>
-          <Text style={styles.statusLabel}>Status: {item.status}</Text>
+          {(() => {
+            const raw = (item.status || '').trim().toLowerCase();
+            let label = 'Pending';
+            if (raw === 'accepted') label = 'Accepted';
+            else if (raw === 'declined' || raw === 'rejected') label = 'Rejected';
+            else if (raw === 'on_the_way') label = 'On the way';
+            else if (raw === 'delivered') label = 'Delivered';
+
+            return <Text style={styles.statusLabel}>Status: {label}</Text>;
+          })()}
+
+          {(() => {
+            const raw = (item.status || '').trim().toLowerCase();
+            if (raw === 'accepted') {
+              return (
+                <TouchableOpacity
+                  style={styles.statusActionButton}
+                  onPress={() =>
+                    handleAdminUpdateStatus(item.id, 'on_the_way', {
+                      on_the_way_at: new Date().toISOString(),
+                    })
+                  }
+                >
+                  <Text style={styles.statusActionButtonText}>Mark on the way</Text>
+                </TouchableOpacity>
+              );
+            }
+            if (raw === 'on_the_way') {
+              return (
+                <TouchableOpacity
+                  style={styles.statusActionButton}
+                  onPress={() =>
+                    handleAdminUpdateStatus(item.id, 'delivered', {
+                      delivered_at: new Date().toISOString(),
+                    })
+                  }
+                >
+                  <Text style={styles.statusActionButtonText}>Mark delivered</Text>
+                </TouchableOpacity>
+              );
+            }
+            return null;
+          })()}
         </View>
 
         {item.customer_name || item.customer_phone || item.customer_secondary_phone ? (
@@ -174,6 +236,19 @@ const AdminOrdersScreen = ({ navigation }) => {
             </Text>
           </View>
         ) : null}
+
+        {(() => {
+          const raw = (item.status || '').trim().toLowerCase();
+          if ((raw === 'declined' || raw === 'rejected') && item.decline_reason) {
+            return (
+              <View style={styles.orderExtraRow}>
+                <Text style={styles.orderExtraLabel}>Reason:</Text>
+                <Text style={styles.orderExtraValue}>{item.decline_reason}</Text>
+              </View>
+            );
+          }
+          return null;
+        })()}
 
         {item.payment_method ? (
           <View style={styles.orderExtraRow}>

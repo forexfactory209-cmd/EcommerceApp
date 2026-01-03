@@ -26,6 +26,15 @@ const ProductWriteReviewScreen = () => {
 
   const authUserId = useStore((state) => state.authUserId);
   const userName = useStore((state) => state.userName);
+  const orders = useStore((state) => state.orders) || [];
+
+  const hasPurchasedProduct = orders.some(
+    (order) =>
+      order &&
+      order.status === 'Delivered' &&
+      Array.isArray(order.items) &&
+      order.items.some((item) => item && item.id === productId),
+  );
 
   const [reviewRating, setReviewRating] = useState(editingReview?.rating || 0);
   const [reviewText, setReviewText] = useState(editingReview?.text || '');
@@ -47,6 +56,14 @@ const ProductWriteReviewScreen = () => {
     try {
       if (!productId || !authUserId) {
         Alert.alert('Error', 'You must be logged in to write a review.');
+        return;
+      }
+
+      if (!hasPurchasedProduct) {
+        Alert.alert(
+          'Order required',
+          'You can only review products you have purchased. Please place an order for this product first.',
+        );
         return;
       }
 

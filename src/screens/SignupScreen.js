@@ -19,7 +19,7 @@ const SignupScreen = ({ navigation }) => {
 
   const [gender, setGender] = useState('');
   const [dob, setDob] = useState('');
-  const [country, setCountry] = useState('');
+  const [country, setCountry] = useState('Somaliland');
   const [city, setCity] = useState('');
   const [district, setDistrict] = useState('');
   const [phone, setPhone] = useState('');

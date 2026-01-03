@@ -40,14 +40,19 @@ const OrderHistoryScreen = ({ navigation }) => {
         {(() => {
           const raw = (item.status || '').toLowerCase();
           const isDeliveredLike = raw === 'delivered' || raw === 'customer_confirmed';
-          const label = isDeliveredLike
-            ? raw === 'customer_confirmed'
-              ? 'Delivered · Confirmed'
-              : 'Delivered'
-            : item.status;
+          const isCanceledLike = raw === 'declined' || raw === 'canceled' || raw === 'cancelled';
+          const label = isDeliveredLike ? 'Delivered' : isCanceledLike ? 'Cancelled' : item.status;
 
           return (
-            <Text style={isDeliveredLike ? styles.statusDelivered : styles.statusPending}>
+            <Text
+              style={
+                isDeliveredLike
+                  ? styles.statusDelivered
+                  : isCanceledLike
+                  ? styles.statusCanceled
+                  : styles.statusPending
+              }
+            >
               {label}
             </Text>
           );

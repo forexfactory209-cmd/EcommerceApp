@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, FlatList, TextInput, ScrollView, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, FlatList, TextInput, ScrollView, Alert, ActivityIndicator, KeyboardAvoidingView, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useStore } from '../store/store';
 import { supabase } from '../lib/supabase';
@@ -29,18 +29,8 @@ const BillingScreen = ({ navigation }) => {
     const unit = isFlashActive && flashPrice != null && flashPrice > 0 ? flashPrice : currentPrice;
     return sum + unit * (item.quantity || 1);
   }, 0);
-  const shipping = cart.reduce((sum, item) => {
-    const options = Array.isArray(item.deliveryOptions)
-      ? item.deliveryOptions
-      : Array.isArray(item.delivery_options)
-      ? item.delivery_options
-      : [];
-
-    const chosen = options.find((opt) => opt.id === item.selectedDeliveryId);
-    const price = typeof chosen?.price === 'number' ? chosen.price : 0;
-
-    return sum + price;
-  }, 0);
+  // Shipping cost is no longer charged; keep for display as 0
+  const shipping = 0;
   const total = subtotal + shipping;
 
   const promoDiscount = appliedPromo?.discountAmount || 0;
@@ -218,7 +208,10 @@ const BillingScreen = ({ navigation }) => {
     }
 
     if (!cart || cart.length === 0) {
-      Alert.alert('Cart is empty', 'Please add at least one item to your cart before placing an order.');
+      Alert.alert(
+        'Cart is empty',
+        'Please add at least one item to your cart before placing an order.',
+      );
       return;
     }
 
@@ -251,25 +244,36 @@ const BillingScreen = ({ navigation }) => {
       return;
     }
 
+    const trimmedBackupPhone = (backupPhone || '').trim();
+    const numericBackup = trimmedBackupPhone.replace(/[^0-9]/g, '');
+    if (!trimmedBackupPhone) {
+      Alert.alert(
+        'Secondary phone required',
+        'Please enter a secondary phone number so the courier can reach you.',
+      );
+      return;
+    }
+
+    // Somalia format validation: allow either local (0xxxxxxxx or 0xxxxxxxxx) or international (252xxxxxxxxx)
+    const isSomaliaLocal =
+      (numericBackup.length === 9 || numericBackup.length === 10) &&
+      numericBackup.startsWith('0');
+
+    const isSomaliaIntl =
+      numericBackup.length === 12 &&
+      numericBackup.startsWith('252');
+
+    if (!isSomaliaLocal && !isSomaliaIntl) {
+      Alert.alert(
+        'Invalid phone number',
+        'Please enter a valid Somalia phone number, for example 061xxxxxxx or 25261xxxxxxx.',
+      );
+      return;
+    }
+
     setPlacingOrder(true);
 
     const now = Date.now();
-
-    const promoBrandId = appliedPromo?.brand_user_id || null;
-    const promoPercent = appliedPromo ? Number(appliedPromo.discountAmount / total) : 0;
-    const promoCodeValue = appliedPromo?.code || null;
-
-    // Group cart items by brand_user_id so each brand/store gets its own order
-    const groupsByBrand = cart.reduce((groups, item) => {
-      const key = item.brand_user_id || 'unassigned';
-      if (!groups[key]) {
-        groups[key] = [];
-      }
-      groups[key].push(item);
-      return groups;
-    }, {});
-
-    let index = 0;
 
     try {
       // Extra safety: check for a very recent pending order for this user to avoid duplicates
@@ -296,59 +300,110 @@ const BillingScreen = ({ navigation }) => {
         }
       }
 
-      for (const [brandKey, items] of Object.entries(groupsByBrand)) {
-        const brandSubtotal = items.reduce((sum, item) => {
-          const { currentPrice, flashPrice, isFlashActive } = getFlashSaleState(item);
-          const unit = isFlashActive && flashPrice != null && flashPrice > 0 ? flashPrice : currentPrice;
-          return sum + unit * (item.quantity || 1);
-        }, 0);
+      // Determine a human-readable shipping method for the combined order (first selected option wins)
+      let combinedShippingMethod = null;
+      cart.forEach((item) => {
+        if (combinedShippingMethod) return;
+        const options = Array.isArray(item.deliveryOptions)
+          ? item.deliveryOptions
+          : Array.isArray(item.delivery_options)
+          ? item.delivery_options
+          : [];
 
-        let brandShippingMethod = null;
-        const brandShipping = items.reduce((sum, item) => {
+        const chosen = options.find((opt) => opt.id === item.selectedDeliveryId);
+        if (chosen && !combinedShippingMethod) {
+          combinedShippingMethod = chosen.name || chosen.label || null;
+        }
+      });
+
+      // Build the items snapshot for the orders table (for convenience)
+      const orderItemsSnapshot = cart.map((item) => ({
+        id: item.id,
+        name: item.name,
+        brand: item.brand,
+        quantity: item.quantity,
+        price: (() => {
+          const { currentPrice, flashPrice, isFlashActive } = getFlashSaleState(item);
+          const unit =
+            isFlashActive && flashPrice != null && flashPrice > 0 ? flashPrice : currentPrice;
+          return unit;
+        })(),
+        color:
+          (item.selectedColor && String(item.selectedColor)) ||
+          (item.color && String(item.color)) ||
+          null,
+        size:
+          (item.selectedSize && String(item.selectedSize)) ||
+          (item.size && String(item.size)) ||
+          null,
+        delivery_type: (() => {
           const options = Array.isArray(item.deliveryOptions)
             ? item.deliveryOptions
             : Array.isArray(item.delivery_options)
             ? item.delivery_options
             : [];
-
           const chosen = options.find((opt) => opt.id === item.selectedDeliveryId);
-          const price = typeof chosen?.price === 'number' ? chosen.price : 0;
+          if (!chosen) return null;
+          return chosen.label || chosen.name || null;
+        })(),
+      }));
 
-          if (chosen && !brandShippingMethod) {
-            brandShippingMethod = chosen.name || chosen.label || null;
-          }
+      const orderPayload = {
+        customer_user_id: authUserId || null,
+        // We are using a separate order_items table per brand, so keep brand_user_id null on the parent order
+        brand_user_id: null,
+        items: orderItemsSnapshot,
+        subtotal,
+        shipping,
+        total: grandTotal,
+        status: 'pending',
+        placed_at: new Date().toISOString(),
+        payment_method: paymentMethod,
+        delivery_address: deliveryAddress,
+        shipping_method: combinedShippingMethod,
+        promo_code: appliedPromo?.code || null,
+        customer_name: selectedAddress.name || null,
+        customer_phone: selectedAddress.phone || null,
+        customer_secondary_phone: trimmedBackupPhone || selectedAddress.secondary_phone || null,
+      };
 
-          return sum + price;
-        }, 0);
+      // Persist the single combined order
+      const { data: orderRow, error: orderError } = await supabase
+        .from('orders')
+        .insert([orderPayload])
+        .select()
+        .single();
 
-        const brandTotal = brandSubtotal + brandShipping;
+      if (orderError) {
+        console.warn(
+          'Billing: failed to create order in Supabase',
+          orderError.message || orderError,
+        );
+        Alert.alert('Error', 'Could not place order. Please try again.');
+        return;
+      }
 
-        let appliedDiscountForOrder = 0;
-        let promoCodeForOrder = null;
-        if (
-          promoPercent > 0 &&
-          promoBrandId &&
-          brandKey !== 'unassigned' &&
-          brandKey === promoBrandId
-        ) {
-          appliedDiscountForOrder = Math.max(0, brandTotal * promoPercent);
-          promoCodeForOrder = promoCodeValue;
-        }
+      // Insert one row per cart item into order_items, using the shared order id
+      try {
+        const orderItemsPayload = cart.map((item) => {
+          const { currentPrice, flashPrice, isFlashActive } = getFlashSaleState(item);
+          const unit =
+            isFlashActive && flashPrice != null && flashPrice > 0 ? flashPrice : currentPrice;
 
-        const finalBrandTotal = Math.max(0, brandTotal - appliedDiscountForOrder);
+          const options = Array.isArray(item.deliveryOptions)
+            ? item.deliveryOptions
+            : Array.isArray(item.delivery_options)
+            ? item.delivery_options
+            : [];
+          const chosen = options.find((opt) => opt.id === item.selectedDeliveryId);
 
-        const order = {
-          id: now + index,
-          items: items.map((item) => ({
-            id: item.id,
+          return {
+            order_id: orderRow.id,
+            product_id: item.id,
+            brand_user_id: item.brand_user_id || null,
             name: item.name,
-            brand: item.brand,
-            quantity: item.quantity,
-            price: (() => {
-              const { currentPrice, flashPrice, isFlashActive } = getFlashSaleState(item);
-              const unit = isFlashActive && flashPrice != null && flashPrice > 0 ? flashPrice : currentPrice;
-              return unit;
-            })(),
+            quantity: item.quantity || 1,
+            unit_price: unit,
             color:
               (item.selectedColor && String(item.selectedColor)) ||
               (item.color && String(item.color)) ||
@@ -357,219 +412,167 @@ const BillingScreen = ({ navigation }) => {
               (item.selectedSize && String(item.selectedSize)) ||
               (item.size && String(item.size)) ||
               null,
-            delivery_type: (() => {
-              const options = Array.isArray(item.deliveryOptions)
-                ? item.deliveryOptions
-                : Array.isArray(item.delivery_options)
-                ? item.delivery_options
-                : [];
-              const chosen = options.find((opt) => opt.id === item.selectedDeliveryId);
-              if (!chosen) return null;
-              return chosen.label || chosen.name || null;
-            })(),
-          })),
-          subtotal: brandSubtotal,
-          shipping: brandShipping,
-          total: finalBrandTotal,
-          status: 'Pending',
-          date: new Date().toLocaleDateString(),
-          brand_user_id: brandKey === 'unassigned' ? null : brandKey,
-          payment_method: paymentMethod,
-          delivery_address: deliveryAddress,
-          shipping_method: brandShippingMethod,
-          promo_code: promoCodeForOrder,
-          customer_name: selectedAddress.name || null,
-          customer_phone: selectedAddress.phone || null,
-          customer_secondary_phone:
-            (backupPhone && backupPhone.trim()) || selectedAddress.secondary_phone || null,
-        };
+            delivery_type: chosen ? chosen.label || chosen.name || null : null,
+            image_url: item.image || null,
+          };
+        });
 
-        addOrder(order);
-        try {
-          // Load seller/brand info for this order so we can denormalize
-          // seller_name and seller_phone into the orders table.
-          let sellerName = null;
-          let sellerPhone = null;
-          if (order.brand_user_id) {
-            try {
-              const { data: brandRow, error: brandError } = await supabase
-                .from('brands')
-                .select('name, contact_phone')
-                .eq('user_id', order.brand_user_id)
-                .maybeSingle();
+        const { error: itemsError } = await supabase
+          .from('order_items')
+          .insert(orderItemsPayload);
 
-              if (brandError) {
-                console.warn('Billing: failed to load brand for seller info', brandError.message || brandError);
-              } else if (brandRow) {
-                sellerName = brandRow.name || null;
-                sellerPhone = brandRow.contact_phone || null;
-              }
-            } catch (e) {
-              console.warn('Billing: exception loading brand for seller info', e.message || e);
-            }
-          }
-
-          const { data: orderRow, error: orderError } = await supabase
-            .from('orders')
-            .insert([
-              {
-                customer_user_id: authUserId || null,
-                brand_user_id: order.brand_user_id,
-                items: order.items,
-                subtotal: order.subtotal,
-                shipping: order.shipping,
-                total: order.total,
-                status: order.status,
-                placed_at: new Date().toISOString(),
-                payment_method: order.payment_method,
-                delivery_address: order.delivery_address,
-                shipping_method: order.shipping_method,
-                promo_code: order.promo_code,
-                customer_name: order.customer_name,
-                customer_phone: order.customer_phone,
-                customer_secondary_phone: order.customer_secondary_phone,
-                seller_name: sellerName,
-                seller_phone: sellerPhone,
-              },
-            ])
-            .select()
-            .single();
-
-          if (orderError) {
-            console.warn('Billing: failed to create order in Supabase', orderError.message || orderError);
-            Alert.alert('Error', 'Could not place order. Please try again.');
-            return;
-          }
-
-          // Create a notification for the brand so they see a "new order" alert
-          if (orderRow && orderRow.brand_user_id) {
-            try {
-              await supabase.from('notifications').insert([
-                {
-                  user_id: orderRow.brand_user_id,
-                  type: 'brand_order_placed',
-                  order_id: orderRow.id,
-                  title: 'New order received',
-                  body: `You have a new order #${orderRow.id} to review.`,
-                },
-              ]);
-            } catch (notifErr) {
-              console.warn('Billing: failed to create brand notification', notifErr.message || notifErr);
-            }
-          }
-
-        try {
-          await Notifications.scheduleNotificationAsync({
-            content: {
-              title: 'Order placed',
-              body: `Your order #${orderRow.id} was created successfully.`,
-              sound: 'default',
-            },
-            trigger: null,
-          });
-        } catch (e) {
-          console.warn('Billing: failed to schedule local notification', e.message || e);
-        }
-
-        // Decrement product quantities based on purchased items
-        try {
-          for (const item of items) {
-            const lineQty = item.quantity || 1;
-
-            const { data: prod, error: prodError } = await supabase
-              .from('products')
-              .select('id, quantity, flash_price, flash_start_at, flash_end_at, flash_quantity, flash_sold')
-              .eq('id', item.id)
-              .maybeSingle();
-
-            if (prodError) {
-              console.warn('Billing: failed to load product for quantity update', prodError.message || prodError);
-              continue;
-            }
-
-            if (!prod) continue;
-
-            const currentQty = Number(prod.quantity ?? 0);
-            const newQty = Math.max(0, currentQty - lineQty);
-
-            const { error: updError } = await supabase
-              .from('products')
-              .update({ quantity: newQty })
-              .eq('id', prod.id);
-
-            if (updError) {
-              console.warn('Billing: failed to update product quantity', updError.message || updError);
-            }
-          }
-        } catch (e) {
-          console.warn('Billing: exception while updating product quantities', e.message || e);
-        }
-
-        // Flash sale quantity tracking and auto-end
-        try {
-          for (const item of items) {
-            const lineQty = item.quantity || 1;
-
-            const { data: prod, error: prodError } = await supabase
-              .from('products')
-              .select('id, flash_price, flash_start_at, flash_end_at, flash_quantity, flash_sold')
-              .eq('id', item.id)
-              .maybeSingle();
-
-            if (prodError || !prod) {
-              console.warn('Billing: failed to load product for flash tracking', prodError?.message || prodError);
-              continue;
-            }
-
-            // Only process if this is a flash sale product
-            if (prod.flash_price != null && prod.flash_quantity != null) {
-              const currentSold = Number(prod.flash_sold) || 0;
-              const newSold = currentSold + lineQty;
-
-              const updatePayload = { flash_sold: newSold };
-
-              // If we've reached or exceeded the limit, end the flash sale
-              if (newSold >= prod.flash_quantity) {
-                updatePayload.flash_price = null;
-                updatePayload.flash_start_at = null;
-                updatePayload.flash_end_at = null;
-                updatePayload.flash_quantity = null;
-                updatePayload.flash_sold = 0;
-              }
-
-              const { error: flashUpdateError } = await supabase
-                .from('products')
-                .update(updatePayload)
-                .eq('id', prod.id);
-
-              if (flashUpdateError) {
-                console.warn('Billing: failed to update flash fields', flashUpdateError.message || flashUpdateError);
-              } else {
-                if (newSold >= prod.flash_quantity) {
-                  console.log(`Billing: flash sale ended for product ${prod.id} (reached limit)`);
-                } else {
-                  console.log(`Billing: flash_sold updated to ${newSold} for product ${prod.id}`);
-                }
-              }
-            }
-          }
-        } catch (e) {
-          console.warn('Billing: exception while updating flash quantities', e.message || e);
+        if (itemsError) {
+          console.warn('Billing: failed to insert order_items', itemsError.message || itemsError);
         }
       } catch (e) {
-        console.warn('Error saving order to Supabase', e);
+        console.warn('Billing: exception inserting order_items', e.message || e);
       }
-      index += 1;
-    }
 
-    const purchasedIds = cart.map((item) => item.id);
-    clearWishlistByProductIds(purchasedIds);
+      // Create a notification for each distinct brand in the cart
+      try {
+        const brandIds = Array.from(
+          new Set(
+            cart
+              .map((item) => item.brand_user_id)
+              .filter((id) => typeof id === 'string' && id.length > 0),
+          ),
+        );
 
-    clearCart();
-    setAppliedPromo(null);
-    setPromoCodeInput('');
-    setPromoFeedback('');
-    navigation.navigate('Success');
+        if (brandIds.length > 0) {
+          const notificationsPayload = brandIds.map((brandId) => ({
+            user_id: brandId,
+            type: 'brand_order_placed',
+            order_id: orderRow.id,
+            title: 'New order received',
+            body: `You have a new order #${orderRow.id} to review.`,
+          }));
+
+          await supabase.from('notifications').insert(notificationsPayload);
+        }
+      } catch (notifErr) {
+        console.warn('Billing: failed to create brand notifications', notifErr.message || notifErr);
+      }
+
+      // Local confirmation notification to the customer
+      try {
+        await Notifications.scheduleNotificationAsync({
+          content: {
+            title: 'Order placed',
+            body: `Your order #${orderRow.id} was created successfully.`,
+            sound: 'default',
+          },
+          trigger: null,
+        });
+      } catch (e) {
+        console.warn('Billing: failed to schedule local notification', e.message || e);
+      }
+
+      // Decrement product quantities based on purchased items
+      try {
+        for (const item of cart) {
+          const lineQty = item.quantity || 1;
+
+          const { data: prod, error: prodError } = await supabase
+            .from('products')
+            .select(
+              'id, quantity, flash_price, flash_start_at, flash_end_at, flash_quantity, flash_sold',
+            )
+            .eq('id', item.id)
+            .maybeSingle();
+
+          if (prodError) {
+            console.warn(
+              'Billing: failed to load product for quantity update',
+              prodError.message || prodError,
+            );
+            continue;
+          }
+
+          if (!prod) continue;
+
+          const currentQty = Number(prod.quantity ?? 0);
+          const newQty = Math.max(0, currentQty - lineQty);
+
+          const { error: updError } = await supabase
+            .from('products')
+            .update({ quantity: newQty })
+            .eq('id', prod.id);
+
+          if (updError) {
+            console.warn('Billing: failed to update product quantity', updError.message || updError);
+          }
+        }
+      } catch (e) {
+        console.warn('Billing: exception while updating product quantities', e.message || e);
+      }
+
+      // Flash sale quantity tracking and auto-end
+      try {
+        for (const item of cart) {
+          const lineQty = item.quantity || 1;
+
+          const { data: prod, error: prodError } = await supabase
+            .from('products')
+            .select('id, flash_price, flash_start_at, flash_end_at, flash_quantity, flash_sold')
+            .eq('id', item.id)
+            .maybeSingle();
+
+          if (prodError || !prod) {
+            console.warn(
+              'Billing: failed to load product for flash tracking',
+              prodError?.message || prodError,
+            );
+            continue;
+          }
+
+          // Only process if this is a flash sale product
+          if (prod.flash_price != null && prod.flash_quantity != null) {
+            const currentSold = Number(prod.flash_sold) || 0;
+            const newSold = currentSold + lineQty;
+
+            const updatePayload = { flash_sold: newSold };
+
+            // If we've reached or exceeded the limit, end the flash sale
+            if (newSold >= prod.flash_quantity) {
+              updatePayload.flash_price = null;
+              updatePayload.flash_start_at = null;
+              updatePayload.flash_end_at = null;
+              updatePayload.flash_quantity = null;
+              updatePayload.flash_sold = 0;
+            }
+
+            const { error: flashUpdateError } = await supabase
+              .from('products')
+              .update(updatePayload)
+              .eq('id', prod.id);
+
+            if (flashUpdateError) {
+              console.warn(
+                'Billing: failed to update flash fields',
+                flashUpdateError.message || flashUpdateError,
+              );
+            } else {
+              if (newSold >= prod.flash_quantity) {
+                console.log(`Billing: flash sale ended for product ${prod.id} (reached limit)`);
+              } else {
+                console.log(`Billing: flash_sold updated to ${newSold} for product ${prod.id}`);
+              }
+            }
+          }
+        }
+      } catch (e) {
+        console.warn('Billing: exception while updating flash quantities', e.message || e);
+      }
+
+      // Clear local/cart state after successful order placement
+      const purchasedIds = cart.map((item) => item.id);
+      clearWishlistByProductIds(purchasedIds);
+
+      clearCart();
+      setAppliedPromo(null);
+      setPromoCodeInput('');
+      setPromoFeedback('');
+      navigation.navigate('Success');
     } finally {
       setPlacingOrder(false);
     }
@@ -577,7 +580,16 @@ const BillingScreen = ({ navigation }) => {
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'right', 'bottom', 'left']}>
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 20 : 0}
+      >
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
         <Text style={styles.title}>Billing</Text>
 
         <Text style={styles.sectionTitle}>Order Summary</Text>
@@ -587,11 +599,29 @@ const BillingScreen = ({ navigation }) => {
             const unit = isFlashActive && flashPrice != null && flashPrice > 0 ? flashPrice : currentPrice;
             const lineTotal = unit * (item.quantity || 1);
 
+            const displayColor =
+              (item.selectedColor && String(item.selectedColor)) ||
+              (item.color && String(item.color)) ||
+              null;
+            const displaySize =
+              (item.selectedSize && String(item.selectedSize)) ||
+              (item.size && String(item.size)) ||
+              null;
+
             return (
               <View key={`${item.id}-${index}`} style={styles.itemRow}>
-                <Text style={styles.itemName} numberOfLines={1}>
-                  {item.name}
-                </Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.itemName} numberOfLines={1}>
+                    {item.name}
+                  </Text>
+                  {(displayColor || displaySize) && (
+                    <Text style={styles.itemMeta} numberOfLines={1}>
+                      {displayColor ? `Color: ${displayColor}` : ''}
+                      {displayColor && displaySize ? '  •  ' : ''}
+                      {displaySize ? `Size: ${displaySize}` : ''}
+                    </Text>
+                  )}
+                </View>
                 <Text style={styles.itemQty}>x{item.quantity}</Text>
                 <Text style={styles.itemPrice}>
                   ${lineTotal.toFixed(2)}
@@ -739,7 +769,7 @@ const BillingScreen = ({ navigation }) => {
           </View>
         )}
 
-        <Text style={styles.sectionTitle}>Secondary phone for delivery (optional)</Text>
+        <Text style={styles.sectionTitle}>Secondary phone for delivery</Text>
         <TextInput
           style={styles.secondaryPhoneInput}
           placeholder="Backup phone number"
@@ -758,12 +788,17 @@ const BillingScreen = ({ navigation }) => {
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={styles.backHomeButton}
-          onPress={() => navigation.navigate('Main', { screen: 'HomeTab' })}
+          style={[styles.backHomeButton, placingOrder && { opacity: 0.5 }]}
+          onPress={() => {
+            if (placingOrder) return;
+            navigation.navigate('Main', { screen: 'HomeTab' });
+          }}
+          disabled={placingOrder}
         >
           <Text style={styles.backHomeText}>Back to Home</Text>
         </TouchableOpacity>
-      </ScrollView>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 };
@@ -819,6 +854,11 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#111827',
   },
+  itemMeta: {
+    marginTop: 2,
+    fontSize: 12,
+    color: '#6b7280',
+  },
   summaryPanel: {
     backgroundColor: '#ffffff',
     padding: 24,
@@ -859,7 +899,7 @@ const styles = StyleSheet.create({
     color: '#2563EB',
   },
   confirmButton: {
-    backgroundColor: '#111827',
+    backgroundColor: '#090966',
     paddingVertical: 16,
     borderRadius: 16,
     alignItems: 'center',
@@ -907,7 +947,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderRadius: 999,
-    backgroundColor: '#111827',
+    backgroundColor: '#090966',
   },
   promoButtonText: {
     color: '#ffffff',
@@ -936,8 +976,8 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   paymentChipActive: {
-    backgroundColor: '#2563EB',
-    borderColor: '#2563EB',
+    backgroundColor: '#090966',
+    borderColor: '#090966',
   },
   paymentChipText: {
     fontSize: 13,
@@ -968,7 +1008,7 @@ const styles = StyleSheet.create({
     borderColor: '#2563EB',
   },
   addressCardPrimary: {
-    borderColor: '#8B5CF6',
+    borderColor: '#090966',
     backgroundColor: '#F5F3FF',
   },
   addressCardHeaderRow: {
@@ -987,7 +1027,7 @@ const styles = StyleSheet.create({
   addressCardBadge: {
     fontSize: 11,
     fontWeight: '600',
-    color: '#8B5CF6',
+    color: '#090966',
     backgroundColor: '#EDE9FE',
     paddingHorizontal: 8,
     paddingVertical: 2,

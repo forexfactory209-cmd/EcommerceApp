@@ -195,6 +195,39 @@ const TrackOrderDetailsScreen = () => {
   );
 
   useEffect(() => {
+    if (!orderId) return undefined;
+
+    const channel = supabase
+      .channel(`order-status-${orderId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'orders',
+          filter: `id=eq.${orderId}`,
+        },
+        (payload) => {
+          const next = payload?.new;
+          if (!next) return;
+
+          setOrder((prev) => {
+            if (!prev) return prev;
+            return {
+              ...prev,
+              status: next.status || prev.status,
+            };
+          });
+        },
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [orderId]);
+
+  useEffect(() => {
     Animated.timing(headerAnim, {
       toValue: 1,
       duration: 260,
@@ -813,22 +846,51 @@ const TrackOrderDetailsScreen = () => {
     </View>
   );
 
-  const ActionsBar = () => (
-    <View style={styles.actionsRow}>
-      <TouchableOpacity
-        style={[styles.actionButton, styles.actionButtonSecondary]}
-        onPress={handleOpenSupport}
-      >
-        <Text style={styles.actionButtonSecondaryText}>Contact Support</Text>
-      </TouchableOpacity>
-      <TouchableOpacity
-        style={[styles.actionButton, styles.actionButtonPrimary]}
-        onPress={handleDownloadInvoice}
-      >
-        <Text style={styles.actionButtonPrimaryText}>Download Invoice</Text>
-      </TouchableOpacity>
-    </View>
-  );
+  const ActionsBar = () => {
+    const isDelivered = (order?.status || '').toLowerCase() === 'delivered';
+
+    const handleSubmitReview = () => {
+      if (!isDelivered) return;
+
+      const items = Array.isArray(order?.items) ? order.items : [];
+      const firstItem = items[0];
+
+      if (!firstItem || !firstItem.id) {
+        Alert.alert('Unavailable', 'No items found to review for this order.');
+        return;
+      }
+
+      navigation.navigate('ProductWriteReview', {
+        productId: firstItem.id,
+        productName: firstItem.name,
+      });
+    };
+
+    return (
+      <View style={styles.actionsRow}>
+        <TouchableOpacity
+          style={[styles.actionButton, styles.actionButtonSecondary]}
+          onPress={handleOpenSupport}
+        >
+          <Text style={styles.actionButtonSecondaryText}>Contact Support</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.actionButton, styles.actionButtonPrimary]}
+          onPress={handleDownloadInvoice}
+        >
+          <Text style={styles.actionButtonPrimaryText}>Download Invoice</Text>
+        </TouchableOpacity>
+        {isDelivered && (
+          <TouchableOpacity
+            style={[styles.actionButton, styles.actionButtonPrimary]}
+            onPress={handleSubmitReview}
+          >
+            <Text style={styles.actionButtonPrimaryText}>Submit review</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+    );
+  };
 
   if (loading && !order) {
     return (

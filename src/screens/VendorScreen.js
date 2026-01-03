@@ -349,12 +349,20 @@ const VendorScreen = ({ navigation, route }) => {
     <SafeAreaView style={styles.container}>
       <View style={styles.headerRow}>
         <Text style={styles.title}>Vendor Dashboard</Text>
-        <TouchableOpacity
-          onPress={() => navigation.navigate('AddProduct')}
-          style={styles.addButton}
-        >
-          <Plus color="white" size={24} />
-        </TouchableOpacity>
+        <View style={styles.headerActions}>
+          <TouchableOpacity
+            onPress={() => navigation.navigate('BrandAnalytics')}
+            style={[styles.addButton, styles.analyticsButton]}
+          >
+            <Text style={styles.analyticsButtonText}>Report</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => navigation.navigate('AddProduct')}
+            style={styles.addButton}
+          >
+            <Plus color="white" size={24} />
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* Stats */}
@@ -459,6 +467,10 @@ const styles = StyleSheet.create({
     marginTop: 16,
     marginBottom: 16,
   },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
   title: {
     fontSize: 24,
     fontWeight: '700',
@@ -476,6 +488,16 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     shadowOffset: { width: 0, height: 4 },
     elevation: 4,
+  },
+  analyticsButton: {
+    marginRight: 8,
+    width: 'auto',
+    paddingHorizontal: 14,
+  },
+  analyticsButtonText: {
+    color: '#ffffff',
+    fontSize: 13,
+    fontWeight: '700',
   },
   discountTabButton: {
     flex: 1,
