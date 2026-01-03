@@ -1,14 +1,43 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ScrollView } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
+import * as FileSystem from 'expo-file-system/legacy';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { supabase } from '../lib/supabase';
 import { useStore } from '../store/store';
 
-const BrandOnboardingScreen = ({ navigation }) => {
+// Minimal base64 -> Uint8Array converter so we don't rely on fetch(dataUrl),
+// which can produce 0-byte blobs in React Native.
+const base64ToUint8Array = (base64) => {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=';
+  let clean = String(base64).replace(/[^A-Za-z0-9+/=]/g, '');
+
+  const bytes = [];
+  for (let i = 0; i < clean.length; i += 4) {
+    const enc1 = chars.indexOf(clean.charAt(i));
+    const enc2 = chars.indexOf(clean.charAt(i + 1));
+    const enc3 = chars.indexOf(clean.charAt(i + 2));
+    const enc4 = chars.indexOf(clean.charAt(i + 3));
+
+    const chr1 = (enc1 << 2) | (enc2 >> 4);
+    const chr2 = ((enc2 & 15) << 4) | (enc3 >> 2);
+    const chr3 = ((enc3 & 3) << 6) | enc4;
+
+    bytes.push(chr1);
+    if (enc3 !== 64 && !Number.isNaN(enc3)) bytes.push(chr2);
+    if (enc4 !== 64 && !Number.isNaN(enc4)) bytes.push(chr3);
+  }
+
+  return new Uint8Array(bytes);
+};
+
+const BrandOnboardingScreen = ({ navigation, route }) => {
   const authUserId = useStore((state) => state.authUserId);
   const authEmail = useStore((state) => state.authEmail);
   const setBrandLogoUrl = useStore((state) => state.setBrandLogoUrl);
+
+  const isAdminMode = route?.params?.adminMode === true;
+  const editingBrandId = route?.params?.brandId || null;
 
   const [loading, setLoading] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
@@ -21,19 +50,31 @@ const BrandOnboardingScreen = ({ navigation }) => {
   const [contactPhone, setContactPhone] = useState('');
   const [discountPercentInput, setDiscountPercentInput] = useState('');
   const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [brandLoginEmail, setBrandLoginEmail] = useState('');
+  const [brandLoginPassword, setBrandLoginPassword] = useState('');
 
   useEffect(() => {
     const loadBrand = async () => {
-      if (!authUserId) {
-        setInitialLoading(false);
-        return;
-      }
       try {
-        const { data, error } = await supabase
-          .from('brands')
-          .select('*')
-          .eq('user_id', authUserId)
-          .maybeSingle();
+        let query = supabase.from('brands').select('*');
+
+        if (isAdminMode) {
+          if (!editingBrandId) {
+            // Admin creating a brand from scratch - no initial load
+            setContactEmail('');
+            setInitialLoading(false);
+            return;
+          }
+          query = query.eq('id', editingBrandId);
+        } else {
+          if (!authUserId) {
+            setInitialLoading(false);
+            return;
+          }
+          query = query.eq('user_id', authUserId);
+        }
+
+        const { data, error } = await query.maybeSingle();
 
         if (error) {
           console.warn('Error loading brand:', error.message);
@@ -59,10 +100,10 @@ const BrandOnboardingScreen = ({ navigation }) => {
       }
     };
     loadBrand();
-  }, [authUserId, authEmail]);
+  }, [authUserId, authEmail, isAdminMode, editingBrandId]);
 
   const handlePickLogo = async () => {
-    if (!authUserId) {
+    if (!authUserId && !isAdminMode) {
       Alert.alert('Not signed in', 'You need to be logged in to update your brand logo.');
       return;
     }
@@ -88,23 +129,30 @@ const BrandOnboardingScreen = ({ navigation }) => {
 
       setUploadingLogo(true);
 
-      const fileExt = asset.uri.split('.').pop() || 'jpg';
-      const fileName = `brand-${authUserId}-${Date.now()}.${fileExt}`;
+      const ownerId = authUserId || 'admin';
+      const fileExt = (asset.uri.split('.').pop() || 'jpg').split('?')[0];
+      const mimeType = asset.type || `image/${fileExt === 'jpg' ? 'jpeg' : fileExt}`;
+      const fileName = `brand-${ownerId}-${Date.now()}.${fileExt}`;
 
-      // Upload the actual binary data instead of a JSON object.
-      const response = await fetch(asset.uri);
-      const arrayBuffer = await response.arrayBuffer();
+      // Read the image file as base64 via FileSystem (most reliable across Expo Go devices)
+      const base64Data = await FileSystem.readAsStringAsync(asset.uri, {
+        // Use string literal to avoid SDK differences in EncodingType enum
+        encoding: 'base64',
+      });
+
+      const byteArray = base64ToUint8Array(base64Data);
 
       const { data, error } = await supabase.storage
         .from('brand-logos')
-        .upload(fileName, arrayBuffer, {
+        // In React Native, pass a Uint8Array/ArrayBuffer directly instead of a Blob.
+        .upload(fileName, byteArray, {
           cacheControl: '3600',
           upsert: true,
-          contentType: asset.type || 'image/jpeg',
+          contentType: mimeType,
         });
 
-      if (error) {
-        Alert.alert('Upload failed', error.message || 'Could not upload logo.');
+      if (error || !data) {
+        Alert.alert('Upload failed', error?.message || 'Could not upload logo.');
         return;
       }
 
@@ -125,7 +173,7 @@ const BrandOnboardingScreen = ({ navigation }) => {
   };
 
   const handleSubmit = async () => {
-    if (!authUserId) {
+    if (!authUserId && !isAdminMode) {
       Alert.alert('Not signed in', 'You need to be logged in to apply as a brand.');
       return;
     }
@@ -135,11 +183,17 @@ const BrandOnboardingScreen = ({ navigation }) => {
       return;
     }
 
+    if (isAdminMode && !editingBrandId) {
+      if (!brandLoginEmail.trim() || !brandLoginPassword.trim()) {
+        Alert.alert('Missing credentials', 'Please enter a login email and password for the brand.');
+        return;
+      }
+    }
+
     if (loading) return;
     setLoading(true);
 
-    const payload = {
-      user_id: authUserId,
+    const basePayload = {
       name: name.trim(),
       slug: slug.trim() || null,
       logo_url: logoUrl.trim() || null,
@@ -149,11 +203,70 @@ const BrandOnboardingScreen = ({ navigation }) => {
     };
 
     try {
-      const { data, error } = await supabase
-        .from('brands')
-        .upsert([payload], { onConflict: 'user_id' })
-        .select()
-        .maybeSingle();
+      let data;
+      let error;
+
+      if (isAdminMode) {
+        if (editingBrandId) {
+          const result = await supabase
+            .from('brands')
+            .update(basePayload)
+            .eq('id', editingBrandId)
+            .select()
+            .maybeSingle();
+          data = result.data;
+          error = result.error;
+        } else {
+          const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+          if (sessionError || !sessionData?.session?.access_token) {
+            Alert.alert('Error', 'Could not verify admin session. Please log in again.');
+            return;
+          }
+
+          const accessToken = sessionData.session.access_token;
+          const functionUrl = 'https://aeivheqhwlifhancoswz.supabase.co/functions/v1/create-brand-with-user';
+
+          const response = await fetch(functionUrl, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${accessToken}`,
+            },
+            body: JSON.stringify({
+              brandLoginEmail: brandLoginEmail.trim(),
+              brandLoginPassword: brandLoginPassword.trim(),
+              name: basePayload.name,
+              slug: basePayload.slug,
+              logo_url: basePayload.logo_url,
+              description: basePayload.description,
+              contact_email: basePayload.contact_email,
+              contact_phone: basePayload.contact_phone,
+            }),
+          });
+
+          if (!response.ok) {
+            const text = await response.text();
+            Alert.alert('Error', text || 'Could not create brand user.');
+            return;
+          }
+
+          const json = await response.json();
+          data = json.brand || null;
+          error = null;
+        }
+      } else {
+        const payload = {
+          ...basePayload,
+          user_id: authUserId,
+        };
+        const result = await supabase
+          .from('brands')
+          .upsert([payload], { onConflict: 'user_id' })
+          .select()
+          .maybeSingle();
+        data = result.data;
+        error = result.error;
+      }
 
       if (error) {
         Alert.alert('Error', error.message || 'Could not submit brand application.');
@@ -161,11 +274,25 @@ const BrandOnboardingScreen = ({ navigation }) => {
       }
 
       setBrand(data);
-      Alert.alert(
-        'Application submitted',
-        'Your brand application has been submitted. An admin can review and approve it.',
-      );
-      navigation.navigate('Main', { screen: 'HomeTab' });
+
+      if (isAdminMode) {
+        Alert.alert(
+          'Brand saved',
+          editingBrandId
+            ? 'Brand details have been updated.'
+            : 'Brand has been created and auto-approved.',
+        );
+        navigation.navigate('AdminBrands');
+      } else {
+        const isUpdate = !!brand?.id;
+        Alert.alert(
+          isUpdate ? 'Brand updated' : 'Application submitted',
+          isUpdate
+            ? 'Your brand profile has been updated successfully.'
+            : 'Your brand application has been submitted.',
+        );
+        navigation.navigate('Main', { screen: 'HomeTab' });
+      }
     } catch (e) {
       console.error('Brand onboarding error:', e);
       Alert.alert('Error', 'Something went wrong while submitting your brand application.');
@@ -177,13 +304,22 @@ const BrandOnboardingScreen = ({ navigation }) => {
   const statusLabel = brand?.status || 'pending';
 
   return (
-    <SafeAreaView style={styles.container}>
-      <ScrollView contentContainerStyle={styles.content}>
+    <KeyboardAvoidingView
+      style={styles.container}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 80 : 0}
+    >
+      <SafeAreaView style={styles.container}>
+        <ScrollView contentContainerStyle={styles.content}>
         <TouchableOpacity
           style={styles.backButton}
-          onPress={() => navigation.navigate('Main', { screen: 'HomeTab' })}
+          onPress={() =>
+            isAdminMode
+              ? navigation.navigate('AdminBrands')
+              : navigation.navigate('Main', { screen: 'HomeTab' })
+          }
         >
-          <Text style={styles.backButtonText}>Back to Home</Text>
+          <Text style={styles.backButtonText}>{isAdminMode ? 'Back to Admin' : 'Back to Home'}</Text>
         </TouchableOpacity>
 
         <Text style={styles.title}>Brand Onboarding</Text>
@@ -238,6 +374,29 @@ const BrandOnboardingScreen = ({ navigation }) => {
           </Text>
         ) : null}
 
+        {isAdminMode && !editingBrandId && (
+          <>
+            <Text style={styles.fieldLabel}>Brand login email</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="brand-login@example.com"
+              keyboardType="email-address"
+              autoCapitalize="none"
+              value={brandLoginEmail}
+              onChangeText={setBrandLoginEmail}
+            />
+
+            <Text style={styles.fieldLabel}>Brand login password</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Password for brand login"
+              secureTextEntry
+              value={brandLoginPassword}
+              onChangeText={setBrandLoginPassword}
+            />
+          </>
+        )}
+
         <Text style={styles.fieldLabel}>Contact email</Text>
         <TextInput
           style={styles.input}
@@ -275,8 +434,9 @@ const BrandOnboardingScreen = ({ navigation }) => {
             {loading ? 'Submitting...' : brand ? 'Update Application' : 'Apply as a Brand'}
           </Text>
         </TouchableOpacity>
-      </ScrollView>
-    </SafeAreaView>
+        </ScrollView>
+      </SafeAreaView>
+    </KeyboardAvoidingView>
   );
 };
 

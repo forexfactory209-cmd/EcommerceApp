@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, TouchableOpacity, FlatList, StyleSheet, Alert, RefreshControl } from 'react-native';
+import { View, Text, TouchableOpacity, FlatList, StyleSheet, Alert, RefreshControl, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { supabase } from '../lib/supabase';
 
@@ -34,7 +34,13 @@ const AdminBrandsScreen = ({ navigation }) => {
 
   useEffect(() => {
     loadBrands();
-  }, []);
+
+    const unsubscribe = navigation.addListener('focus', () => {
+      loadBrands();
+    });
+
+    return unsubscribe;
+  }, [navigation]);
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -63,6 +69,52 @@ const AdminBrandsScreen = ({ navigation }) => {
     }
   };
 
+  const handleDelete = (id) => {
+    Alert.alert(
+      'Delete brand',
+      'Are you sure you want to delete this brand and its login account? This action cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+              if (sessionError || !sessionData?.session?.access_token) {
+                Alert.alert('Error', 'Could not verify admin session. Please log in again.');
+                return;
+              }
+
+              const accessToken = sessionData.session.access_token;
+              const functionUrl = 'https://aeivheqhwlifhancoswz.supabase.co/functions/v1/admin-delete-brand';
+
+              const response = await fetch(functionUrl, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  Authorization: `Bearer ${accessToken}`,
+                },
+                body: JSON.stringify({ brandId: id }),
+              });
+
+              if (!response.ok) {
+                const text = await response.text();
+                Alert.alert('Error', text || 'Failed to delete brand.');
+                return;
+              }
+
+              setBrands((prev) => prev.filter((b) => b.id !== id));
+            } catch (e) {
+              console.error('Delete brand error:', e);
+              Alert.alert('Error', 'Something went wrong while deleting brand.');
+            }
+          },
+        },
+      ],
+    );
+  };
+
   const renderItem = ({ item }) => (
     <View style={styles.card}>
       <View style={styles.cardHeader}>
@@ -80,7 +132,12 @@ const AdminBrandsScreen = ({ navigation }) => {
       {item.contact_email ? (
         <Text style={styles.brandEmail}>{item.contact_email}</Text>
       ) : null}
-      <View style={styles.actionsRow}>
+      <ScrollView
+        style={styles.actionsScroll}
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.actionsRow}
+      >
         <TouchableOpacity
           style={[styles.actionButton, styles.viewVendorButton]}
           onPress={() => {
@@ -95,6 +152,17 @@ const AdminBrandsScreen = ({ navigation }) => {
           }}
         >
           <Text style={styles.actionText}>View Vendor</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.actionButton, styles.editButton]}
+          onPress={() =>
+            navigation.navigate('BrandOnboarding', {
+              adminMode: true,
+              brandId: item.id,
+            })
+          }
+        >
+          <Text style={styles.actionText}>Edit</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.actionButton, styles.approveButton]}
@@ -114,7 +182,13 @@ const AdminBrandsScreen = ({ navigation }) => {
         >
           <Text style={styles.actionText}>Pending</Text>
         </TouchableOpacity>
-      </View>
+        <TouchableOpacity
+          style={[styles.actionButton, styles.deleteButton]}
+          onPress={() => handleDelete(item.id)}
+        >
+          <Text style={styles.actionText}>Delete</Text>
+        </TouchableOpacity>
+      </ScrollView>
     </View>
   );
 
@@ -134,7 +208,19 @@ const AdminBrandsScreen = ({ navigation }) => {
           <Text style={styles.dashboardButtonText}>Revenue Dashboard</Text>
         </TouchableOpacity>
       </View>
-      <Text style={styles.title}>Brand Applications</Text>
+      <View style={styles.titleRow}>
+        <Text style={styles.title}>Brand Applications</Text>
+        <TouchableOpacity
+          style={styles.addButton}
+          onPress={() =>
+            navigation.navigate('BrandOnboarding', {
+              adminMode: true,
+            })
+          }
+        >
+          <Text style={styles.addButtonText}>Add Brand</Text>
+        </TouchableOpacity>
+      </View>
       <FlatList
         data={brands}
         keyExtractor={(item) => item.id.toString()}
@@ -194,6 +280,12 @@ const styles = StyleSheet.create({
     color: '#111827',
     marginBottom: 16,
   },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+  },
   emptyContainer: {
     flexGrow: 1,
     alignItems: 'center',
@@ -244,10 +336,14 @@ const styles = StyleSheet.create({
     color: '#dc2626',
     backgroundColor: '#fee2e2',
   },
+  actionsScroll: {
+    marginTop: 8,
+  },
   actionsRow: {
     flexDirection: 'row',
+    alignItems: 'center',
     justifyContent: 'flex-end',
-    marginTop: 8,
+    paddingRight: 4,
   },
   actionButton: {
     paddingHorizontal: 10,
@@ -267,9 +363,26 @@ const styles = StyleSheet.create({
   viewVendorButton: {
     backgroundColor: '#2563EB',
   },
+  editButton: {
+    backgroundColor: '#0f766e',
+  },
+  deleteButton: {
+    backgroundColor: '#7f1d1d',
+  },
   actionText: {
     color: '#ffffff',
     fontSize: 12,
     fontWeight: '700',
+  },
+  addButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 999,
+    backgroundColor: '#111827',
+  },
+  addButtonText: {
+    color: '#ffffff',
+    fontSize: 13,
+    fontWeight: '600',
   },
 });
