@@ -34,18 +34,16 @@ const EditProductScreen = ({ route, navigation }) => {
     // Legacy freeform delivery textarea (kept for backward compatibility but not populated
     // from existing options to avoid duplicating them when saving)
     deliveryInput: '',
-    // New structured delivery rows (one per option)
+    // New structured delivery rows (one per option, type + time only)
     deliveryRows: (() => {
       const arr = product.deliveryOptions || product.delivery_options || [];
       if (!Array.isArray(arr) || arr.length === 0) {
-        return [{ id: 'row_0', label: '', eta: '', price: '' }];
+        return [{ id: 'row_0', label: '', eta: '' }];
       }
       return arr.map((opt, index) => ({
         id: `row_${index}`,
         label: opt.label || '',
         eta: opt.eta || '',
-        price:
-          opt.price != null && opt.price !== '' ? String(opt.price) : '',
       }));
     })(),
     category: product.category || 'shoes',
@@ -73,7 +71,7 @@ const EditProductScreen = ({ route, navigation }) => {
       ...prev,
       deliveryRows: [
         ...prev.deliveryRows,
-        { id: `row_${Date.now()}`, label: '', eta: '', price: '' },
+        { id: `row_${Date.now()}`, label: '', eta: '' },
       ],
     }));
   };
@@ -195,17 +193,13 @@ const EditProductScreen = ({ route, navigation }) => {
         .map((row, index) => {
           const label = (row.label || '').trim();
           const eta = (row.eta || '').trim();
-          const priceText = (row.price || '').trim();
 
-          if (!label && !eta && !priceText) return null;
-
-          const price = priceText !== '' ? parseFloat(priceText) || 0 : null;
+          if (!label && !eta) return null;
 
           return {
             id: `opt_${index}_${label.toLowerCase().replace(/\s+/g, '_') || 'delivery'}`,
             label,
             eta: eta || null,
-            price,
           };
         })
         .filter(Boolean);

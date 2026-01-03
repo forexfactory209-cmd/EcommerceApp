@@ -40,6 +40,7 @@ const COLORS = {
     shadowRadius: 10,
     shadowOffset: { width: 0, height: 4 },
     elevation: 2,
+    
   },
   orderListTitle: {
     fontSize: 14,
@@ -70,13 +71,11 @@ const COLORS = {
     fontSize: 13,
     fontWeight: '600',
   },
-  primary: '#246BFD',
+  primary: '#090966',
   status: {
     Delivered: ['#22C55E', '#16A34A'],
-    CustomerConfirmed: ['#090966', '#090966'],
-    'Out for Delivery': ['#A855F7', '#7C3AED'],
+    'Out for Delivery': ['#090966', '#090966'],
     Shipped: ['#3B82F6', '#1D4ED8'],
-    Confirmed: ['#6366F1', '#4F46E5'],
     Pending: ['#FACC15', '#EAB308'],
     Canceled: ['#F97373', '#EF4444'],
   },
@@ -84,8 +83,7 @@ const COLORS = {
 
 const mapStatusToPill = (status) => {
   const key = status || 'Pending';
-  const gradient =
-    COLORS.status[key] || COLORS.status.Pending;
+  const gradient = COLORS.status[key] || COLORS.status.Pending;
   return { label: key, gradient };
 };
 
@@ -188,10 +186,14 @@ const TrackOrderScreen = () => {
   }, [ordersList]);
 
   const renderOrderListRow = ({ item }) => {
-    const isCustomerConfirmed = (item.rawStatus || '').toLowerCase() === 'customer_confirmed';
-    const pill = mapStatusToPill(
-      isCustomerConfirmed ? 'CustomerConfirmed' : item.status || 'Pending',
-    );
+    // Use normalized status for grouping, but refine the label for in-progress states
+    let visibleStatus = item.status || 'Pending';
+    if (item.rawStatus === 'on_the_way') {
+      // Keep it under the Pending tab but show a clearer label to the customer
+      visibleStatus = 'On the way';
+    }
+
+    const pill = mapStatusToPill(visibleStatus);
     const itemCount = Array.isArray(item.items) ? item.items.length : 0;
     const firstItems = Array.isArray(item.items) ? item.items.slice(0, 2) : [];
     const isMostRecent = item.id === mostRecentOrderId;
@@ -260,7 +262,6 @@ const TrackOrderScreen = () => {
             <Text style={styles.orderListStatusText}>{pill.label}</Text>
           </View>
           <Text style={[styles.orderListAmount, { color: palette.textPrimary }]}>${item.total.toFixed(2)}</Text>
-          <Text style={styles.orderListChevron}>›</Text>
         </View>
       </TouchableOpacity>
     );

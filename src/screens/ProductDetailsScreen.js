@@ -1,5 +1,5 @@
-import React, { useCallback, useMemo, useRef, useState } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Dimensions, Alert, ActivityIndicator, TextInput, Modal, FlatList } from 'react-native';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Dimensions, Alert, ActivityIndicator, TextInput, Modal, FlatList, Animated } from 'react-native';
 import { Image } from 'expo-image';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ArrowLeft, ShoppingCart, Heart, Star } from 'lucide-react-native';
@@ -11,10 +11,13 @@ import { fetchProductReviews, createProductReview, fetchReviewReplies, addReview
 import { fetchProductQuestions, createProductQuestion, fetchAnswersForQuestions, createProductAnswer, updateProductAnswer, deleteProductAnswer } from '../services/questions';
 import * as ImagePicker from 'expo-image-picker';
 import { supabase } from '../lib/supabase';
+import { LinearGradient } from 'expo-linear-gradient';
 
 const ProductDetailsScreen = ({ route, navigation }) => {
-  const { product } = route.params;
+  const { product, initialTab, focusQuestionId } = route.params || {};
   const addToCart = useStore((state) => state.addToCart);
+  const removeFromCart = useStore((state) => state.removeFromCart);
+  const cart = useStore((state) => state.cart);
   const wishlist = useStore((state) => state.wishlist);
   const addToWishlist = useStore((state) => state.addToWishlist);
   const removeFromWishlist = useStore((state) => state.removeFromWishlist);
@@ -139,6 +142,59 @@ const ProductDetailsScreen = ({ route, navigation }) => {
   const [editingAnswerText, setEditingAnswerText] = useState('');
   const [activeInfoTab, setActiveInfoTab] = useState('description'); // 'description' | 'reviews'
   const [similarLimit, setSimilarLimit] = useState(10);
+  const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
+  const descriptionAnim = useRef(new Animated.Value(0)).current; // 0 = collapsed, 1 = expanded
+
+  // When navigated from a notification, allow caller to force-open the Reviews/Q&A tab
+  useEffect(() => {
+    if (initialTab === 'reviews') {
+      setActiveInfoTab('reviews');
+    }
+  }, [initialTab]);
+
+  // Derive average rating and count from loaded reviews so the detail header
+  // stays in sync with the review section. This is read-only display data.
+  const { reviewsAvgRating, reviewsRatingCount } = useMemo(() => {
+    if (!Array.isArray(reviews) || reviews.length === 0) {
+      return { reviewsAvgRating: null, reviewsRatingCount: 0 };
+    }
+
+    let sum = 0;
+    let count = 0;
+
+    reviews.forEach((r) => {
+      if (r && typeof r.rating === 'number') {
+        sum += r.rating;
+        count += 1;
+      }
+    });
+
+    if (count === 0) {
+      return { reviewsAvgRating: null, reviewsRatingCount: 0 };
+    }
+
+    return { reviewsAvgRating: sum / count, reviewsRatingCount: count };
+  }, [reviews]);
+
+  // Decide what to display in the header: prefer review-based summary so it
+  // matches the review section. Fall back to rating summary if needed.
+  const displayAvgRating =
+    reviewsAvgRating != null
+      ? reviewsAvgRating
+      : avgRating != null
+      ? avgRating
+      : 0;
+
+  const displayRatingCount =
+    reviewsRatingCount > 0 ? reviewsRatingCount : ratingCount > 0 ? ratingCount : 0;
+
+  const inCart = useMemo(
+    () => Array.isArray(cart) && cart.some((item) => item.id === product.id),
+    [cart, product.id],
+  );
+
+  const addToCartAnim = useRef(new Animated.Value(1)).current;
+  const addToCartOpacity = useRef(new Animated.Value(1)).current;
 
   const currentPrice = Number(product.price) || 0;
   const flashPriceRaw =
@@ -310,6 +366,16 @@ const ProductDetailsScreen = ({ route, navigation }) => {
     } catch (e) {
       return '';
     }
+  };
+
+  const toggleDescriptionExpanded = () => {
+    const next = !isDescriptionExpanded;
+    setIsDescriptionExpanded(next);
+    Animated.timing(descriptionAnim, {
+      toValue: next ? 1 : 0,
+      duration: 220,
+      useNativeDriver: true,
+    }).start();
   };
 
   const toggleTag = (tag) => {
@@ -496,35 +562,9 @@ const ProductDetailsScreen = ({ route, navigation }) => {
               <Text style={styles.productName}>{product.name}</Text>
               <View style={styles.ratingRow}>
                 {[1, 2, 3, 4, 5].map((star) => {
-                  const active = currentRating ? currentRating >= star : avgRating >= star;
+                  const active = displayAvgRating >= star;
 
-                  // For normal customers: interactive rating
-                  if (!isBrandUser && !isAdminUser) {
-                    return (
-                      <TouchableOpacity
-                        key={star}
-                        onPress={async () => {
-                          setProductRating(product.id, star);
-                          try {
-                            if (authUserId) {
-                              await upsertUserProductRating(product.id, authUserId, star);
-                            }
-                          } catch (e) {
-                            console.warn('Failed to save product rating', e.message || e);
-                          }
-                        }}
-                        style={styles.ratingStarButton}
-                      >
-                        <Star
-                          size={20}
-                          color={active ? '#FBBF24' : '#D1D5DB'}
-                          fill={active ? '#FBBF24' : 'transparent'}
-                        />
-                      </TouchableOpacity>
-                    );
-                  }
-
-                  // For brand/admin: read-only stars (no onPress)
+                  // Read-only stars: always non-interactive, only display
                   return (
                     <View key={star} style={styles.ratingStarButton}>
                       <Star
@@ -536,12 +576,8 @@ const ProductDetailsScreen = ({ route, navigation }) => {
                   );
                 })}
                 <Text style={styles.ratingText}>
-                  {currentRating
-                    ? currentRating.toFixed(1)
-                    : avgRating != null
-                    ? avgRating.toFixed(1)
-                    : '0.0'}
-                  {ratingCount > 0 ? ` (${ratingCount})` : ''}
+                  {displayAvgRating > 0 ? displayAvgRating.toFixed(1) : '0.0'}
+                  {displayRatingCount > 0 ? ` (${displayRatingCount})` : ''}
                 </Text>
               </View>
               <Text style={styles.productBrand}>{product.brand}</Text>
@@ -585,132 +621,7 @@ const ProductDetailsScreen = ({ route, navigation }) => {
             </ScrollView>
           )}
 
-          {product.code ? (
-            <View style={styles.section}>
-              <Text style={styles.sectionLabel}>Product code</Text>
-              <View style={styles.codeRow}>
-                <View style={styles.codeValueWrapper}>
-                  <Text style={styles.codeValue}>{product.code}</Text>
-                </View>
-                <TouchableOpacity style={styles.codeCopyButton} onPress={handleCopyCode}>
-                  <Text style={styles.codeCopyButtonText}>Copy</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          ) : null}
-
-          <View style={styles.section}>
-            <Text style={styles.sectionLabel}>Availability</Text>
-            <Text style={styles.availabilityText}>{availabilityLabel}</Text>
-          </View>
-
-          <View style={styles.section}>
-            <View style={styles.sellerRow}>
-              <View>
-                <Text style={styles.sectionLabel}>Seller</Text>
-              </View>
-              {product.brand ? (
-                <TouchableOpacity
-                  style={styles.viewStoreButton}
-                  onPress={() =>
-                    navigation.navigate('Brand', {
-                      brand: {
-                        name: product.brand,
-                        user_id: product.brand_user_id || null,
-                      },
-                    })
-                  }
-                >
-                  <Text style={styles.viewStoreButtonText}>View Store</Text>
-                </TouchableOpacity>
-              ) : null}
-            </View>
-          </View>
-
-          {colors.length > 0 && (
-            <View style={styles.section}>
-              <Text style={styles.sectionLabel}>Color</Text>
-              <View style={styles.chipRow}>
-                {colors.map((color, index) => (
-                  <TouchableOpacity
-                    key={color}
-                    style={[
-                      styles.chip,
-                      selectedColor === color && styles.chipActive,
-                    ]}
-                    onPress={() => {
-                      setSelectedColor(color);
-                      setSelectedImageIndex(index);
-                    }}
-                  >
-                    <Text
-                      style={[
-                        styles.chipText,
-                        selectedColor === color && styles.chipTextActive,
-                      ]}
-                    >
-                      {color}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </View>
-          )}
-
-          {sizes.length > 0 && (
-            <View style={styles.section}>
-              <Text style={styles.sectionLabel}>Size</Text>
-              <View style={styles.chipRow}>
-                {sizes.map((size) => (
-                  <TouchableOpacity
-                    key={size}
-                    style={[
-                      styles.chip,
-                      selectedSize === size && styles.chipActive,
-                    ]}
-                    onPress={() => setSelectedSize(size)}
-                  >
-                    <Text
-                      style={[
-                        styles.chipText,
-                        selectedSize === size && styles.chipTextActive,
-                      ]}
-                    >
-                      {size}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </View>
-          )}
-
-          {deliveryOptions.length > 0 && (
-            <View style={styles.section}>
-              <Text style={styles.sectionLabel}>Delivery</Text>
-              {deliveryOptions.map((opt) => (
-                <TouchableOpacity
-                  key={opt.id}
-                  style={[
-                    styles.deliveryRow,
-                    selectedDeliveryId === opt.id && styles.deliveryRowActive,
-                  ]}
-                  onPress={() => setSelectedDeliveryId(opt.id)}
-                >
-                  <View>
-                    <Text style={styles.deliveryTitle}>{opt.label}</Text>
-                    {opt.eta ? (
-                      <Text style={styles.deliveryMeta}>{opt.eta}</Text>
-                    ) : null}
-                  </View>
-                  {typeof opt.price === 'number' && (
-                    <Text style={styles.deliveryPrice}>${opt.price}</Text>
-                  )}
-                </TouchableOpacity>
-              ))}
-            </View>
-          )}
-          
-          {/* Info tabs: Description / Reviews */}
+            {/* Info tabs: Description / Reviews */}
           <View style={styles.infoTabsSection}>
             <View style={styles.infoTabsHeaderRow}>
               <TouchableOpacity
@@ -749,7 +660,55 @@ const ProductDetailsScreen = ({ route, navigation }) => {
 
             {activeInfoTab === 'description' ? (
               <View style={styles.infoTabBody}>
-                <Text style={styles.description}>{product.description}</Text>
+                <View style={styles.descriptionContainer}>
+                  <View style={styles.descriptionTextWrapper}>
+                    <Text
+                      style={styles.description}
+                      numberOfLines={isDescriptionExpanded ? 0 : 3}
+                    >
+                      {product.description}
+                    </Text>
+                    {(product.description || '').length > 160 && (
+                      <Animated.View
+                        pointerEvents="none"
+                        style={[
+                          styles.descriptionGradientOverlay,
+                          {
+                            opacity: descriptionAnim.interpolate({
+                              inputRange: [0, 1],
+                              outputRange: [1, 0],
+                            }),
+                            transform: [
+                              {
+                                translateY: descriptionAnim.interpolate({
+                                  inputRange: [0, 1],
+                                  outputRange: [0, 4],
+                                }),
+                              },
+                            ],
+                          },
+                        ]}
+                      >
+                        <LinearGradient
+                          colors={['rgba(255,255,255,0)', 'rgba(255,255,255,0.96)']}
+                          style={{ flex: 1 }}
+                        />
+                      </Animated.View>
+                    )}
+                  </View>
+
+                  {(product.description || '').length > 160 && (
+                    <TouchableOpacity
+                      style={styles.descriptionSeeMoreButton}
+                      onPress={toggleDescriptionExpanded}
+                      activeOpacity={0.9}
+                    >
+                      <Text style={styles.descriptionSeeMoreText}>
+                        {isDescriptionExpanded ? 'See less' : 'See more'}
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
               </View>
             ) : (
               <View style={styles.infoTabBody}>
@@ -823,7 +782,11 @@ const ProductDetailsScreen = ({ route, navigation }) => {
                 <View style={styles.section}>
                   <Text style={styles.sectionLabel}>Questions & Answers</Text>
 
-                  {!isAdminUser && authUserId && (
+                  {/*
+                    Only customers (non-brand, non-admin, non-owner) can ask questions.
+                    Brand owners answer; they should not ask as a customer from here.
+                  */}
+                  {!isAdminUser && authUserId && !ownsProduct && (
                     <View style={styles.qaForm}>
                       <TextInput
                         style={styles.textArea}
@@ -874,7 +837,6 @@ const ProductDetailsScreen = ({ route, navigation }) => {
                   {questions.map((q) => {
                     const answers = answersMap[q.id] || [];
                     const brandAnswers = answers.filter((a) => a.is_brand_owner);
-                    const otherAnswers = answers.filter((a) => !a.is_brand_owner);
                     return (
                       <View key={q.id} style={styles.questionCard}>
                         <View style={styles.questionHeaderRow}>
@@ -894,7 +856,7 @@ const ProductDetailsScreen = ({ route, navigation }) => {
                         </View>
                         <Text style={styles.questionText}>{q.text}</Text>
 
-                              {brandAnswers.map((a) => {
+                        {brandAnswers.map((a) => {
                           const isOwnBrandAnswer = ownsProduct && a.user_id === authUserId;
                           const isEditing = editingAnswerId === a.id;
                           return (
@@ -993,27 +955,15 @@ const ProductDetailsScreen = ({ route, navigation }) => {
                           );
                         })}
 
-                        {otherAnswers.map((a) => (
-                          <View key={a.id} style={styles.userReplyBubble}>
-                            <View style={styles.replyHeaderRow}>
-                              <Text style={styles.replyUserName}>User</Text>
-                            </View>
-                            <Text style={styles.replyText}>{a.text}</Text>
-                            <Text style={styles.replyDateText}>
-                              {formatTimeAgo(a.created_at)}
-                            </Text>
-                          </View>
-                        ))}
-
-                        {authUserId && (!isBrandUser || ownsProduct) && (
+                        {/*
+                          Only the brand owner of this product can answer questions.
+                          Customers cannot answer (even their own questions).
+                        */}
+                        {authUserId && ownsProduct && isBrandUser && (
                           <View style={styles.replyFormRow}>
                             <TextInput
                               style={styles.textInput}
-                              placeholder={
-                                ownsProduct && (isBrandUser || isAdminUser)
-                                  ? 'Answer as brand owner...'
-                                  : 'Add an answer...'
-                              }
+                              placeholder="Answer as brand owner..."
                               value={answerDrafts[q.id] || ''}
                               onChangeText={(text) =>
                                 setAnswerDrafts((prev) => ({ ...prev, [q.id]: text }))
@@ -1033,7 +983,8 @@ const ProductDetailsScreen = ({ route, navigation }) => {
                                     questionId: q.id,
                                     userId: authUserId,
                                     text,
-                                    isBrandOwner: ownsProduct && (isBrandUser || isAdminUser),
+                                    // Answers from here are always by the official brand owner
+                                    isBrandOwner: true,
                                   });
                                   setAnswersMap((prev) => ({
                                     ...prev,
@@ -1074,6 +1025,132 @@ const ProductDetailsScreen = ({ route, navigation }) => {
               </View>
             )}
           </View>
+
+          {product.code ? (
+            <View style={styles.section}>
+              <Text style={styles.sectionLabel}>Product code</Text>
+              <View style={styles.codeRow}>
+                <View style={styles.codeValueWrapper}>
+                  <Text style={styles.codeValue}>{product.code}</Text>
+                </View>
+                <TouchableOpacity style={styles.codeCopyButton} onPress={handleCopyCode}>
+                  <Text style={styles.codeCopyButtonText}>Copy</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          ) : null}
+
+          <View style={styles.section}>
+            <Text style={styles.sectionLabel}>Availability</Text>
+            <Text style={styles.availabilityText}>{availabilityLabel}</Text>
+          </View>
+
+          <View style={styles.section}>
+            <View style={styles.sellerRow}>
+              <View>
+                <Text style={styles.sectionLabel}>Seller</Text>
+              </View>
+              {product.brand ? (
+                <TouchableOpacity
+                  style={styles.viewStoreButton}
+                  onPress={() =>
+                    navigation.navigate('Brand', {
+                      brand: {
+                        name: product.brand,
+                        user_id: product.brand_user_id || null,
+                      },
+                    })
+                  }
+                >
+                  <Text style={styles.viewStoreButtonText}>View Store</Text>
+                </TouchableOpacity>
+              ) : null}
+            </View>
+          </View>
+
+          {colors.length > 0 && (
+            <View style={styles.section}>
+              <Text style={styles.sectionLabel}>Color</Text>
+              <View style={styles.chipRow}>
+                {colors.map((color, index) => (
+                  <TouchableOpacity
+                    key={color}
+                    style={[
+                      styles.chip,
+                      selectedColor === color && styles.chipActive,
+                    ]}
+                    onPress={() => {
+                      setSelectedColor(color);
+                    }}
+                  >
+                    <Text
+                      style={[
+                        styles.chipText,
+                        selectedColor === color && styles.chipTextActive,
+                      ]}
+                    >
+                      {color}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+          )}
+
+          {sizes.length > 0 && (
+            <View style={styles.section}>
+              <Text style={styles.sectionLabel}>Size</Text>
+              <View style={styles.chipRow}>
+                {sizes.map((size) => (
+                  <TouchableOpacity
+                    key={size}
+                    style={[
+                      styles.chip,
+                      selectedSize === size && styles.chipActive,
+                    ]}
+                    onPress={() => setSelectedSize(size)}
+                  >
+                    <Text
+                      style={[
+                        styles.chipText,
+                        selectedSize === size && styles.chipTextActive,
+                      ]}
+                    >
+                      {size}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+          )}
+
+          {deliveryOptions.length > 0 && (
+            <View style={styles.section}>
+              <Text style={styles.sectionLabel}>Delivery</Text>
+              {deliveryOptions.map((opt) => (
+                <TouchableOpacity
+                  key={opt.id}
+                  style={[
+                    styles.deliveryRow,
+                    selectedDeliveryId === opt.id && styles.deliveryRowActive,
+                  ]}
+                  onPress={() => setSelectedDeliveryId(opt.id)}
+                >
+                  <View>
+                    <Text style={styles.deliveryTitle}>{opt.label}</Text>
+                    {opt.eta ? (
+                      <Text style={styles.deliveryMeta}>{opt.eta}</Text>
+                    ) : null}
+                  </View>
+                  {opt.eta ? (
+                    <Text style={styles.deliveryTimeTag}>{opt.eta}</Text>
+                  ) : null}
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
+          
+        
 
           {!isBrandUser && similarProducts.length > 0 && (
             <View style={styles.section}>
@@ -1163,6 +1240,8 @@ const ProductDetailsScreen = ({ route, navigation }) => {
 
               addToCart({
                 ...product,
+                selectedColor,
+                selectedSize,
                 selectedDeliveryId,
                 deliveryOptions: deliveryOptions.length > 0 ? deliveryOptions : product.delivery_options || [],
                 selectedDeliveryOption: chosenDelivery,
@@ -1172,27 +1251,78 @@ const ProductDetailsScreen = ({ route, navigation }) => {
           >
             <Text style={styles.bottomSecondaryText}>Buy Now</Text>
           </TouchableOpacity>
-          <TouchableOpacity
-            style={[
-              styles.bottomPrimaryButton,
-              (quantity <= 0 || isAdminUser || isBrandUser) && styles.bottomButtonDisabled,
-            ]}
-            activeOpacity={0.9}
-            disabled={quantity <= 0 || isAdminUser || isBrandUser}
-            onPress={() => {
-              const chosenDelivery = deliveryOptions.find((opt) => opt.id === selectedDeliveryId) || null;
-
-              addToCart({
-                ...product,
-                selectedDeliveryId,
-                deliveryOptions: deliveryOptions.length > 0 ? deliveryOptions : product.delivery_options || [],
-                selectedDeliveryOption: chosenDelivery,
-              });
-              navigation.navigate('Main', { screen: 'Cart' });
+          <Animated.View
+            style={{
+              transform: [{ scale: addToCartAnim }],
+              opacity: addToCartOpacity,
+              flex: 1,
             }}
           >
-            <Text style={styles.bottomPrimaryText}>Add to Cart</Text>
-          </TouchableOpacity>
+            <TouchableOpacity
+              style={[
+                styles.bottomPrimaryButton,
+                (quantity <= 0 || isAdminUser || isBrandUser) && styles.bottomButtonDisabled,
+              ]}
+              activeOpacity={0.9}
+              disabled={quantity <= 0 || isAdminUser || isBrandUser}
+              onPress={() => {
+                const chosenDelivery =
+                  deliveryOptions.find((opt) => opt.id === selectedDeliveryId) || null;
+
+                if (inCart) {
+                  removeFromCart(product.id);
+                } else {
+                  addToCart({
+                    ...product,
+                    selectedColor,
+                    selectedSize,
+                    selectedDeliveryId,
+                    deliveryOptions:
+                      deliveryOptions.length > 0
+                        ? deliveryOptions
+                        : product.delivery_options || [],
+                    selectedDeliveryOption: chosenDelivery,
+                  });
+                }
+
+                Animated.parallel([
+                  Animated.sequence([
+                    Animated.timing(addToCartAnim, {
+                      toValue: 0.9,
+                      duration: 60,
+                      useNativeDriver: true,
+                    }),
+                    Animated.timing(addToCartAnim, {
+                      toValue: 1.05,
+                      duration: 100,
+                      useNativeDriver: true,
+                    }),
+                    Animated.timing(addToCartAnim, {
+                      toValue: 1,
+                      duration: 80,
+                      useNativeDriver: true,
+                    }),
+                  ]),
+                  Animated.sequence([
+                    Animated.timing(addToCartOpacity, {
+                      toValue: 0.85,
+                      duration: 60,
+                      useNativeDriver: true,
+                    }),
+                    Animated.timing(addToCartOpacity, {
+                      toValue: 1,
+                      duration: 140,
+                      useNativeDriver: true,
+                    }),
+                  ]),
+                ]).start();
+              }}
+            >
+              <Text style={styles.bottomPrimaryText}>
+                {inCart ? 'Added ✔' : 'Add to Cart'}
+              </Text>
+            </TouchableOpacity>
+          </Animated.View>
         </View>
       </View>
     </SafeAreaView>
@@ -1241,7 +1371,8 @@ const styles = StyleSheet.create({
     color: '#16a34a',
   },
   infoTabsSection: {
-    marginTop: 8,
+    marginTop: 12,
+    marginBottom: 12,
   },
   infoTabsHeaderRow: {
     flexDirection: 'row',
@@ -1260,7 +1391,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   infoTabButtonActive: {
-    backgroundColor: '#2563EB',
+    backgroundColor: '#090966',
   },
   infoTabLabel: {
     fontSize: 13,
@@ -1287,7 +1418,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 10,
     borderRadius: 12,
-    backgroundColor: '#111827',
+    backgroundColor: '#090966',
   },
   viewStoreButtonText: {
     fontSize: 12,
@@ -1442,7 +1573,7 @@ const styles = StyleSheet.create({
     borderColor: '#e5e7eb',
   },
   thumbWrapperActive: {
-    borderColor: '#2563EB',
+    borderColor: '#090966',
   },
   thumbImage: {
     width: '100%',
@@ -1480,11 +1611,43 @@ const styles = StyleSheet.create({
   description: {
     color: '#6b7280',
     lineHeight: 22,
+    marginTop: 0,
+    marginBottom: 0,
+  },
+  descriptionContainer: {
     marginTop: 16,
     marginBottom: 24,
   },
+  descriptionTextWrapper: {
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  descriptionGradientOverlay: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: 56,
+  },
+  descriptionSeeMoreButton: {
+    alignSelf: 'flex-start',
+    marginTop: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(9,9,102,0.06)',
+  },
+  descriptionSeeMoreText: {
+    fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: 0.3,
+    color: '#090966',
+    textTransform: 'uppercase',
+  },
   section: {
-    marginBottom: 16,
+    marginBottom: 19,
   },
   sectionLabel: {
     fontSize: 16,
@@ -1510,7 +1673,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   chipActive: {
-    backgroundColor: '#111827',
+    backgroundColor: '#090966',
   },
   chipText: {
     color: '#111827',
@@ -1530,11 +1693,11 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1,
     borderColor: '#e5e7eb',
-    marginBottom: 8,
+    marginBottom: 25,
     backgroundColor: '#ffffff',
   },
   deliveryRowActive: {
-    borderColor: '#2563EB',
+    borderColor: '#090966',
     backgroundColor: '#eff6ff',
   },
   deliveryTitle: {
@@ -1551,6 +1714,11 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
     color: '#111827',
+  },
+  deliveryTimeTag: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#090966',
   },
   bottomBar: {
     borderTopWidth: 1,
@@ -1599,7 +1767,7 @@ const styles = StyleSheet.create({
     height: 48,
     borderRadius: 999,
     borderWidth: 1,
-    borderColor: '#8b5cf6',
+    borderColor: '#090966',
     backgroundColor: '#f5f3ff',
     alignItems: 'center',
     justifyContent: 'center',
@@ -1607,16 +1775,16 @@ const styles = StyleSheet.create({
   bottomSecondaryText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#4c1d95',
+    color: '#090966',
   },
   bottomPrimaryButton: {
     flex: 1,
     height: 48,
     borderRadius: 999,
-    backgroundColor: '#8b5cf6',
+    backgroundColor: '#090966',
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#8b5cf6',
+    shadowColor: '#090966',
     shadowOpacity: 0.4,
     shadowRadius: 10,
     shadowOffset: { width: 0, height: 4 },
@@ -1966,7 +2134,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 999,
-    backgroundColor: '#111827',
+    backgroundColor: '#090966',
   },
   seeAllButtonText: {
     fontSize: 12,
@@ -2052,7 +2220,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   similarSeeAllText: {
-    color: '#2563EB',
+    color: '#090966',
     fontWeight: '700',
     fontSize: 13,
   },

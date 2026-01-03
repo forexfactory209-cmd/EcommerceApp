@@ -367,11 +367,22 @@ const HomeScreen = ({ navigation }) => {
     };
   }, [filteredProducts]);
 
-  const handleFindByCode = () => {
+  const handleFindByCode = useCallback(async () => {
     const trimmed = searchCode.trim();
     if (!trimmed) return;
 
     const target = trimmed.toUpperCase();
+
+    // Ensure we have a fresh list of products at least once so that
+    // a single tap on the search icon can immediately find the code.
+    if (!remoteProducts.length && !products.length) {
+      try {
+        await loadProducts({ reset: false });
+      } catch (e) {
+        // If loading fails, we'll still fall back to whatever is in store.
+      }
+    }
+
     const list = remoteProducts.length > 0 ? remoteProducts : products;
     const product = list.find(
       (p) => (p.code || '').toString().toUpperCase() === target,
@@ -383,7 +394,7 @@ const HomeScreen = ({ navigation }) => {
     } else {
       Alert.alert('Not found', 'No product found for this code.');
     }
-  };
+  }, [searchCode, remoteProducts, products, loadProducts, navigation]);
   
   const getProductThumbUri = (item) => {
     const toThumbCdn = (url) => {
@@ -530,7 +541,7 @@ const HomeScreen = ({ navigation }) => {
             <Menu color="#111827" size={22} />
           </TouchableOpacity>
 
-          <Text style={styles.exploreTitleTop}>Explore</Text>
+          <Text style={styles.exploreTitleTop}>Beegso</Text>
 
           <View style={styles.topBarActions}>
             <TouchableOpacity
@@ -1215,7 +1226,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderWidth: 1,
     borderColor: '#f3f4f6', // gray-100
-    shadowColor: '#000',
+    shadowColor: '#090966',
     shadowOpacity: 0.06,
     shadowRadius: 4,
     shadowOffset: { width: 0, height: 2 },
@@ -1227,10 +1238,10 @@ const styles = StyleSheet.create({
     width: 52,
     height: 52,
     borderRadius: 18,
-    backgroundColor: '#8b5cf6',
+    backgroundColor: '#090966',
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#8b5cf6',
+    shadowColor: '#090966',
     shadowOpacity: 0.4,
     shadowRadius: 8,
     shadowOffset: { width: 0, height: 4 },
@@ -1298,7 +1309,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   seeAllText: {
-    color: '#2563EB', // primary
+    color: '#000', // primary
     fontWeight: '700',
   },
   productsGrid: {
@@ -1391,8 +1402,8 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   productPrice: {
-    color: '#2563EB',
-    fontWeight: '700',
+     color: '#2563EB',
+    fontWeight: '800',
     fontSize: 15,
   },
   productPriceCol: {
@@ -1585,7 +1596,7 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
   searchModeChipActive: {
-    backgroundColor: '#111827',
+    backgroundColor: '#090966',
   },
   searchModeText: {
     fontSize: 12,

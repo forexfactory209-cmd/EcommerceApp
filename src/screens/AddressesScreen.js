@@ -19,7 +19,7 @@ const AddressesScreen = ({ navigation }) => {
       setLoading(true);
       const { data, error } = await supabase
         .from('customer_addresses')
-        .select('id, name, country, city, phone, secondary_phone, address_line, is_primary')
+        .select('id, name, country, city, district, phone, secondary_phone, address_line, address_descr, is_primary')
         .eq('user_id', authUserId)
         .order('is_primary', { ascending: false })
         .order('created_at', { ascending: false });
@@ -115,7 +115,9 @@ const AddressesScreen = ({ navigation }) => {
         <Text style={styles.addressLine}>{item.address_line}</Text>
         <Text style={styles.addressLine}>
           {item.city}
-          {item.city && item.country ? ', ' : ''}
+          {item.city && item.district ? ', ' : ''}
+          {item.district}
+          {(item.city || item.district) && item.country ? ', ' : ''}
           {item.country}
         </Text>
         {item.phone ? <Text style={styles.addressPhone}>{item.phone}</Text> : null}
