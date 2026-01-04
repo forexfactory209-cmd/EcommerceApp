@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
+import React, { useEffect, useState, useRef } from 'react';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ScrollView, KeyboardAvoidingView, Platform, Animated } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -31,6 +31,14 @@ const base64ToUint8Array = (base64) => {
   return new Uint8Array(bytes);
 };
 
+const AUDIENCE_OPTIONS = [
+  { id: 'all', label: 'All', icon: '🌐' },
+  { id: 'men', label: 'Men', icon: '👔' },
+  { id: 'women', label: 'Women', icon: '👗' },
+  { id: 'kids', label: 'Kids', icon: '🧸' },
+  { id: 'cosmetics_beauty', label: 'Cosmetics & Beauty', icon: '💄' },
+];
+
 const BrandOnboardingScreen = ({ navigation, route }) => {
   const authUserId = useStore((state) => state.authUserId);
   const authEmail = useStore((state) => state.authEmail);
@@ -50,8 +58,11 @@ const BrandOnboardingScreen = ({ navigation, route }) => {
   const [contactPhone, setContactPhone] = useState('');
   const [discountPercentInput, setDiscountPercentInput] = useState('');
   const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [audience, setAudience] = useState('all');
   const [brandLoginEmail, setBrandLoginEmail] = useState('');
   const [brandLoginPassword, setBrandLoginPassword] = useState('');
+  const [audienceDropdownOpen, setAudienceDropdownOpen] = useState(false);
+  const audienceMenuAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     const loadBrand = async () => {
@@ -90,8 +101,10 @@ const BrandOnboardingScreen = ({ navigation, route }) => {
           setDescription(data.description || '');
           setContactEmail(data.contact_email || authEmail || '');
           setContactPhone(data.contact_phone || '');
+          setAudience((data.audience || 'all').toString());
         } else {
           setContactEmail(authEmail || '');
+          setAudience('all');
         }
       } catch (e) {
         console.warn('Error loading brand:', e);
@@ -101,6 +114,26 @@ const BrandOnboardingScreen = ({ navigation, route }) => {
     };
     loadBrand();
   }, [authUserId, authEmail, isAdminMode, editingBrandId]);
+
+  const toggleAudienceDropdown = () => {
+    if (audienceDropdownOpen) {
+      Animated.timing(audienceMenuAnim, {
+        toValue: 0,
+        duration: 150,
+        useNativeDriver: true,
+      }).start(() => {
+        setAudienceDropdownOpen(false);
+      });
+    } else {
+      setAudienceDropdownOpen(true);
+      audienceMenuAnim.setValue(0);
+      Animated.timing(audienceMenuAnim, {
+        toValue: 1,
+        duration: 180,
+        useNativeDriver: true,
+      }).start();
+    };
+  };
 
   const handlePickLogo = async () => {
     if (!authUserId && !isAdminMode) {
@@ -200,6 +233,7 @@ const BrandOnboardingScreen = ({ navigation, route }) => {
       description: description.trim() || null,
       contact_email: contactEmail.trim() || null,
       contact_phone: contactPhone.trim() || null,
+      audience: (audience || 'all').trim() || 'all',
     };
 
     try {
@@ -241,6 +275,7 @@ const BrandOnboardingScreen = ({ navigation, route }) => {
               description: basePayload.description,
               contact_email: basePayload.contact_email,
               contact_phone: basePayload.contact_phone,
+              audience: basePayload.audience,
             }),
           });
 
@@ -415,6 +450,60 @@ const BrandOnboardingScreen = ({ navigation, route }) => {
           onChangeText={setContactPhone}
         />
 
+        <Text style={styles.fieldLabel}>Audience</Text>
+        <View style={styles.dropdownWrapper}>
+          <TouchableOpacity
+            style={styles.dropdownControl}
+            activeOpacity={0.9}
+            onPress={toggleAudienceDropdown}
+          >
+            <Text style={styles.dropdownValueText}>
+              {AUDIENCE_OPTIONS.find((a) => a.id === audience)?.label || 'Select audience'}
+            </Text>
+            <Text style={styles.dropdownChevron}>{audienceDropdownOpen ? '▴' : '▾'}</Text>
+          </TouchableOpacity>
+
+          {audienceDropdownOpen && (
+            <Animated.View
+              style={[
+                styles.dropdownMenu,
+                {
+                  opacity: audienceMenuAnim,
+                  transform: [
+                    {
+                      translateY: audienceMenuAnim.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [-6, 0],
+                      }),
+                    },
+                  ],
+                },
+              ]}
+            >
+              {AUDIENCE_OPTIONS.map((aud) => {
+                const active = audience === aud.id;
+                return (
+                  <TouchableOpacity
+                    key={aud.id}
+                    style={[styles.dropdownItem, active && styles.dropdownItemActive]}
+                    onPress={() => {
+                      setAudience(aud.id);
+                      setAudienceDropdownOpen(false);
+                    }}
+                  >
+                    <Text
+                      style={[styles.dropdownItemText, active && styles.dropdownItemTextActive]}
+                    >
+                      <Text>{aud.icon} </Text>
+                      {aud.label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </Animated.View>
+          )}
+        </View>
+
         <Text style={styles.fieldLabel}>Brand description</Text>
         <TextInput
           style={[styles.input, styles.textArea]}
@@ -553,5 +642,58 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontSize: 16,
     fontWeight: '700',
+  },
+  dropdownWrapper: {
+    marginTop: 6,
+    marginBottom: 8,
+  },
+  dropdownControl: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    backgroundColor: '#ffffff',
+  },
+  dropdownValueText: {
+    fontSize: 14,
+    color: '#111827',
+    fontWeight: '500',
+  },
+  dropdownChevron: {
+    fontSize: 16,
+    color: '#6b7280',
+    marginLeft: 8,
+  },
+  dropdownMenu: {
+    marginTop: 4,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    backgroundColor: '#ffffff',
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  dropdownItem: {
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  dropdownItemActive: {
+    backgroundColor: '#EEF2FF',
+  },
+  dropdownItemText: {
+    fontSize: 14,
+    color: '#111827',
+  },
+  dropdownItemTextActive: {
+    fontWeight: '600',
+    color: '#1D4ED8',
   },
 });

@@ -38,6 +38,7 @@ import CategoryProductsScreen from '../screens/CategoryProductsScreen';
 import AdminProductsScreen from '../screens/AdminProductsScreen';
 import AdminDashboardScreen from '../screens/AdminDashboardScreen';
 import AllBrandsScreen from '../screens/AllBrandsScreen';
+import AllBrandCategoriesScreen from '../screens/AllBrandCategoriesScreen';
 import FollowedStoresScreen from '../screens/FollowedStoresScreen';
 import HelpFAQScreen from '../screens/HelpFAQScreen';
 import ReportProblemScreen from '../screens/ReportProblemScreen';
@@ -258,6 +259,7 @@ const RootStackNavigator = () => {
         <Stack.Screen name="AdminProducts" component={AdminProductsScreen} />
         <Stack.Screen name="AdminDashboard" component={AdminDashboardScreen} />
         <Stack.Screen name="AllBrands" component={AllBrandsScreen} />
+        <Stack.Screen name="AllBrandCategories" component={AllBrandCategoriesScreen} />
         <Stack.Screen name="AdminCustomers" component={AdminCustomersScreen} />
         <Stack.Screen name="AdminCustomerDetails" component={AdminCustomerDetailsScreen} />
         <Stack.Screen name="AdminSupportTickets" component={AdminSupportTicketsScreen} />
