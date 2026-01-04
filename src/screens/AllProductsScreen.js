@@ -1,6 +1,7 @@
 import React, { useState, useCallback, useMemo, useRef } from 'react';
 import { View, Text, FlatList, Image, TouchableOpacity, StyleSheet, Alert, TextInput, Animated } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { ArrowLeft } from 'lucide-react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useStore } from '../store/store';
 import { fetchProductsFromSupabase } from '../services/products';
@@ -123,7 +124,7 @@ const AllProductsScreen = ({ navigation }) => {
     <SafeAreaView style={styles.container} edges={['top', 'right', 'bottom', 'left']}>
       <View style={styles.headerRow}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-          <Text style={styles.backButtonIcon}>{'<'}</Text>
+          <ArrowLeft color="#090966" size={20} />
         </TouchableOpacity>
         <Text style={styles.title}>Categories</Text>
       </View>
@@ -173,19 +174,19 @@ export default AllProductsScreen;
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#ffffff',
+    backgroundColor: '#F5F5FF',
     paddingHorizontal: 16,
     paddingTop: 16,
   },
   searchWrapper: {
-    marginBottom: 30,
-    marginTop: 16,
-    backgroundColor: '#ffffff',
+  marginBottom: 25,
+    marginTop: 10,
+    backgroundColor: '#eff0f1ff',
     borderRadius: 999,
     borderWidth: 1,
     borderColor: '#e5e7eb',
     paddingHorizontal: 16,
-    paddingVertical: 8,
+    paddingVertical: 16,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowRadius: 6,
@@ -199,33 +200,21 @@ const styles = StyleSheet.create({
   headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
     marginBottom: 12,
   },
   backButton: {
     width: 40,
     height: 40,
-    borderRadius: 7,
+    borderRadius: 999,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#ffffff',
-    shadowColor: '#000',
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 3 },
-    elevation: 3,
-  },
-  backButtonIcon: {
-    fontSize: 18,
-    color: '#111827',
-    fontWeight: '700',
+    backgroundColor: '#E0E7FF',
   },
   title: {
-    fontSize: 22,
+    fontSize: 23,
     fontWeight: '700',
-    color: '#111827',
-    flex: 1,
-    textAlign: 'center',
+    color: '#090966',
+    marginLeft: 14,
   },
   listContent: {
     paddingBottom: 24,

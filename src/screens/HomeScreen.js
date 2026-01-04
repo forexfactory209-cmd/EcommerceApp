@@ -756,8 +756,14 @@ const HomeScreen = ({ navigation }) => {
           <>
             <View style={styles.productsHeader}>
               <Text style={styles.sectionTitle}>Top brands</Text>
-              {brands.length > 7 && (
-                <TouchableOpacity onPress={() => navigation.navigate('AllBrands')}>
+              {brands.length > 0 && (
+                <TouchableOpacity
+                  onPress={() =>
+                    navigation.navigate('AllBrandCategories', {
+                      brands,
+                    })
+                  }
+                >
                   <Text style={styles.seeAllText}>See all</Text>
                 </TouchableOpacity>
               )}
@@ -1096,16 +1102,7 @@ const styles = StyleSheet.create({
     marginTop: 12,
     marginBottom: 20,
   },
-  helloTitle: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: '#111827',
-  },
-  helloSubtitle: {
-    marginTop: 4,
-    color: '#9ca3af',
-    fontSize: 14,
-  },
+  // 
   notificationBadge: {
     position: 'absolute',
     top: -4,
@@ -1125,23 +1122,7 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '700',
   },
-  topCartBadge: {
-    position: 'absolute',
-    top: -6,
-    right: -6,
-    backgroundColor: '#ef4444',
-    minWidth: 16,
-    height: 16,
-    paddingHorizontal: 3,
-    borderRadius: 999,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  topCartBadgeText: {
-    color: '#ffffff',
-    fontSize: 10,
-    fontWeight: '700',
-  },
+
   codeSearchRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1203,7 +1184,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#ffffff',
     borderRadius: 16,
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingVertical: 20,
     borderWidth: 1,
     borderColor: '#f3f4f6', // gray-100
     shadowColor: '#090966',
@@ -1261,7 +1242,7 @@ const styles = StyleSheet.create({
     width: 72,
     height: 72,
     backgroundColor: '#111827',
-    borderRadius: 36,
+    borderRadius: 55,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 8,
@@ -1569,8 +1550,8 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   searchModeChip: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    paddingHorizontal: 17,
+    paddingVertical: 12,
     borderRadius: 999,
     backgroundColor: '#f3f4f6',
     marginRight: 8,
