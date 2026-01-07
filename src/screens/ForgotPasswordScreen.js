@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, KeyboardAvoidingView, Platform, StatusBar, Animated, Easing, Dimensions, ScrollView } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, KeyboardAvoidingView, Platform, StatusBar, Animated, Easing, Dimensions, ScrollView, ImageBackground } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { supabase } from '../lib/supabase';
-import { Mail, Send } from 'lucide-react-native';
+import { Mail } from 'lucide-react-native';
 import BeegsoButton from '../components/BeegsoButton';
 
 const { width } = Dimensions.get('window');
@@ -140,76 +140,81 @@ const ForgotPasswordScreen = ({ navigation }) => {
   return (
     <SafeAreaView style={styles.screen} edges={['top', 'left', 'right']}>
       <StatusBar barStyle="light-content" backgroundColor="#090966" />
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      <ImageBackground
+        source={require('../../assets/photo4.jpg')}
+        style={styles.bgImage}
+        resizeMode="cover"
       >
-        <View style={styles.headerSection}>
-          <Animated.View style={[styles.bgCircle1, { transform: [{ translateY: circle1TranslateY }] }]} />
-          <Animated.View style={[styles.bgCircle2, { transform: [{ translateX: circle2TranslateX }] }]} />
-          <Animated.View style={[styles.bgRect, { transform: [{ rotate: rectRotate }] }]} />
-        </View>
-
-        <Animated.View
-          style={[
-            styles.bottomSheet,
-            { transform: [{ translateY: slideAnim }] }
-          ]}
-        >
-          <ScrollView
-            style={styles.contentContainer}
-            contentContainerStyle={styles.scrollContent}
-            showsVerticalScrollIndicator={false}
+        <View style={styles.bgOverlay}>
+          <KeyboardAvoidingView
+            style={{ flex: 1 }}
+            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
           >
-            <View style={styles.titleRow}>
-              <Text style={styles.headerTitle}>Forgot Password</Text>
+            <View style={styles.headerSection}>
+              <Animated.View style={[styles.bgCircle1, { transform: [{ translateY: circle1TranslateY }] }]} />
+              <Animated.View style={[styles.bgCircle2, { transform: [{ translateX: circle2TranslateX }] }]} />
+              <Animated.View style={[styles.bgRect, { transform: [{ rotate: rectRotate }] }]} />
             </View>
 
-            <View style={styles.form}>
-              <View style={styles.fieldGroup}>
-                <View style={[
-                  styles.inputContainer,
-                  isEmailFocused && styles.inputFocused,
-                  emailError && styles.inputError
-                ]}>
-                  <Mail
-                    size={22}
-                    color="#090966"
-                    style={styles.inputIcon}
+            <Animated.View
+              style={[
+                styles.bottomSheet,
+                { transform: [{ translateY: slideAnim }] }
+              ]}
+            >
+              <ScrollView
+                style={styles.contentContainer}
+                contentContainerStyle={styles.scrollContent}
+                showsVerticalScrollIndicator={false}
+              >
+                <View style={styles.card}>
+                  <Text style={styles.cardHint} numberOfLines={2}>
+                    We’ll email you a secure link to create a new password.
+                  </Text>
+
+                  <View style={styles.fieldGroup}>
+                    <View
+                      style={[
+                        styles.inputContainer,
+                        isEmailFocused && styles.inputFocused,
+                        emailError && styles.inputError,
+                      ]}
+                    >
+                      <Mail size={22} color="#4c4c9d" style={styles.inputIcon} />
+                      <TextInput
+                        style={styles.input}
+                        placeholder="Email Address"
+                        placeholderTextColor="#9CA3AF"
+                        keyboardType="email-address"
+                        autoCapitalize="none"
+                        value={email}
+                        onChangeText={handleEmailChange}
+                        onFocus={() => setIsEmailFocused(true)}
+                        onBlur={() => setIsEmailFocused(false)}
+                      />
+                    </View>
+                    {emailError && <Text style={styles.errorText}>{emailError}</Text>}
+                  </View>
+
+                  <BeegsoButton
+                    label={loading ? 'Sending...' : 'Send Reset Link'}
+                    onPress={handleSendReset}
+                    loading={loading}
+                    disabled={!email || emailError || loading}
                   />
-                  <TextInput
-                    style={styles.input}
-                    placeholder="Email Address"
-                    placeholderTextColor="#9CA3AF"
-                    keyboardType="email-address"
-                    autoCapitalize="none"
-                    value={email}
-                    onChangeText={handleEmailChange}
-                    onFocus={() => setIsEmailFocused(true)}
-                    onBlur={() => setIsEmailFocused(false)}
-                  />
+
+                  <View style={styles.footerRow}>
+                    <Text style={styles.footerText}>Remembered your password? </Text>
+                    <TouchableOpacity onPress={() => navigation.goBack()} activeOpacity={0.85}>
+                      <Text style={styles.footerLink}>Back to Sign In</Text>
+                    </TouchableOpacity>
+                  </View>
                 </View>
-                {emailError && <Text style={styles.errorText}>{emailError}</Text>}
-              </View>
-
-              <BeegsoButton
-                label={loading ? 'Sending...' : 'Send Reset Link'}
-                onPress={handleSendReset}
-                loading={loading}
-                icon={Send}
-                disabled={!email || emailError || loading}
-              />
-
-              <View style={styles.footerRow}>
-                <Text style={styles.footerText}>Remembered your password? </Text>
-                <TouchableOpacity onPress={() => navigation.goBack()}>
-                  <Text style={styles.footerLink}>Back to Sign In</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          </ScrollView>
-        </Animated.View>
-      </KeyboardAvoidingView>
+              </ScrollView>
+            </Animated.View>
+          </KeyboardAvoidingView>
+        </View>
+      </ImageBackground>
     </SafeAreaView>
   );
 };
@@ -220,6 +225,15 @@ const styles = StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: '#090966',
+  },
+  bgImage: {
+    flex: 1,
+    width: '100%',
+    height: '100%',
+  },
+  bgOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(9, 9, 102, 0.75)',
   },
   headerSection: {
     height: '35%',
@@ -256,28 +270,92 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255, 255, 255, 0.05)',
     borderRadius: 12,
   },
-  scrollContent: {
-    paddingHorizontal: 28,
-    paddingTop: 100,
-    paddingBottom: 40,
+  headerContent: {
+    position: 'absolute',
+    left: 22,
+    right: 22,
+    bottom: 26,
   },
-  titleRow: {
+  headerEyebrow: {
+    color: 'rgba(255, 255, 255, 0.86)',
+    fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: 1.2,
+    textTransform: 'uppercase',
+    marginBottom: 6,
+  },
+  headerHeadline: {
+    color: '#FFFFFF',
+    fontSize: 28,
+    fontWeight: '900',
+    letterSpacing: -0.4,
+    marginBottom: 6,
+  },
+  headerSubtext: {
+    color: 'rgba(255, 255, 255, 0.9)',
+    fontSize: 14,
+    lineHeight: 20,
+    maxWidth: 340,
+  },
+  bottomSheet: {
+    flex: 1,
+    backgroundColor: 'transparent',
+  },
+  contentContainer: {
+    flex: 1,
+  },
+  scrollContent: {
+    paddingHorizontal: 18,
+    paddingTop: 18,
+    paddingBottom: 24,
+  },
+  card: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 22,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.18)',
+    shadowColor: '#000',
+    shadowOpacity: 0.08,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 6,
+  },
+  cardTitleRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 40,
+    marginBottom: 14,
+  },
+  cardIconWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(9, 9, 102, 0.08)',
+    alignItems: 'center',
     justifyContent: 'center',
+    marginRight: 12,
   },
-  headerTitle: {
+  cardTitle: {
     fontSize: 18,
-    fontWeight: '500',
+    fontWeight: '900',
     color: '#090966',
-    letterSpacing: 0.5,
+    letterSpacing: -0.2,
   },
-  form: {
-    width: '100%',
+  cardHint: {
+    marginTop: 2,
+    fontSize: 13,
+    lineHeight: 18,
+    color: '#6B7280',
   },
   fieldGroup: {
     marginBottom: 18,
+  },
+  inputLabel: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#090966',
+    letterSpacing: 0.3,
+    marginBottom: 8,
   },
   inputContainer: {
     flexDirection: 'row',
@@ -313,43 +391,31 @@ const styles = StyleSheet.create({
     color: '#090966',
     fontWeight: '500',
   },
-  primaryButton: {
-    flexDirection: 'row',
-    backgroundColor: '#090966',
-    borderRadius: 16,
-    height: 56,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 10,
-    shadowColor: '#090966',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.35,
+  whiteButton: {
+    borderWidth: 1,
+    borderColor: 'rgba(9, 9, 102, 0.14)',
+    shadowColor: '#000',
+    shadowOpacity: 0.06,
     shadowRadius: 10,
-    elevation: 8,
-  },
-  buttonDisabled: {
-    opacity: 0.7,
-  },
-  primaryButtonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '700',
-    letterSpacing: 0.8,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 4,
   },
   footerRow: {
-    marginTop: 24,
+    marginTop: 14,
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
+    paddingVertical: 8,
   },
   footerText: {
     fontSize: 14,
     color: '#6B7280',
+    fontWeight: '500',
   },
   footerLink: {
-    color: '#090966',
-    fontWeight: '800',
-    marginLeft: 4,
     fontSize: 14,
+    color: '#090966',
+    fontWeight: '900',
+    marginLeft: 4,
   },
 });
