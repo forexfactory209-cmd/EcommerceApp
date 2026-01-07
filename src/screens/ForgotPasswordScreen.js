@@ -1,23 +1,108 @@
-import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, KeyboardAvoidingView, Platform, StatusBar } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, KeyboardAvoidingView, Platform, StatusBar, Animated, Easing, Dimensions, ScrollView, ImageBackground } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { supabase } from '../lib/supabase';
+import { Mail } from 'lucide-react-native';
+import BeegsoButton from '../components/BeegsoButton';
+
+const { width } = Dimensions.get('window');
 
 const ForgotPasswordScreen = ({ navigation }) => {
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
+  const [isEmailFocused, setIsEmailFocused] = useState(false);
+  const [emailError, setEmailError] = useState('');
+
+  // Animations
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(100)).current;
+  const circle1Anim = useRef(new Animated.Value(0)).current;
+  const circle2Anim = useRef(new Animated.Value(0)).current;
+  const rectAnim = useRef(new Animated.Value(0)).current;
+
+  const BRAND_COLOR = '#090966';
+
+  useEffect(() => {
+    // Entry animations
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 800,
+        useNativeDriver: true,
+      }),
+      Animated.spring(slideAnim, {
+        toValue: 0,
+        friction: 8,
+        tension: 40,
+        useNativeDriver: true,
+      }),
+    ]).start();
+
+    // Background loop animations
+    const createLoop = (anim, duration) => {
+      return Animated.loop(
+        Animated.sequence([
+          Animated.timing(anim, {
+            toValue: 1,
+            duration: duration,
+            easing: Easing.inOut(Easing.sin),
+            useNativeDriver: true,
+          }),
+          Animated.timing(anim, {
+            toValue: 0,
+            duration: duration,
+            easing: Easing.inOut(Easing.sin),
+            useNativeDriver: true,
+          }),
+        ])
+      );
+    };
+
+    createLoop(circle1Anim, 4000).start();
+    createLoop(circle2Anim, 6000).start();
+    createLoop(rectAnim, 8000).start();
+  }, []);
+
+  // Interpolated values for shapes
+  const circle1TranslateY = circle1Anim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, -30],
+  });
+  const circle2TranslateX = circle2Anim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, 40],
+  });
+  const rectRotate = rectAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['0deg', '45deg'],
+  });
+
+  const validateEmail = (val) => {
+    if (!val) return null;
+    const emailRegex = /^(([^<>()[\]\\.,;:\s@"]+(\.[^<>()[\]\\.,;:\s@"]+)*)|(".+"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/;
+    if (!emailRegex.test(val)) {
+      return "Please enter a valid email address";
+    }
+    return null;
+  };
+
+  const handleEmailChange = (val) => {
+    setEmail(val);
+    setEmailError(validateEmail(val) || '');
+  };
 
   const handleSendReset = async () => {
     const trimmedEmail = email.trim();
+    const error = validateEmail(trimmedEmail);
 
     if (!trimmedEmail) {
       Alert.alert('Missing email', 'Please enter your email address.');
       return;
     }
 
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(trimmedEmail)) {
-      Alert.alert('Invalid email', 'Please enter a valid email address.');
+    if (error) {
+      Alert.alert('Invalid email', error);
+      setEmailError(error);
       return;
     }
 
@@ -53,58 +138,83 @@ const ForgotPasswordScreen = ({ navigation }) => {
   };
 
   return (
-    <SafeAreaView style={styles.screen}>
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        keyboardVerticalOffset={Platform.select({
-          ios: 60,
-          android: StatusBar.currentHeight ? StatusBar.currentHeight + 10 : 0,
-          default: 0,
-        })}
+    <SafeAreaView style={styles.screen} edges={['top', 'left', 'right']}>
+      <StatusBar barStyle="light-content" backgroundColor="#090966" />
+      <ImageBackground
+        source={require('../../assets/photo4.jpg')}
+        style={styles.bgImage}
+        resizeMode="cover"
       >
-        <View style={styles.container}>
-          <View style={styles.card}>
-            <Text style={styles.title}>Forgot Password</Text>
-            <Text style={styles.subtitle}>
-              Enter the email address associated with your account and we will send you a link to reset your password.
-            </Text>
-
-            <View style={styles.fieldGroup}>
-              <Text style={styles.label}>Email Address</Text>
-              <View style={styles.inputWrapper}>
-                <Text style={styles.inputIcon}>✉️</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="you@example.com"
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                  value={email}
-                  onChangeText={setEmail}
-                  placeholderTextColor="#9CA3AF"
-                />
-              </View>
+        <View style={styles.bgOverlay}>
+          <KeyboardAvoidingView
+            style={{ flex: 1 }}
+            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          >
+            <View style={styles.headerSection}>
+              <Animated.View style={[styles.bgCircle1, { transform: [{ translateY: circle1TranslateY }] }]} />
+              <Animated.View style={[styles.bgCircle2, { transform: [{ translateX: circle2TranslateX }] }]} />
+              <Animated.View style={[styles.bgRect, { transform: [{ rotate: rectRotate }] }]} />
             </View>
 
-            <TouchableOpacity
-              style={styles.primaryButton}
-              onPress={handleSendReset}
-              disabled={loading}
+            <Animated.View
+              style={[
+                styles.bottomSheet,
+                { transform: [{ translateY: slideAnim }] }
+              ]}
             >
-              <Text style={styles.primaryButtonText}>
-                {loading ? 'Sending...' : 'Send Reset Link'}
-              </Text>
-            </TouchableOpacity>
+              <ScrollView
+                style={styles.contentContainer}
+                contentContainerStyle={styles.scrollContent}
+                showsVerticalScrollIndicator={false}
+              >
+                <View style={styles.card}>
+                  <Text style={styles.cardHint} numberOfLines={2}>
+                    We’ll email you a secure link to create a new password.
+                  </Text>
 
-            <TouchableOpacity
-              style={styles.secondaryButton}
-              onPress={() => navigation.goBack()}
-            >
-              <Text style={styles.secondaryButtonText}>Back to Sign In</Text>
-            </TouchableOpacity>
-          </View>
+                  <View style={styles.fieldGroup}>
+                    <View
+                      style={[
+                        styles.inputContainer,
+                        isEmailFocused && styles.inputFocused,
+                        emailError && styles.inputError,
+                      ]}
+                    >
+                      <Mail size={22} color="#4c4c9d" style={styles.inputIcon} />
+                      <TextInput
+                        style={styles.input}
+                        placeholder="Email Address"
+                        placeholderTextColor="#9CA3AF"
+                        keyboardType="email-address"
+                        autoCapitalize="none"
+                        value={email}
+                        onChangeText={handleEmailChange}
+                        onFocus={() => setIsEmailFocused(true)}
+                        onBlur={() => setIsEmailFocused(false)}
+                      />
+                    </View>
+                    {emailError && <Text style={styles.errorText}>{emailError}</Text>}
+                  </View>
+
+                  <BeegsoButton
+                    label={loading ? 'Sending...' : 'Send Reset Link'}
+                    onPress={handleSendReset}
+                    loading={loading}
+                    disabled={!email || emailError || loading}
+                  />
+
+                  <View style={styles.footerRow}>
+                    <Text style={styles.footerText}>Remembered your password? </Text>
+                    <TouchableOpacity onPress={() => navigation.goBack()} activeOpacity={0.85}>
+                      <Text style={styles.footerLink}>Back to Sign In</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              </ScrollView>
+            </Animated.View>
+          </KeyboardAvoidingView>
         </View>
-      </KeyboardAvoidingView>
+      </ImageBackground>
     </SafeAreaView>
   );
 };
@@ -114,86 +224,198 @@ export default ForgotPasswordScreen;
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: '#E5EDFF',
+    backgroundColor: '#090966',
   },
-  container: {
+  bgImage: {
     flex: 1,
+    width: '100%',
+    height: '100%',
+  },
+  bgOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(9, 9, 102, 0.75)',
+  },
+  headerSection: {
+    height: '35%',
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 24,
+    paddingBottom: 30,
+    position: 'relative',
+    overflow: 'hidden',
   },
-  card: {
-    width: '100%',
-    maxWidth: 420,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 24,
-    paddingHorizontal: 24,
-    paddingVertical: 24,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 12 },
-    shadowOpacity: 0.08,
-    shadowRadius: 24,
-    elevation: 8,
+  bgCircle1: {
+    position: 'absolute',
+    top: -50,
+    left: -50,
+    width: 200,
+    height: 200,
+    borderRadius: 100,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
   },
-  title: {
-    fontSize: 22,
+  bgCircle2: {
+    position: 'absolute',
+    top: '20%',
+    right: -30,
+    width: 150,
+    height: 150,
+    borderRadius: 75,
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+  },
+  bgRect: {
+    position: 'absolute',
+    bottom: 20,
+    left: '10%',
+    width: 80,
+    height: 80,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderRadius: 12,
+  },
+  headerContent: {
+    position: 'absolute',
+    left: 22,
+    right: 22,
+    bottom: 26,
+  },
+  headerEyebrow: {
+    color: 'rgba(255, 255, 255, 0.86)',
+    fontSize: 12,
     fontWeight: '700',
-    color: '#111827',
-    marginBottom: 8,
-  },
-  subtitle: {
-    fontSize: 13,
-    color: '#6B7280',
-    marginBottom: 20,
-  },
-  fieldGroup: {
-    marginBottom: 16,
-  },
-  label: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#4B5563',
+    letterSpacing: 1.2,
+    textTransform: 'uppercase',
     marginBottom: 6,
   },
-  inputWrapper: {
+  headerHeadline: {
+    color: '#FFFFFF',
+    fontSize: 28,
+    fontWeight: '900',
+    letterSpacing: -0.4,
+    marginBottom: 6,
+  },
+  headerSubtext: {
+    color: 'rgba(255, 255, 255, 0.9)',
+    fontSize: 14,
+    lineHeight: 20,
+    maxWidth: 340,
+  },
+  bottomSheet: {
+    flex: 1,
+    backgroundColor: 'transparent',
+  },
+  contentContainer: {
+    flex: 1,
+  },
+  scrollContent: {
+    paddingHorizontal: 18,
+    paddingTop: 18,
+    paddingBottom: 24,
+  },
+  card: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 22,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.18)',
+    shadowColor: '#000',
+    shadowOpacity: 0.08,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 6,
+  },
+  cardTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 14,
+  },
+  cardIconWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(9, 9, 102, 0.08)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  cardTitle: {
+    fontSize: 18,
+    fontWeight: '900',
+    color: '#090966',
+    letterSpacing: -0.2,
+  },
+  cardHint: {
+    marginTop: 2,
+    fontSize: 13,
+    lineHeight: 18,
+    color: '#6B7280',
+  },
+  fieldGroup: {
+    marginBottom: 18,
+  },
+  inputLabel: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#090966',
+    letterSpacing: 0.3,
+    marginBottom: 8,
+  },
+  inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#F9FAFB',
     borderRadius: 16,
     borderWidth: 1,
     borderColor: '#E5E7EB',
-    paddingHorizontal: 14,
+    paddingHorizontal: 16,
+    height: 56,
+  },
+  inputFocused: {
+    borderColor: '#090966',
+    backgroundColor: '#fff',
+  },
+  inputError: {
+    borderColor: '#EF4444',
+  },
+  errorText: {
+    color: '#EF4444',
+    fontSize: 12,
+    marginTop: 4,
+    marginLeft: 4,
+    fontWeight: '500',
   },
   inputIcon: {
-    fontSize: 16,
-    marginRight: 8,
-    color: '#9CA3AF',
+    marginRight: 14,
   },
   input: {
     flex: 1,
-    paddingVertical: 14,
-    fontSize: 14,
-    color: '#111827',
-  },
-  primaryButton: {
-    marginTop: 8,
-    backgroundColor: '#11126F',
-    borderRadius: 18,
-    paddingVertical: 14,
-    alignItems: 'center',
-  },
-  primaryButtonText: {
-    color: '#FFFFFF',
+    height: '100%',
     fontSize: 15,
-    fontWeight: '700',
-  },
-  secondaryButton: {
-    marginTop: 12,
-    alignItems: 'center',
-  },
-  secondaryButtonText: {
-    fontSize: 13,
-    color: '#4B5563',
+    color: '#090966',
     fontWeight: '500',
+  },
+  whiteButton: {
+    borderWidth: 1,
+    borderColor: 'rgba(9, 9, 102, 0.14)',
+    shadowColor: '#000',
+    shadowOpacity: 0.06,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 4,
+  },
+  footerRow: {
+    marginTop: 14,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 8,
+  },
+  footerText: {
+    fontSize: 14,
+    color: '#6B7280',
+    fontWeight: '500',
+  },
+  footerLink: {
+    fontSize: 14,
+    color: '#090966',
+    fontWeight: '900',
+    marginLeft: 4,
   },
 });
