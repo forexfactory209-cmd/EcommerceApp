@@ -3,7 +3,7 @@ import { View, Text, ScrollView, TouchableOpacity, TextInput, FlatList, StyleShe
 import { Image } from 'expo-image';
 import { FlashList } from '@shopify/flash-list';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Search, ShoppingBag, Heart, Bell, Star, Mic, Menu } from 'lucide-react-native';
+import { Search, ShoppingBag, Heart, Bell, Star, Mic, Menu, Package, Truck, CheckCircle, Clock } from 'lucide-react-native';
 import { useStore } from '../store/store';
 import { fetchManyProductRatingSummaries } from '../services/ratings';
 import { fetchApprovedBrandsFromSupabase } from '../services/brands';
@@ -29,6 +29,7 @@ const HomeScreen = ({ navigation }) => {
   const authUserId = useStore((state) => state.authUserId);
   const deletedProductIds = useStore((state) => state.deletedProductIds || []);
   const cartCount = useStore((state) => state.cart.length || 0);
+  const orders = useStore((state) => state.orders || []); // still available for legacy flows
   const setBrandLogoUrl = useStore((state) => state.setBrandLogoUrl);
   const loadFollowedBrands = useStore((state) => state.loadFollowedBrands);
   const setProducts = useStore((state) => state.setProducts);
@@ -49,6 +50,14 @@ const HomeScreen = ({ navigation }) => {
   const categorySlide = useRef(new Animated.Value(0)).current; // 0 = hidden, 1 = visible
   const productsLoadedAtRef = useRef(null);
   const brandsLoadedAtRef = useRef(null);
+  const [brandOrderStats, setBrandOrderStats] = useState({
+    todaysOrders: 0,
+    pending: 0,
+    newOrders: 0,
+    packing: 0,
+    shipped: 0,
+    completed: 0,
+  });
 
   const loadProducts = useCallback(async ({ reset = false } = {}) => {
     try {
@@ -179,6 +188,93 @@ const HomeScreen = ({ navigation }) => {
     // Reload unread notifications when auth user changes
     loadUnreadNotifications();
   }, [authUserId, loadUnreadNotifications]);
+
+  useEffect(() => {
+    const isBrand = userType === 'brand' || authRole === 'brand';
+    if (!isBrand || !authUserId) return;
+
+    let cancelled = false;
+
+    const loadBrandOrdersFromSupabase = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('orders')
+          .select('id,placed_at,brand_user_id,brand_accepted_at,on_the_way_at,delivered_at')
+          .eq('brand_user_id', authUserId);
+
+        if (error) {
+          console.warn('Failed to load brand orders from Supabase', error.message || error);
+          return;
+        }
+
+        const rows = Array.isArray(data) ? data : [];
+        if (rows.length === 0) {
+          console.warn('[BrandDashboard] No orders found for brand_user_id', authUserId);
+        }
+        const todayStr = new Date().toDateString();
+
+        let todaysOrders = 0;
+        let newOrders = 0;
+        let pending = 0;
+        let packing = 0;
+        let shipped = 0;
+        let completed = 0;
+
+        rows.forEach((o) => {
+          const placedAt = o.placed_at ? new Date(o.placed_at) : null;
+          const brandAcceptedAt = o.brand_accepted_at ? new Date(o.brand_accepted_at) : null;
+          const onTheWayAt = o.on_the_way_at ? new Date(o.on_the_way_at) : null;
+          const deliveredAt = o.delivered_at ? new Date(o.delivered_at) : null;
+
+          if (placedAt && placedAt.toDateString() === todayStr) {
+            todaysOrders += 1;
+          }
+
+          if (!brandAcceptedAt && !onTheWayAt && !deliveredAt) {
+            // created but not accepted yet
+            newOrders += 1;
+            pending += 1;
+            return;
+          }
+
+          if (brandAcceptedAt && !onTheWayAt && !deliveredAt) {
+            // accepted / preparing
+            packing += 1;
+            return;
+          }
+
+          if (onTheWayAt && !deliveredAt) {
+            // out for delivery
+            shipped += 1;
+            return;
+          }
+
+          if (deliveredAt) {
+            completed += 1;
+          }
+        });
+
+        if (!cancelled) {
+          setBrandOrderStats({
+            todaysOrders,
+            pending,
+            newOrders,
+            packing,
+            shipped,
+            completed,
+          });
+        }
+      } catch (e) {
+        console.warn('Error loading brand orders from Supabase', e.message || e);
+      }
+    };
+
+    loadBrandOrdersFromSupabase();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [userType, authRole, authUserId]);
 
   useEffect(() => {
     Animated.timing(categorySlide, {
@@ -542,35 +638,10 @@ const HomeScreen = ({ navigation }) => {
                 )}
               </View>
             </TouchableOpacity>
-            {/* <TouchableOpacity
-              style={styles.roundIconButton}
-              onPress={() => navigation.navigate('Cart')}
-              activeOpacity={0.85}
-            >
-              <View>
-                <ShoppingBag color="#111827" size={20} />
-                {cartCount > 0 && (
-                  <View style={styles.topCartBadge}>
-                    <Text style={styles.topCartBadgeText}>
-                      {cartCount > 9 ? '9+' : cartCount}
-                    </Text>
-                  </View>
-                )}
-              </View>
-            </TouchableOpacity> */}
+            
           </View>
         </View>
 
-        {/* <View style={styles.headerRow}>
-          <View>
-            <Text style={styles.helloTitle}>
-              {userName ? `Hi, ${userName}` : 'Discover style'}
-            </Text>
-            <Text style={styles.helloSubtitle}>
-              Shop the latest drops and trending picks
-            </Text>
-          </View>
-        </View> */}
 
         <View style={styles.searchCard}>
           <View style={styles.searchModeRow}>
@@ -906,10 +977,188 @@ const HomeScreen = ({ navigation }) => {
     ],
   );
 
+  const isBrandUser = userType === 'brand' || authRole === 'brand';
+
+  if (isBrandUser) {
+    const brand = (brands || []).find((b) => b.user_id === authUserId) || null;
+    const {
+      todaysOrders,
+      pending: pendingOrdersCount,
+      newOrders: newOrdersCount,
+      packing: packingOrdersCount,
+      shipped: shippedOrdersCount,
+      completed: completedOrdersCount,
+    } = brandOrderStats;
+
+    return (
+      <SafeAreaView style={styles.container} edges={['top', 'right', 'bottom', 'left']}>
+        <ScrollView
+          style={styles.brandHomeScroll}
+          contentContainerStyle={styles.brandHomeContent}
+          showsVerticalScrollIndicator={false}
+        >
+          {/* Brand header */}
+          <View style={styles.brandHeaderCard}>
+            <View style={styles.brandHeaderRow}>
+              <View style={styles.brandAvatarWrapper}>
+                {brandLogoUrl || brand?.logo_url ? (
+                  <Image
+                    source={{ uri: brandLogoUrl || brand?.logo_url || '' }}
+                    style={styles.brandAvatar}
+                    contentFit="cover"
+                  />
+                ) : (
+                  <Text style={styles.brandAvatarInitial}>
+                    {(brand?.name || 'Store').charAt(0).toUpperCase()}
+                  </Text>
+                )}
+              </View>
+              <View style={styles.brandHeaderTextCol}>
+                <Text style={styles.brandHeaderName}>{brand?.name || 'Your Store'}</Text>
+                <View style={styles.brandStatusRow}>
+                  <View style={styles.brandStatusDot} />
+                  <Text style={styles.brandStatusText}>Online Store</Text>
+                </View>
+              </View>
+              <TouchableOpacity
+                onPress={() => navigation.navigate('Notifications')}
+                style={styles.brandHeaderBell}
+              >
+                <Bell color="#111827" size={20} />
+                {unreadNotifications > 0 && (
+                  <View style={styles.notificationBadge}>
+                    <Text style={styles.notificationBadgeText}>
+                      {unreadNotifications > 9 ? '9+' : unreadNotifications}
+                    </Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+            </View>
+            <View style={styles.brandHeaderButtonsRow}>
+              <TouchableOpacity style={styles.brandStatusButtonPrimary} activeOpacity={0.9}>
+                <Text style={styles.brandStatusButtonPrimaryText}>Open for Business</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.brandStatusButtonSecondary} activeOpacity={0.9}>
+                <Text style={styles.brandStatusButtonSecondaryText}>Store Closed</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          {/* Overview */}
+          <View style={styles.brandSectionHeaderRow}>
+            <Text style={styles.brandSectionTitle}>Overview</Text>
+            <Text style={styles.brandSectionSubtitle}>Last 24 hours</Text>
+          </View>
+
+          <View style={styles.brandOverviewRow}>
+            <View style={styles.brandOverviewCardPrimary}>
+              <View style={styles.brandOverviewIconCircle}>
+                <ShoppingBag color="#ffffff" size={22} />
+              </View>
+              <Text style={styles.brandOverviewLabel}>Today's Orders</Text>
+              <Text style={styles.brandOverviewValue}>{todaysOrders}</Text>
+            </View>
+
+            <View style={styles.brandOverviewCardSecondary}>
+              <View style={styles.brandOverviewBadgeRow}>
+                <Text style={styles.brandOverviewBadgeText}>Action</Text>
+              </View>
+              <Text style={styles.brandOverviewSecondaryLabel}>Pending Orders</Text>
+              <Text style={styles.brandOverviewSecondaryValue}>{pendingOrdersCount}</Text>
+            </View>
+          </View>
+
+          {/* Inventory alert */}
+          <View style={styles.brandAlertCard}>
+            <Text style={styles.brandAlertTitle}>Inventory Alert</Text>
+            <Text style={styles.brandAlertText}>
+              Some items may be out of stock. Customers cannot purchase them.
+            </Text>
+            <TouchableOpacity
+              style={styles.brandAlertButton}
+              onPress={() => navigation.navigate('OutOfStockProducts')}
+            >
+              <Text style={styles.brandAlertButtonText}>Restock Now</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Order status grid */}
+          <Text style={styles.brandSectionTitle}>Order Status</Text>
+          <View style={styles.brandStatusGrid}>
+            <View style={styles.brandStatusCardLive}>
+              <View style={styles.brandStatusCardHeaderRow}>
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                  <Package color="#111827" size={16} />
+                  <Text style={[styles.brandStatusCardLabel, { marginLeft: 6 }]}>New Orders</Text>
+                </View>
+                <View style={styles.brandLiveBadge}>
+                  <Text style={styles.brandLiveBadgeText}>Live</Text>
+                </View>
+              </View>
+              <Text style={styles.brandStatusCardValue}>{newOrdersCount}</Text>
+            </View>
+
+            <View style={styles.brandStatusCard}>
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <Clock color="#111827" size={16} />
+                <Text style={[styles.brandStatusCardLabel, { marginLeft: 6 }]}>Packing</Text>
+              </View>
+              <Text style={styles.brandStatusCardValue}>{packingOrdersCount}</Text>
+            </View>
+
+            <View style={styles.brandStatusCard}>
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <Truck color="#111827" size={16} />
+                <Text style={[styles.brandStatusCardLabel, { marginLeft: 6 }]}>Shipped</Text>
+              </View>
+              <Text style={styles.brandStatusCardValue}>{shippedOrdersCount}</Text>
+            </View>
+
+            <View style={styles.brandStatusCard}>
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <CheckCircle color="#111827" size={16} />
+                <Text style={[styles.brandStatusCardLabel, { marginLeft: 6 }]}>Completed</Text>
+              </View>
+              <Text style={styles.brandStatusCardValue}>{completedOrdersCount}</Text>
+            </View>
+          </View>
+
+          {/* Quick actions */}
+          <Text style={styles.brandSectionTitle}>Quick Actions</Text>
+          <TouchableOpacity
+            style={styles.brandPrimaryActionButton}
+            onPress={() => navigation.navigate('AddProduct')}
+            activeOpacity={0.9}
+          >
+            <Text style={styles.brandPrimaryActionIcon}>＋</Text>
+            <Text style={styles.brandPrimaryActionText}>Add Product</Text>
+          </TouchableOpacity>
+
+          <View style={styles.brandQuickActionsRow}>
+            <TouchableOpacity
+              style={styles.brandSecondaryActionButton}
+              onPress={() => navigation.navigate('VendorOrders')}
+              activeOpacity={0.9}
+            >
+              <Text style={styles.brandSecondaryActionText}>View Orders</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.brandSecondaryActionButton}
+              onPress={() => navigation.navigate('Vendor')}
+              activeOpacity={0.9}
+            >
+              <Text style={styles.brandSecondaryActionText}>Request Payout</Text>
+            </TouchableOpacity>
+          </View>
+        </ScrollView>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.container} edges={['top', 'right', 'bottom', 'left']}>
       <FlashList
-        data={userType !== 'brand' && authRole !== 'brand' ? filteredProducts : []}
+        data={filteredProducts}
         keyExtractor={(item) => item.id.toString()}
         renderItem={renderProductItem}
         numColumns={2}
@@ -1659,5 +1908,302 @@ const styles = StyleSheet.create({
   },
   trendingDotActive: {
     backgroundColor: '#7C3AED',
+  },
+  brandHomeScroll: {
+    flex: 1,
+  },
+  brandHomeContent: {
+    paddingHorizontal: 16,
+    paddingBottom: 24,
+    paddingTop: 12,
+    backgroundColor: '#F3F4F6',
+  },
+  brandHeaderCard: {
+    backgroundColor: '#ffffff',
+    borderRadius: 24,
+    padding: 16,
+    marginBottom: 18,
+    shadowColor: '#000',
+    shadowOpacity: 0.05,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 3,
+  },
+  brandHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  brandAvatarWrapper: {
+    width: 52,
+    height: 52,
+    borderRadius: 18,
+    backgroundColor: '#EEF2FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  brandAvatar: {
+    width: 46,
+    height: 46,
+    borderRadius: 16,
+  },
+  brandAvatarInitial: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#111827',
+  },
+  brandHeaderTextCol: {
+    flex: 1,
+  },
+  brandHeaderName: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#111827',
+  },
+  brandStatusRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 4,
+  },
+  brandStatusDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 999,
+    backgroundColor: '#22C55E',
+    marginRight: 6,
+  },
+  brandStatusText: {
+    fontSize: 12,
+    color: '#6B7280',
+  },
+  brandHeaderBell: {
+    width: 40,
+    height: 40,
+    borderRadius: 999,
+    backgroundColor: '#EEF2FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  brandHeaderButtonsRow: {
+    flexDirection: 'row',
+    marginTop: 14,
+    gap: 8,
+  },
+  brandStatusButtonPrimary: {
+    flex: 1,
+    backgroundColor: '#090966',
+    borderRadius: 999,
+    paddingVertical: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  brandStatusButtonPrimaryText: {
+    color: '#ffffff',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  brandStatusButtonSecondary: {
+    flex: 1,
+    backgroundColor: '#F3F4F6',
+    borderRadius: 999,
+    paddingVertical: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  brandStatusButtonSecondaryText: {
+    color: '#6B7280',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  brandSectionHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+    marginTop: 8,
+  },
+  brandSectionTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#111827',
+    marginBottom: 10,
+  },
+  brandSectionSubtitle: {
+    fontSize: 12,
+    color: '#9CA3AF',
+  },
+  brandOverviewRow: {
+    flexDirection: 'row',
+    marginBottom: 18,
+    gap: 12,
+  },
+  brandOverviewCardPrimary: {
+    flex: 1,
+    backgroundColor: '#090966',
+    borderRadius: 20,
+    padding: 16,
+  },
+  brandOverviewIconCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 14,
+    backgroundColor: '#000',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
+  },
+  brandOverviewLabel: {
+    color: '#E5E7EB',
+    fontSize: 13,
+    marginBottom: 6,
+  },
+  brandOverviewValue: {
+    color: '#ffffff',
+    fontSize: 24,
+    fontWeight: '800',
+  },
+  brandOverviewCardSecondary: {
+    flex: 1,
+    backgroundColor: '#FEF2F2',
+    borderRadius: 20,
+    padding: 16,
+  },
+  brandOverviewBadgeRow: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    marginBottom: 8,
+  },
+  brandOverviewBadgeText: {
+    fontSize: 9,
+    textTransform: 'uppercase',
+    fontWeight: '700',
+    color: '#fff',
+    backgroundColor: '#090966',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 999,
+  },
+  brandOverviewSecondaryLabel: {
+    color: '#090966',
+    fontSize: 13,
+    marginBottom: 6,
+  },
+  brandOverviewSecondaryValue: {
+    color: '#111827',
+    fontSize: 22,
+    fontWeight: '800',
+  },
+  brandAlertCard: {
+    backgroundColor: '#FEF3C7',
+    borderRadius: 20,
+    padding: 16,
+    marginBottom: 20,
+  },
+  brandAlertTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#090966',
+    marginBottom: 4,
+  },
+  brandAlertText: {
+    fontSize: 13,
+    color: '#090966',
+    marginBottom: 10,
+  },
+  brandAlertButton: {
+    alignSelf: 'flex-start',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 999,
+    backgroundColor: '#090966',
+  },
+  brandAlertButtonText: {
+    color: '#ffffff',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  brandStatusGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+    marginBottom: 20,
+  },
+  brandStatusCardLive: {
+    width: '48%',
+    backgroundColor: '#EEF2FF',
+    borderRadius: 18,
+    padding: 14,
+  },
+  brandStatusCard: {
+    width: '48%',
+    backgroundColor: '#ffffff',
+    borderRadius: 18,
+    padding: 14,
+  },
+  brandStatusCardHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  brandLiveBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 999,
+    backgroundColor: '#DCFCE7',
+  },
+  brandLiveBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#15803D',
+    textTransform: 'uppercase',
+  },
+  brandStatusCardLabel: {
+    fontSize: 13,
+    color: '#6B7280',
+  },
+  brandStatusCardValue: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: '#111827',
+  },
+  brandPrimaryActionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#090966',
+    borderRadius: 999,
+    paddingVertical: 14,
+    marginBottom: 14,
+  },
+  brandPrimaryActionIcon: {
+    color: '#ffffff',
+    fontSize: 18,
+    fontWeight: '800',
+    marginRight: 6,
+  },
+  brandPrimaryActionText: {
+    color: '#ffffff',
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  brandQuickActionsRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  brandSecondaryActionButton: {
+    flex: 1,
+    borderRadius: 999,
+    paddingVertical: 10,
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  brandSecondaryActionText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#111827',
   },
 });

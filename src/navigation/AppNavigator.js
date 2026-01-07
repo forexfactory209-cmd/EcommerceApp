@@ -14,6 +14,7 @@ import BillingScreen from '../screens/BillingScreen';
 import SuccessScreen from '../screens/SuccessScreen';
 import VendorScreen from '../screens/VendorScreen';
 import BrandAnalyticsScreen from '../screens/BrandAnalyticsScreen';
+import BrandOrdersScreen from '../screens/BrandOrdersScreen';
 import VendorOrdersScreen from '../screens/VendorOrdersScreen';
 import FlashSaleScreen from '../screens/FlashSaleScreen';
 import EditFlashSaleScreen from '../screens/EditFlashSaleScreen';
@@ -42,6 +43,7 @@ import AllBrandCategoriesScreen from '../screens/AllBrandCategoriesScreen';
 import FollowedStoresScreen from '../screens/FollowedStoresScreen';
 import HelpFAQScreen from '../screens/HelpFAQScreen';
 import ReportProblemScreen from '../screens/ReportProblemScreen';
+import OutOfStockProductsScreen from '../screens/OutOfStockProductsScreen';
 import ContactSupportScreen from '../screens/ContactSupportScreen';
 import SupportCallScreen from '../screens/SupportCallScreen';
 import SupportEmailScreen from '../screens/SupportEmailScreen';
@@ -114,6 +116,15 @@ const TabNavigator = () => {
           tabBarIcon: ({ color }) => <Home color={color} size={24} />
         }}
       />
+      {userType === 'brand' && authRole !== 'admin' && (
+        <Tab.Screen
+          name="BrandOrders"
+          component={BrandOrdersScreen}
+          options={{
+            tabBarIcon: ({ color }) => <ShoppingBag color={color} size={24} />,
+          }}
+        />
+      )}
       {userType !== 'brand' && authRole !== 'admin' && (
         <Tab.Screen
           name="FlashSaleTab"
@@ -279,6 +290,7 @@ const RootStackNavigator = () => {
         <Stack.Screen name="SupportEmail" component={SupportEmailScreen} />
         <Stack.Screen name="TermsConditions" component={TermsConditionsScreen} />
         <Stack.Screen name="PrivacyPolicy" component={PrivacyPolicyScreen} />
+        <Stack.Screen name="OutOfStockProducts" component={OutOfStockProductsScreen} />
       </Stack.Navigator>
   );
 };
