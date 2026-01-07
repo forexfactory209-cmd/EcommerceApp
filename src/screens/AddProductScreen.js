@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet, Image, Alert } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet, Image, Alert, KeyboardAvoidingView, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { X } from 'lucide-react-native';
 import { useStore } from '../store/store';
@@ -23,9 +23,9 @@ const AddProductScreen = ({ navigation }) => {
     sizesInput: '',
     // Legacy freeform delivery textarea (still parsed for backwards compatibility)
     deliveryInput: '',
-    // New structured delivery inputs: multiple rows
+    // New structured delivery inputs: multiple rows (type + time only)
     deliveryRows: [
-      { id: 'row_0', label: '', eta: '', price: '' },
+      { id: 'row_0', label: '', eta: '' },
     ],
     category: 'shoes',
     audience: 'all',
@@ -67,7 +67,7 @@ const AddProductScreen = ({ navigation }) => {
       ...prev,
       deliveryRows: [
         ...prev.deliveryRows,
-        { id: `row_${Date.now()}`, label: '', eta: '', price: '' },
+        { id: `row_${Date.now()}`, label: '', eta: '' },
       ],
     }));
   };
@@ -222,17 +222,13 @@ const AddProductScreen = ({ navigation }) => {
         .map((row, index) => {
           const label = (row.label || '').trim();
           const eta = (row.eta || '').trim();
-          const priceText = (row.price || '').trim();
 
-          if (!label && !eta && !priceText) return null;
-
-          const price = priceText !== '' ? parseFloat(priceText) || 0 : null;
+          if (!label && !eta) return null;
 
           return {
             id: `opt_${index}_${label.toLowerCase().replace(/\s+/g, '_') || 'delivery'}`,
             label,
             eta: eta || null,
-            price,
           };
         })
         .filter(Boolean);
@@ -382,239 +378,245 @@ const AddProductScreen = ({ navigation }) => {
         <Text style={styles.headerTitle}>Add New Product</Text>
       </View>
 
-      <ScrollView style={styles.form}>
-        <Text style={styles.label}>Product Name</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="e.g. Nike Air Jordan"
-          value={form.name}
-          onChangeText={(t) => handleChange('name', t)}
-        />
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={Platform.select({ ios: 60, android: 0, default: 0 })}
+      >
+        <ScrollView style={styles.form} keyboardShouldPersistTaps="handled">
+          <Text style={styles.label}>Product Name</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="e.g. Nike Air Jordan"
+            value={form.name}
+            onChangeText={(t) => handleChange('name', t)}
+          />
 
-        <Text style={styles.label}>Price ($)</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="99.99"
-          keyboardType="numeric"
-          value={form.price}
-          onChangeText={(t) => handleChange('price', t)}
-        />
+          <Text style={styles.label}>Price ($)</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="99.99"
+            keyboardType="numeric"
+            value={form.price}
+            onChangeText={(t) => handleChange('price', t)}
+          />
 
-        <Text style={styles.label}>Quantity in stock</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="e.g. 10"
-          keyboardType="numeric"
-          value={form.quantity}
-          onChangeText={(t) => handleChange('quantity', t)}
-        />
+          <Text style={styles.label}>Quantity in stock</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="e.g. 10"
+            keyboardType="numeric"
+            value={form.quantity}
+            onChangeText={(t) => handleChange('quantity', t)}
+          />
 
-        <Text style={styles.label}>Brand</Text>
-        <View style={[styles.input, { justifyContent: 'center' }]}>
-          <Text style={{ color: form.brand ? '#111827' : '#9CA3AF' }}>
-            {form.brand || (brandLoading ? 'Loading brand…' : 'Your approved brand name')}
-          </Text>
-        </View>
-
-        <Text style={styles.label}>Category</Text>
-        <View style={styles.chipRow}>
-          {[
-            { id: 'clothes', label: 'Clothes' },
-            { id: 'shoes', label: 'Shoes' },
-            { id: 'coats', label: 'Coats' },
-            { id: 'phones', label: 'Phones' },
-            { id: 'laptops', label: 'Laptops' },
-            { id: 'bags', label: 'Bags' },
-          ].map((cat) => {
-            const active = form.category === cat.id;
-            return (
-              <TouchableOpacity
-                key={cat.id}
-                style={[styles.categoryChip, active && styles.categoryChipActive]}
-                onPress={() => handleChange('category', cat.id)}
-              >
-                <Text
-                  style={[styles.categoryChipText, active && styles.categoryChipTextActive]}
-                >
-                  {cat.label}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </View>
-
-        <Text style={styles.label}>Audience</Text>
-        <View style={styles.chipRow}>
-          {[
-            { id: 'all', label: 'All' },
-            { id: 'men', label: 'Men' },
-            { id: 'women', label: 'Women' },
-            { id: 'kids', label: 'Kids' },
-          ].map((aud) => {
-            const active = form.audience === aud.id;
-            return (
-              <TouchableOpacity
-                key={aud.id}
-                style={[styles.audienceChip, active && styles.audienceChipActive]}
-                onPress={() => handleChange('audience', aud.id)}
-              >
-                <Text
-                  style={[styles.audienceChipText, active && styles.audienceChipTextActive]}
-                >
-                  {aud.label}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </View>
-
-        <Text style={styles.label}>Product Code</Text>
-        <View style={styles.codeRow}>
-          <View style={styles.codeValueWrapper}>
-            <Text style={styles.codeValue}>{form.code}</Text>
+          <Text style={styles.label}>Brand</Text>
+          <View style={[styles.input, { justifyContent: 'center' }]}>
+            <Text style={{ color: form.brand ? '#111827' : '#9CA3AF' }}>
+              {form.brand || (brandLoading ? 'Loading brand…' : 'Your approved brand name')}
+            </Text>
           </View>
-          <TouchableOpacity
-            style={styles.codeButton}
-            onPress={() => setForm((prev) => ({ ...prev, code: generateProductCode() }))}
-          >
-            <Text style={styles.codeButtonText}>Regenerate</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.codeCopyButton}
-            onPress={handleCopyCode}
-          >
-            <Text style={styles.codeCopyButtonText}>Copy</Text>
-          </TouchableOpacity>
-        </View>
 
-        <TouchableOpacity style={styles.imagePickerButton} onPress={handlePickImage}>
-          <Text style={styles.imagePickerText}>
-            {form.images && form.images.length > 0
-              ? 'Add another image from gallery'
-              : 'Add image from gallery'}
-          </Text>
-        </TouchableOpacity>
-
-        {form.image ? (
-          <View style={styles.imagePreviewWrapper}>
-            <Image source={{ uri: form.image }} style={styles.imagePreview} />
+          <Text style={styles.label}>Category</Text>
+          <View style={styles.chipRow}>
+            {[
+              { id: 'clothes', label: 'Clothes' },
+              { id: 'shoes', label: 'Shoes' },
+              { id: 'coats', label: 'Coats' },
+              { id: 'phones', label: 'Phones' },
+              { id: 'laptops', label: 'Laptops' },
+              { id: 'bags', label: 'Bags' },
+            ].map((cat) => {
+              const active = form.category === cat.id;
+              return (
+                <TouchableOpacity
+                  key={cat.id}
+                  style={[styles.categoryChip, active && styles.categoryChipActive]}
+                  onPress={() => handleChange('category', cat.id)}
+                >
+                  <Text
+                    style={[styles.categoryChipText, active && styles.categoryChipTextActive]}
+                  >
+                    {cat.label}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
           </View>
-        ) : null}
 
-        {form.images && form.images.length > 1 ? (
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            style={styles.extraImagesRow}
-          >
-            {form.images.map((uri, index) => (
-              <View key={`${uri}-${index}`} style={styles.extraImageWrapper}>
-                <Image
-                  source={{ uri }}
-                  style={styles.extraImage}
-                />
+          <Text style={styles.label}>Audience</Text>
+          <View style={styles.chipRow}>
+            {[
+              { id: 'all', label: 'All' },
+              { id: 'men', label: 'Men' },
+              { id: 'women', label: 'Women' },
+              { id: 'kids', label: 'Kids' },
+            ].map((aud) => {
+              const active = form.audience === aud.id;
+              return (
                 <TouchableOpacity
-                  style={styles.extraImageRemoveBadge}
-                  onPress={() => handleRemoveImage(uri)}
+                  key={aud.id}
+                  style={[styles.audienceChip, active && styles.audienceChipActive]}
+                  onPress={() => handleChange('audience', aud.id)}
                 >
-                  <Text style={styles.extraImageRemoveText}>×</Text>
+                  <Text
+                    style={[styles.audienceChipText, active && styles.audienceChipTextActive]}
+                  >
+                    {aud.label}
+                  </Text>
                 </TouchableOpacity>
-              </View>
-            ))}
-          </ScrollView>
-        ) : null}
+              );
+            })}
+          </View>
 
-        <Text style={styles.label}>Colors (comma separated)</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="Red, Black, White"
-          value={form.colorsInput}
-          onChangeText={(t) => handleChange('colorsInput', t)}
-        />
-
-        <Text style={styles.label}>Sizes (comma separated)</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="40, 41, 42"
-          value={form.sizesInput}
-          onChangeText={(t) => handleChange('sizesInput', t)}
-        />
-
-        <Text style={styles.label}>Delivery options</Text>
-        {form.deliveryRows.map((row, index) => (
-          <View key={row.id} style={{ marginBottom: 8 }}>
-            <TextInput
-              style={styles.input}
-              placeholder={index === 0 ? 'e.g. Standard Delivery' : 'e.g. Express Delivery'}
-              value={row.label}
-              onChangeText={(t) => handleDeliveryRowChange(row.id, 'label', t)}
-            />
-            <TextInput
-              style={styles.input}
-              placeholder="e.g. 1–2 days"
-              value={row.eta}
-              onChangeText={(t) => handleDeliveryRowChange(row.id, 'eta', t)}
-            />
-            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-              <View style={{ flex: 1 }}>
-                <TextInput
-                  style={styles.input}
-                  placeholder="e.g. 4.99 (leave empty for free)"
-                  keyboardType="numeric"
-                  value={row.price}
-                  onChangeText={(t) => handleDeliveryRowChange(row.id, 'price', t)}
-                />
-              </View>
-              {form.deliveryRows.length > 1 && (
-                <TouchableOpacity
-                  style={{ marginLeft: 8, paddingHorizontal: 8, paddingVertical: 6, borderRadius: 999, backgroundColor: '#fee2e2' }}
-                  onPress={() => handleRemoveDeliveryRow(row.id)}
-                >
-                  <Text style={{ color: '#b91c1c', fontWeight: '600', fontSize: 12 }}>Remove</Text>
-                </TouchableOpacity>
-              )}
+          <Text style={styles.label}>Product Code</Text>
+          <View style={styles.codeRow}>
+            <View style={styles.codeValueWrapper}>
+              <Text style={styles.codeValue}>{form.code}</Text>
             </View>
+            <TouchableOpacity
+              style={styles.codeButton}
+              onPress={() => setForm((prev) => ({ ...prev, code: generateProductCode() }))}
+            >
+              <Text style={styles.codeButtonText}>Regenerate</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.codeCopyButton}
+              onPress={handleCopyCode}
+            >
+              <Text style={styles.codeCopyButtonText}>Copy</Text>
+            </TouchableOpacity>
           </View>
-        ))}
-        <TouchableOpacity
-          style={{
-            alignSelf: 'flex-start',
-            paddingHorizontal: 12,
-            paddingVertical: 8,
-            borderRadius: 999,
-            borderWidth: 1,
-            borderColor: '#e5e7eb',
-            marginBottom: 8,
-          }}
-          onPress={handleAddDeliveryRow}
-        >
-          <Text style={{ fontSize: 12, fontWeight: '600', color: '#2563EB' }}>+ Add delivery option</Text>
-        </TouchableOpacity>
 
-        <Text style={styles.label}>Description</Text>
-        <TextInput
-          style={[styles.input, styles.textArea]}
-          multiline
-          placeholder="Product details..."
-          textAlignVertical="top"
-          value={form.description}
-          onChangeText={(t) => handleChange('description', t)}
-        />
+          <TouchableOpacity style={styles.imagePickerButton} onPress={handlePickImage}>
+            <Text style={styles.imagePickerText}>
+              {form.images && form.images.length > 0
+                ? 'Add another image from gallery'
+                : 'Add image from gallery'}
+            </Text>
+          </TouchableOpacity>
 
-        <TouchableOpacity
-          style={styles.aiButton}
-          onPress={handleGenerateDescription}
-          disabled={generatingDescription}
-        >
-          <Text style={styles.aiButtonText}>
-            {generatingDescription ? 'Generating description…' : 'Generate Description with AI'}
-          </Text>
-        </TouchableOpacity>
+          {form.image ? (
+            <View style={styles.imagePreviewWrapper}>
+              <Image source={{ uri: form.image }} style={styles.imagePreview} />
+            </View>
+          ) : null}
 
-        <TouchableOpacity style={styles.submitButton} onPress={handleSubmit} disabled={submitting}>
-          <Text style={styles.submitText}>{submitting ? 'Publishing...' : 'Publish Product'}</Text>
-        </TouchableOpacity>
-      </ScrollView>
+          {form.images && form.images.length > 1 ? (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              style={styles.extraImagesRow}
+            >
+              {form.images.map((uri, index) => (
+                <View key={`${uri}-${index}`} style={styles.extraImageWrapper}>
+                  <Image
+                    source={{ uri }}
+                    style={styles.extraImage}
+                  />
+                  <TouchableOpacity
+                    style={styles.extraImageRemoveBadge}
+                    onPress={() => handleRemoveImage(uri)}
+                  >
+                    <Text style={styles.extraImageRemoveText}>×</Text>
+                  </TouchableOpacity>
+                </View>
+              ))}
+            </ScrollView>
+          ) : null}
+
+          <Text style={styles.label}>Colors (comma separated)</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="Red, Black, White"
+            value={form.colorsInput}
+            onChangeText={(t) => handleChange('colorsInput', t)}
+          />
+
+          <Text style={styles.label}>Sizes (comma separated)</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="40, 41, 42"
+            value={form.sizesInput}
+            onChangeText={(t) => handleChange('sizesInput', t)}
+          />
+
+          <Text style={styles.label}>Delivery options</Text>
+          {form.deliveryRows.map((row, index) => (
+            <View key={row.id} style={{ marginBottom: 8 }}>
+              <TextInput
+                style={styles.input}
+                placeholder={index === 0 ? 'e.g. Standard Delivery' : 'e.g. Express Delivery'}
+                value={row.label}
+                onChangeText={(t) => handleDeliveryRowChange(row.id, 'label', t)}
+              />
+              <TextInput
+                style={styles.input}
+                placeholder="e.g. 1–2 days"
+                value={row.eta}
+                onChangeText={(t) => handleDeliveryRowChange(row.id, 'eta', t)}
+              />
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <View style={{ flex: 1 }}>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="e.g. 4.99 (leave empty for free)"
+                    keyboardType="numeric"
+                    value={row.price}
+                    onChangeText={(t) => handleDeliveryRowChange(row.id, 'price', t)}
+                  />
+                </View>
+                {form.deliveryRows.length > 1 && (
+                  <TouchableOpacity
+                    style={{ marginLeft: 8, paddingHorizontal: 8, paddingVertical: 6, borderRadius: 999, backgroundColor: '#fee2e2' }}
+                    onPress={() => handleRemoveDeliveryRow(row.id)}
+                  >
+                    <Text style={{ color: '#b91c1c', fontWeight: '600', fontSize: 12 }}>Remove</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            </View>
+          ))}
+          <TouchableOpacity
+            style={{
+              alignSelf: 'flex-start',
+              paddingHorizontal: 12,
+              paddingVertical: 8,
+              borderRadius: 999,
+              borderWidth: 1,
+              borderColor: '#e5e7eb',
+              marginBottom: 8,
+            }}
+            onPress={handleAddDeliveryRow}
+          >
+            <Text style={{ fontSize: 12, fontWeight: '600', color: '#2563EB' }}>+ Add delivery option</Text>
+          </TouchableOpacity>
+
+          <Text style={styles.label}>Description</Text>
+          <TextInput
+            style={[styles.input, styles.textArea]}
+            multiline
+            placeholder="Product details..."
+            textAlignVertical="top"
+            value={form.description}
+            onChangeText={(t) => handleChange('description', t)}
+          />
+
+          <TouchableOpacity
+            style={styles.aiButton}
+            onPress={handleGenerateDescription}
+            disabled={generatingDescription}
+          >
+            <Text style={styles.aiButtonText}>
+              {generatingDescription ? 'Generating description…' : 'Generate Description with AI'}
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.submitButton} onPress={handleSubmit} disabled={submitting}>
+            <Text style={styles.submitText}>{submitting ? 'Publishing...' : 'Publish Product'}</Text>
+          </TouchableOpacity>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 };

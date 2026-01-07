@@ -38,35 +38,91 @@ const VendorOrdersScreen = ({ navigation, route }) => {
             setRemoteProducts(Array.isArray(prodByOwner) ? prodByOwner : []);
           }
 
-          // Load this brand's orders from Supabase and sync to store
+          // Load this brand's orders via order_items joined to orders so each brand
+          // sees only the items that belong to them, but shares the same order id.
           const { data: orderData, error: orderError } = await supabase
-            .from('orders')
-            .select('*')
+            .from('order_items')
+            .select(
+              `
+              id,
+              order_id,
+              product_id,
+              brand_user_id,
+              name,
+              quantity,
+              unit_price,
+              color,
+              size,
+              delivery_type,
+              image_url,
+              orders:orders (
+                id,
+                subtotal,
+                shipping,
+                total,
+                status,
+                placed_at,
+                payment_method,
+                delivery_address,
+                shipping_method,
+                promo_code,
+                customer_name,
+                customer_phone,
+                customer_secondary_phone
+              )
+            `,
+            )
             .eq('brand_user_id', authUserId)
-            .order('placed_at', { ascending: false });
+            .order('order_id', { ascending: false });
 
           if (orderError) {
             console.warn('VendorOrders: failed to load orders', orderError.message || orderError);
           } else if (isActive) {
-            const mapped = (orderData || []).map((row) => ({
-              id: row.id,
-              items: Array.isArray(row.items) ? row.items : [],
-              subtotal: Number(row.subtotal) || 0,
-              shipping: Number(row.shipping) || 0,
-              total: Number(row.total) || 0,
-              status: row.status || 'Pending',
-              date: row.placed_at
-                ? new Date(row.placed_at).toLocaleDateString()
-                : '',
-              brand_user_id: row.brand_user_id,
-              payment_method: row.payment_method || 'cash_on_delivery',
-              delivery_address: row.delivery_address || '',
-              shipping_method: row.shipping_method || null,
-              promo_code: row.promo_code || null,
-              customer_name: row.customer_name || null,
-              customer_phone: row.customer_phone || null,
-              customer_secondary_phone: row.customer_secondary_phone || null,
-            }));
+            // Group order_items rows by parent order id and build the same order
+            // shape the rest of the screen expects, but with items limited to
+            // this vendor's products only.
+            const byOrderId = (orderData || []).reduce((acc, row) => {
+              const o = row.orders;
+              if (!o) return acc;
+
+              const orderId = o.id;
+              if (!acc[orderId]) {
+                acc[orderId] = {
+                  id: orderId,
+                  items: [],
+                  subtotal: Number(o.subtotal) || 0,
+                  shipping: Number(o.shipping) || 0,
+                  total: Number(o.total) || 0,
+                  status: o.status || 'Pending',
+                  date: o.placed_at ? new Date(o.placed_at).toLocaleDateString() : '',
+                  // Keep brand_user_id so existing filters still work; for this
+                  // screen it will always be the logged-in brand.
+                  brand_user_id: authUserId,
+                  payment_method: o.payment_method || 'cash_on_delivery',
+                  delivery_address: o.delivery_address || '',
+                  shipping_method: o.shipping_method || null,
+                  promo_code: o.promo_code || null,
+                  customer_name: o.customer_name || null,
+                  customer_phone: o.customer_phone || null,
+                  customer_secondary_phone: o.customer_secondary_phone || null,
+                };
+              }
+
+              acc[orderId].items.push({
+                id: row.product_id || row.id,
+                name: row.name,
+                quantity: row.quantity,
+                price: row.unit_price,
+                color: row.color,
+                size: row.size,
+                delivery_type: row.delivery_type,
+                image: row.image_url,
+              });
+
+              return acc;
+            }, {});
+
+            const mapped = Object.values(byOrderId);
             setOrders(mapped);
           }
         } catch (e) {
@@ -116,8 +172,6 @@ const VendorOrdersScreen = ({ navigation, route }) => {
   const handleUpdateOrderStatus = async (orderId, newStatus, extraFields = {}) => {
     if (!orderId || !newStatus) return;
 
-    updateOrderStatus(orderId, newStatus);
-
     try {
       const { error } = await supabase
         .from('orders')
@@ -126,9 +180,16 @@ const VendorOrdersScreen = ({ navigation, route }) => {
 
       if (error) {
         console.warn('VendorOrders: failed to update order status:', error.message || error);
+        Alert.alert('Error', error.message || 'Could not update order status.');
+        return;
       }
+
+      // Only update local store after a successful Supabase write so
+      // the status persists correctly across refresh/logout.
+      updateOrderStatus(orderId, newStatus);
     } catch (e) {
       console.warn('VendorOrders: exception updating order status:', e.message || e);
+      Alert.alert('Error', 'Something went wrong while updating this order status.');
     }
   };
 
@@ -352,87 +413,51 @@ const VendorOrdersScreen = ({ navigation, route }) => {
                     </View>
                   </View>
 
-                  {(() => {
-                    if (rawStatus === 'pending' || rawStatus === 'pending ') {
-                      return (
-                        <View style={styles.statusActionsRow}>
-                          <TouchableOpacity
-                            onPress={() => handleUpdateOrderStatus(item.id, 'accepted')}
-                            style={styles.primaryStatusButton}
-                          >
-                            <Text style={styles.primaryStatusButtonText}>Accept order</Text>
-                          </TouchableOpacity>
-                          <TouchableOpacity
-                            onPress={() => {
-                              Alert.alert(
-                                'Decline order',
-                                'Select a reason for declining this order',
-                                [
-                                  {
-                                    text: 'Out of stock',
-                                    onPress: () =>
-                                      handleUpdateOrderStatus(item.id, 'declined', {
-                                        decline_reason: 'Out of stock',
-                                      }),
-                                  },
-                                  {
-                                    text: 'Cannot deliver to this area',
-                                    onPress: () =>
-                                      handleUpdateOrderStatus(item.id, 'declined', {
-                                        decline_reason: 'Cannot deliver to this area',
-                                      }),
-                                  },
-                                  {
-                                    text: 'Other',
-                                    onPress: () =>
-                                      handleUpdateOrderStatus(item.id, 'declined', {
-                                        decline_reason: 'Other',
-                                      }),
-                                  },
-                                  { text: 'Cancel', style: 'cancel' },
-                                ],
-                              );
-                            }}
-                            style={styles.secondaryStatusButton}
-                          >
-                            <Text style={styles.secondaryStatusButtonText}>Decline</Text>
-                          </TouchableOpacity>
-                        </View>
-                      );
-                    }
-
-                    if (rawStatus === 'accepted') {
-                      return (
-                        <TouchableOpacity
-                          onPress={() =>
-                            handleUpdateOrderStatus(item.id, 'on_the_way', {
-                              on_the_way_at: new Date().toISOString(),
-                            })
-                          }
-                          style={styles.primaryStatusButtonWide}
-                        >
-                          <Text style={styles.primaryStatusButtonText}>Start delivery</Text>
-                        </TouchableOpacity>
-                      );
-                    }
-
-                    if (rawStatus === 'on_the_way') {
-                      return (
-                        <TouchableOpacity
-                          onPress={() =>
-                            handleUpdateOrderStatus(item.id, 'delivered', {
-                              delivered_at: new Date().toISOString(),
-                            })
-                          }
-                          style={styles.primaryStatusButtonWide}
-                        >
-                          <Text style={styles.primaryStatusButtonText}>Mark delivered</Text>
-                        </TouchableOpacity>
-                      );
-                    }
-
-                    return null;
-                  })()}
+                  {rawStatus === 'pending' || rawStatus === 'pending ' ? (
+                    <View style={styles.statusActionsRow}>
+                      <TouchableOpacity
+                        onPress={() => handleUpdateOrderStatus(item.id, 'accepted')}
+                        style={styles.primaryStatusButton}
+                      >
+                        <Text style={styles.primaryStatusButtonText}>Accept order</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        onPress={() => {
+                          Alert.alert(
+                            'Decline order',
+                            'Select a reason for declining this order',
+                            [
+                              {
+                                text: 'Out of stock',
+                                onPress: () =>
+                                  handleUpdateOrderStatus(item.id, 'declined', {
+                                    decline_reason: 'Out of stock',
+                                  }),
+                              },
+                              {
+                                text: 'Cannot deliver to this area',
+                                onPress: () =>
+                                  handleUpdateOrderStatus(item.id, 'declined', {
+                                    decline_reason: 'Cannot deliver to this area',
+                                  }),
+                              },
+                              {
+                                text: 'Other',
+                                onPress: () =>
+                                  handleUpdateOrderStatus(item.id, 'declined', {
+                                    decline_reason: 'Other',
+                                  }),
+                              },
+                              { text: 'Cancel', style: 'cancel' },
+                            ],
+                          );
+                        }}
+                        style={styles.secondaryStatusButton}
+                      >
+                        <Text style={styles.secondaryStatusButtonText}>Decline</Text>
+                      </TouchableOpacity>
+                    </View>
+                  ) : null}
                 </View>
               </View>
             );

@@ -3,14 +3,13 @@ import { View, Text, StyleSheet, ActivityIndicator, TouchableOpacity } from 'rea
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useNavigation, useRoute } from '@react-navigation/native';
 import { supabase } from '../lib/supabase';
-import { useStore } from '../store/store';
 
 const COLORS = {
   background: '#FFFFFF',
   textPrimary: '#111827',
   textSecondary: '#6B7280',
   textMuted: '#9CA3AF',
-  primary: '#F973B6',
+  primary: '#090966',
   primarySoft: '#FDF2F8',
   divider: '#E5E7EB',
 };
@@ -29,12 +28,10 @@ const SimpleOrderTrackingScreen = () => {
   const route = useRoute();
   const navigation = useNavigation();
   const { orderId } = route.params || {};
-  const authUserId = useStore((state) => state.authUserId);
 
   const [order, setOrder] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [hasConfirmed, setHasConfirmed] = useState(false);
 
   const currentStepIndex = useMemo(
     () => mapOrderStatusToStepIndex(order?.status),
@@ -49,7 +46,7 @@ const SimpleOrderTrackingScreen = () => {
 
       const { data, error: dbError } = await supabase
         .from('orders')
-        .select('id, status, customer_confirmed, decline_reason, items, total, shipping_method, delivery_address')
+        .select('id, status, decline_reason, items, total, shipping_method, delivery_address')
         .eq('id', orderId)
         .maybeSingle();
 
@@ -71,7 +68,6 @@ const SimpleOrderTrackingScreen = () => {
         // derive a human-friendly code on the client since orders.code does not exist
         code: `ORD-${data.id}`,
         status: data.status || 'Pending',
-        customerConfirmed: !!data.customer_confirmed,
         declineReason: data.decline_reason || null,
         items: Array.isArray(data.items) ? data.items : [],
         total: typeof data.total === 'number' ? data.total : Number(data.total) || 0,
@@ -80,7 +76,6 @@ const SimpleOrderTrackingScreen = () => {
       };
 
       setOrder(mapped);
-      setHasConfirmed(mapped.customerConfirmed);
     } catch (e) {
       console.warn('SimpleOrderTracking: exception loading order', e.message || e);
       setError('Something went wrong while loading order.');
@@ -251,39 +246,15 @@ const SimpleOrderTrackingScreen = () => {
             Before confirmation: tappable primary button.
             After confirmation: static black "CONFIRMED" button without any action. */}
         {currentStepIndex === 2 && (
-          hasConfirmed ? (
-            <View style={styles.confirmedPill}>
-              <Text style={styles.confirmedPillText}>CONFIRMED</Text>
-            </View>
-          ) : (
-            <TouchableOpacity
-              style={styles.confirmButton}
-              onPress={async () => {
-                if (!orderId || !authUserId) return;
-
-                setHasConfirmed(true);
-
-                // Persist confirmation server-side so it stays confirmed across sessions
-                try {
-                  await supabase
-                    .from('orders')
-                    .update({
-                      customer_confirmed: true,
-                      status: 'customer_confirmed',
-                      customer_confirmed_at: new Date().toISOString(),
-                    })
-                    .eq('id', orderId)
-                    .eq('customer_user_id', authUserId);
-                } catch (e) {
-                  // Ignore update errors for now; UI already reflects confirmation
-                }
-
-                navigation.navigate('OrderDeliveredSuccess', { orderId });
-              }}
-            >
-              <Text style={styles.confirmButtonText}>CONFIRM DELIVERY</Text>
-            </TouchableOpacity>
-          )
+          <TouchableOpacity
+            style={styles.confirmButton}
+            onPress={() => {
+              if (!order?.id) return;
+              navigation.navigate('ReportProblem', { orderId: order.id });
+            }}
+          >
+            <Text style={styles.confirmButtonText}>REPORT A PROBLEM</Text>
+          </TouchableOpacity>
         )}
       </View>
     </SafeAreaView>

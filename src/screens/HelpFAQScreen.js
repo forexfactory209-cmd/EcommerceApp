@@ -166,7 +166,7 @@ const HelpFAQScreen = ({ navigation }) => {
           <TouchableOpacity
             style={styles.helpButton}
             activeOpacity={0.9}
-            onPress={() => navigation.navigate('ReportProblem')}
+            onPress={() => navigation.navigate('ContactSupport')}
           >
             <Text style={styles.helpButtonText}>Contact Support</Text>
           </TouchableOpacity>

@@ -1,6 +1,7 @@
 import React, { useState, useCallback, useMemo } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Alert, TextInput, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { ArrowLeft } from 'lucide-react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useStore } from '../store/store';
 import { fetchProductsFromSupabase } from '../services/products';
@@ -126,7 +127,7 @@ const CategoryProductsScreen = ({ navigation, route }) => {
     <SafeAreaView style={styles.container}>
       <View style={styles.headerRow}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-          <Text style={styles.backButtonIcon}>{'<'}</Text>
+          <ArrowLeft color="#090966" size={20} />
         </TouchableOpacity>
         <Text style={styles.title}>{categoryName || 'Products'}</Text>
       </View>
@@ -165,48 +166,36 @@ export default CategoryProductsScreen;
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#ffffff',
+    backgroundColor: '#F5F5FF',
     paddingHorizontal: 16,
     paddingTop: 16,
   },
   headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
     marginBottom: 12,
   },
   backButton: {
     width: 40,
     height: 40,
-    borderRadius: 7,
+    borderRadius: 999,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#ffffff',
-    shadowColor: '#000',
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 3 },
-    elevation: 3,
-  },
-  backButtonIcon: {
-    fontSize: 18,
-    color: '#111827',
-    fontWeight: '700',
+    backgroundColor: '#E0E7FF',
   },
   title: {
-    fontSize: 20,
+    fontSize: 23,
     fontWeight: '700',
-    color: '#111827',
-    flex: 1,
-    textAlign: 'center',
+    color: '#090966',
+    marginLeft: 14,
   },
   searchWrapper: {
     marginBottom: 25,
-    marginTop: 10,
-    backgroundColor: '#f3f4f6',
+    marginTop: 8,
+    backgroundColor: '#eff0f1ff',
     borderRadius: 999,
     paddingHorizontal: 16,
-    paddingVertical: 10,
+    paddingVertical: 16,
   },
   searchInput: {
     fontSize: 14,

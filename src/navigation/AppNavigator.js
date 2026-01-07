@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { NavigationContainer } from '@react-navigation/native';
+import { NavigationContainer, createNavigationContainerRef } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Home, ShoppingBag, User, Store, Heart, Zap, Tag } from 'lucide-react-native';
 import { View, Text, StyleSheet, Linking } from 'react-native';
@@ -13,6 +13,8 @@ import CartScreen from '../screens/CartScreen';
 import BillingScreen from '../screens/BillingScreen';
 import SuccessScreen from '../screens/SuccessScreen';
 import VendorScreen from '../screens/VendorScreen';
+import BrandAnalyticsScreen from '../screens/BrandAnalyticsScreen';
+import BrandOrdersScreen from '../screens/BrandOrdersScreen';
 import VendorOrdersScreen from '../screens/VendorOrdersScreen';
 import FlashSaleScreen from '../screens/FlashSaleScreen';
 import EditFlashSaleScreen from '../screens/EditFlashSaleScreen';
@@ -37,9 +39,14 @@ import CategoryProductsScreen from '../screens/CategoryProductsScreen';
 import AdminProductsScreen from '../screens/AdminProductsScreen';
 import AdminDashboardScreen from '../screens/AdminDashboardScreen';
 import AllBrandsScreen from '../screens/AllBrandsScreen';
+import AllBrandCategoriesScreen from '../screens/AllBrandCategoriesScreen';
 import FollowedStoresScreen from '../screens/FollowedStoresScreen';
 import HelpFAQScreen from '../screens/HelpFAQScreen';
 import ReportProblemScreen from '../screens/ReportProblemScreen';
+import OutOfStockProductsScreen from '../screens/OutOfStockProductsScreen';
+import ContactSupportScreen from '../screens/ContactSupportScreen';
+import SupportCallScreen from '../screens/SupportCallScreen';
+import SupportEmailScreen from '../screens/SupportEmailScreen';
 import TermsConditionsScreen from '../screens/TermsConditionsScreen';
 import PrivacyPolicyScreen from '../screens/PrivacyPolicyScreen';
 import ForgotPasswordScreen from '../screens/ForgotPasswordScreen';
@@ -57,6 +64,8 @@ import PromoCodesScreen from '../screens/PromoCodesScreen';
 import ProductReviewsScreen from '../screens/ProductReviewsScreen';
 import ProductWriteReviewScreen from '../screens/ProductWriteReviewScreen';
 import { useStore } from '../store/store';
+
+export const navigationRef = createNavigationContainerRef();
 
 const linking = {
   prefixes: ['ecommerceapp://'],
@@ -107,6 +116,15 @@ const TabNavigator = () => {
           tabBarIcon: ({ color }) => <Home color={color} size={24} />
         }}
       />
+      {userType === 'brand' && authRole !== 'admin' && (
+        <Tab.Screen
+          name="BrandOrders"
+          component={BrandOrdersScreen}
+          options={{
+            tabBarIcon: ({ color }) => <ShoppingBag color={color} size={24} />,
+          }}
+        />
+      )}
       {userType !== 'brand' && authRole !== 'admin' && (
         <Tab.Screen
           name="FlashSaleTab"
@@ -234,6 +252,7 @@ const RootStackNavigator = () => {
         <Stack.Screen name="ProductDetails" component={ProductDetailsScreen} />
         <Stack.Screen name="Home" component={HomeScreen} />
         <Stack.Screen name="Vendor" component={VendorScreen} />
+        <Stack.Screen name="BrandAnalytics" component={BrandAnalyticsScreen} />
         <Stack.Screen name="VendorOrders" component={VendorOrdersScreen} />
         <Stack.Screen name="FlashSale" component={FlashSaleScreen} />
         <Stack.Screen name="EditFlashSale" component={EditFlashSaleScreen} />
@@ -251,6 +270,7 @@ const RootStackNavigator = () => {
         <Stack.Screen name="AdminProducts" component={AdminProductsScreen} />
         <Stack.Screen name="AdminDashboard" component={AdminDashboardScreen} />
         <Stack.Screen name="AllBrands" component={AllBrandsScreen} />
+        <Stack.Screen name="AllBrandCategories" component={AllBrandCategoriesScreen} />
         <Stack.Screen name="AdminCustomers" component={AdminCustomersScreen} />
         <Stack.Screen name="AdminCustomerDetails" component={AdminCustomerDetailsScreen} />
         <Stack.Screen name="AdminSupportTickets" component={AdminSupportTicketsScreen} />
@@ -265,15 +285,19 @@ const RootStackNavigator = () => {
         <Stack.Screen name="FollowedStores" component={FollowedStoresScreen} />
         <Stack.Screen name="HelpFAQ" component={HelpFAQScreen} />
         <Stack.Screen name="ReportProblem" component={ReportProblemScreen} />
+        <Stack.Screen name="ContactSupport" component={ContactSupportScreen} />
+        <Stack.Screen name="SupportCall" component={SupportCallScreen} />
+        <Stack.Screen name="SupportEmail" component={SupportEmailScreen} />
         <Stack.Screen name="TermsConditions" component={TermsConditionsScreen} />
         <Stack.Screen name="PrivacyPolicy" component={PrivacyPolicyScreen} />
+        <Stack.Screen name="OutOfStockProducts" component={OutOfStockProductsScreen} />
       </Stack.Navigator>
   );
 };
 
 export default function AppNavigator() {
   return (
-    <NavigationContainer linking={linking}>
+    <NavigationContainer linking={linking} ref={navigationRef}>
       <RootStackNavigator />
     </NavigationContainer>
   );

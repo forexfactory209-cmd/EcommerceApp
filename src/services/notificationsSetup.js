@@ -36,8 +36,11 @@ export async function registerForPushNotificationsAsync() {
     return null;
   }
 
-  const { data } = await Notifications.getExpoPushTokenAsync();
-  const token = data?.expoPushToken ?? data?.token ?? null;
+  // Expo's API returns an object with a `data` field containing the token string
+  const response = await Notifications.getExpoPushTokenAsync();
+  const token = response?.data ?? null;
+
+  console.log('Expo push token from device', token);
 
   if (!token) {
     console.warn('Failed to get Expo push token');
@@ -48,7 +51,12 @@ export async function registerForPushNotificationsAsync() {
 }
 
 export async function saveDeviceTokenToSupabase(userId, expoPushToken) {
-  if (!userId || !expoPushToken) return;
+  if (!userId || !expoPushToken) {
+    console.log('Skipping saveDeviceTokenToSupabase', { userId, expoPushToken });
+    return;
+  }
+
+  console.log('Saving device token to Supabase', { userId, expoPushToken });
 
   const { error } = await supabase
     .from('user_devices')

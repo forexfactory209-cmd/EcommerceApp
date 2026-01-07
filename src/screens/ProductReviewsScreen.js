@@ -62,12 +62,21 @@ const ProductReviewsScreen = () => {
   const userName = useStore((state) => state.userName);
   const authRole = useStore((state) => state.authRole);
   const products = useStore((state) => state.products) || [];
+  const orders = useStore((state) => state.orders) || [];
 
   const isBrandRole = authRole === 'brand';
   const ownsProduct = !!(
     isBrandRole &&
     authUserId &&
     products.find((p) => p.id === productId && p.brand_user_id === authUserId)
+  );
+
+  const hasPurchasedProduct = orders.some(
+    (order) =>
+      order &&
+      order.status === 'Delivered' &&
+      Array.isArray(order.items) &&
+      order.items.some((item) => item && item.id === productId),
   );
 
   const [reviews, setReviews] = useState([]);
@@ -287,17 +296,30 @@ const ProductReviewsScreen = () => {
             </View>
           </View>
           {!isBrandRole && (
-            <TouchableOpacity
-              style={styles.addReviewButton}
-              onPress={() => {
-                navigation.navigate('ProductWriteReview', {
-                  productId,
-                  productName,
-                });
-              }}
-            >
-              <Text style={styles.addReviewButtonText}>Add Review</Text>
-            </TouchableOpacity>
+            <View style={{ alignItems: 'flex-end' }}>
+              <TouchableOpacity
+                style={styles.addReviewButton}
+                onPress={() => {
+                  if (!hasPurchasedProduct) {
+                    Alert.alert(
+                      'Order required',
+                      'You can only review products you have purchased. Please place an order for this product first.',
+                    );
+                    return;
+                  }
+
+                  navigation.navigate('ProductWriteReview', {
+                    productId,
+                    productName,
+                  });
+                }}
+              >
+                <Text style={styles.addReviewButtonText}>Add Review</Text>
+              </TouchableOpacity>
+              {!hasPurchasedProduct && (
+                <Text style={styles.addReviewHelperText}>Available after delivery</Text>
+              )}
+            </View>
           )}
         </View>
 
@@ -868,6 +890,11 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
     color: '#ffffff',
+  },
+  addReviewHelperText: {
+    marginTop: 4,
+    fontSize: 11,
+    color: '#9CA3AF',
   },
   filtersRow: {
     marginTop: 4,

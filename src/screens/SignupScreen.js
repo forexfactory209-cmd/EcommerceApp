@@ -84,14 +84,9 @@ const SignupScreen = ({ navigation }) => {
   // Additional fields
   const [gender, setGender] = useState('');
   const [dob, setDob] = useState('');
-  const [dobDate, setDobDate] = useState(new Date());
-  const [showDatePicker, setShowDatePicker] = useState(false);
-
-  // Address & Phone
   const [country, setCountry] = useState('Somaliland');
-  const [city, setCity] = useState('Hargeysa');
-  const [district, setDistrict] = useState(''); // New District Field
-  const [village, setVillage] = useState(''); // Replaces district logic? No, separate now.
+  const [city, setCity] = useState('');
+  const [district, setDistrict] = useState('');
   const [phone, setPhone] = useState('');
   const [secondaryPhone, setSecondaryPhone] = useState('');
   const [address, setAddress] = useState('');

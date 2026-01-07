@@ -244,7 +244,7 @@ const ProfileScreen = ({ navigation }) => {
                 </View>
                 <Text style={styles.profileSectionLabel}>Profile Settings</Text>
               </View>
-              <Text style={styles.profileSectionChevron}>{'>'}</Text>
+              {/* <Text style={styles.profileSectionChevron}>{'>'}</Text> */}
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -265,7 +265,6 @@ const ProfileScreen = ({ navigation }) => {
                   <Text style={styles.badgeText}>{unseenDeliveredCount}</Text>
                 </View>
               )}
-              <Text style={styles.profileSectionChevron}>{'>'}</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -280,7 +279,6 @@ const ProfileScreen = ({ navigation }) => {
                 </View>
                 <Text style={styles.profileSectionLabel}>Saved Addresses</Text>
               </View>
-              <Text style={styles.profileSectionChevron}>{'>'}</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -295,7 +293,6 @@ const ProfileScreen = ({ navigation }) => {
                 </View>
                 <Text style={styles.profileSectionLabel}>Followed Stores</Text>
               </View>
-              <Text style={styles.profileSectionChevron}>{'>'}</Text>
             </TouchableOpacity>
           </View>
 
@@ -308,11 +305,10 @@ const ProfileScreen = ({ navigation }) => {
             >
               <View style={styles.profileSectionLeft}>
                 <View style={[styles.iconCircle, styles.iconCircleGray]}>
-                  <HelpCircle size={18} color="#4B5563" />
+                  <HelpCircle size={18} color="#fff" />
                 </View>
                 <Text style={styles.profileSectionLabel}>FAQ</Text>
               </View>
-              <Text style={styles.profileSectionChevron}>{'>'}</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -323,11 +319,24 @@ const ProfileScreen = ({ navigation }) => {
             >
               <View style={styles.profileSectionLeft}>
                 <View style={[styles.iconCircle, styles.iconCircleGray]}>
-                  <AlertCircle size={18} color="#4B5563" />
+                  <AlertCircle size={18} color="#fff"/>
                 </View>
                 <Text style={styles.profileSectionLabel}>Report Problem</Text>
               </View>
-              <Text style={styles.profileSectionChevron}>{'>'}</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.profileSectionRow}
+              onPress={() => {
+                navigation.navigate('ContactSupport');
+              }}
+            >
+              <View style={styles.profileSectionLeft}>
+                <View style={[styles.iconCircle, styles.iconCircleGray]}>
+                  <HelpCircle size={18} color="#fff" />
+                </View>
+                <Text style={styles.profileSectionLabel}>Contact Support</Text>
+              </View>
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -338,11 +347,10 @@ const ProfileScreen = ({ navigation }) => {
             >
               <View style={styles.profileSectionLeft}>
                 <View style={[styles.iconCircle, styles.iconCircleGray]}>
-                  <FileText size={18} color="#4B5563" />
+                  <FileText size={18} color="#fff" />
                 </View>
                 <Text style={styles.profileSectionLabel}>Terms and Condition</Text>
               </View>
-              <Text style={styles.profileSectionChevron}>{'>'}</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -353,11 +361,10 @@ const ProfileScreen = ({ navigation }) => {
             >
               <View style={styles.profileSectionLeft}>
                 <View style={[styles.iconCircle, styles.iconCircleGray]}>
-                  <ShieldCheck size={18} color="#4B5563" />
+                  <ShieldCheck size={18} color="#fff" />
                 </View>
                 <Text style={styles.profileSectionLabel}>Privacy Policy</Text>
               </View>
-              <Text style={styles.profileSectionChevron}>{'>'}</Text>
             </TouchableOpacity>
           </View>
 
@@ -803,8 +810,8 @@ const styles = StyleSheet.create({
   },
   headerBackground: {
     backgroundColor: '#11146E',
-    paddingTop: 24,
-    paddingBottom: 27,
+    paddingTop: 14,
+    paddingBottom: 22,
     paddingHorizontal: 20,
     borderBottomLeftRadius: 32,
     borderBottomRightRadius: 32,
@@ -921,13 +928,14 @@ const styles = StyleSheet.create({
     backgroundColor: '#ffffff',
     borderRadius: 18,
     paddingHorizontal: 12,
-    paddingVertical: 4,
+    paddingVertical: 6,
     marginBottom: 16,
     shadowColor: '#000',
     shadowOpacity: 0.04,
     shadowRadius: 6,
     shadowOffset: { width: 0, height: 2 },
     elevation: 1,
+    gap:10,
   },
   profileSectionRow: {
     flexDirection: 'row',
@@ -978,19 +986,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   iconCirclePrimary: {
-    backgroundColor: '#4F46E5',
+    backgroundColor:  '#312E81',
   },
   iconCirclePurple: {
-    backgroundColor: '#7C3AED',
+    backgroundColor:  '#312E81',
   },
   iconCirclePrimaryLight: {
-    backgroundColor: '#6366F1',
+    backgroundColor:  '#312E81',
   },
   iconCircleIndigo: {
     backgroundColor: '#312E81',
   },
   iconCircleGray: {
-    backgroundColor: '#E5E7EB',
+    backgroundColor:  '#312E81',
   },
   logoutFullWidthButton: {
     marginTop: 8,

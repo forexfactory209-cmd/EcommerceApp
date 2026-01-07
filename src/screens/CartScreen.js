@@ -277,7 +277,7 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   quantityCircleButtonPrimary: {
-    backgroundColor: '#4f46e5',
+    backgroundColor: '#090966',
   },
   quantityText: {
     fontWeight: '700',
@@ -335,7 +335,7 @@ const styles = StyleSheet.create({
     color: '#2563EB',
   },
   checkoutButton: {
-    backgroundColor: '#4f46e5',
+    backgroundColor: '#090966',
     width: '100%',
     paddingVertical: 14,
     borderRadius: 999,
