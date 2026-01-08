@@ -107,7 +107,7 @@ const CustomerOnboardingScreen = ({ navigation }) => {
     }
   };
 
-  const currentSlide = SLIDES[index] || SLIDES[0];
+  const currentSlide = SLIDES[index];
   const isLast = index === SLIDES.length - 1;
 
 

@@ -131,95 +131,6 @@ const WelcomeScreen = ({ navigation }) => {
     ].filter(Boolean)).start();
   };
 
-  const finalizeLogin = async (user) => {
-    if (!user) return;
-
-    try {
-      const [
-        { data: profile, error: profileError },
-        { data: brandRow, error: brandError },
-      ] = await Promise.all([
-        supabase
-          .from('profiles')
-          .select('user_id, name, username')
-          .eq('user_id', user.id)
-          .maybeSingle(),
-        supabase
-          .from('brands')
-          .select('id, name, status, logo_url')
-          .eq('user_id', user.id)
-          .maybeSingle(),
-      ]);
-
-      if (profileError && profileError.code !== 'PGRST116') {
-        Alert.alert('Error', profileError.message || 'Failed to load profile.');
-        return;
-      }
-
-      if (brandError) {
-        console.warn('Error loading brand for user:', brandError.message || brandError);
-      }
-
-      let effectiveProfile = profile;
-
-      if (!effectiveProfile) {
-        const userMeta = user.user_metadata || {};
-        const inferredNameFromEmail = typeof user.email === 'string' ? user.email.split('@')[0] : null;
-        const inferredName =
-          userMeta.full_name ||
-          userMeta.name ||
-          userMeta.user_name ||
-          userMeta.preferred_username ||
-          inferredNameFromEmail;
-
-        const { data: createdProfile, error: upsertError } = await supabase
-          .from('profiles')
-          .upsert(
-            {
-              user_id: user.id,
-              name: inferredName || null,
-            },
-            { onConflict: 'user_id' },
-          )
-          .select('user_id, name, username')
-          .maybeSingle();
-
-        if (upsertError) {
-          console.warn('[WelcomeScreen] Profile upsert error during login:', upsertError.message || upsertError);
-        } else {
-          effectiveProfile = createdProfile || profile;
-        }
-      }
-
-      const hasApprovedBrand = brandRow?.status === 'approved';
-
-      let effectiveRole = 'customer';
-      if (user.email === ADMIN_EMAIL) {
-        effectiveRole = 'admin';
-      } else if (hasApprovedBrand) {
-        effectiveRole = 'brand';
-      }
-
-      let effectiveName = effectiveProfile?.name || '';
-      if (effectiveRole === 'brand' && brandRow?.name) {
-        effectiveName = brandRow.name;
-      }
-
-      setAuthUser({
-        id: user.id,
-        email: user.email,
-        role: effectiveRole,
-        name: effectiveName,
-        brandLogoUrl: brandRow?.logo_url || null,
-      });
-
-      navigation.replace('Main');
-    } catch (err) {
-      console.error('Finalize login error:', err);
-      Alert.alert('Error', 'Something went wrong while finalizing sign in.');
-    }
-  };
-
   useEffect(() => {
     const extractParamsFromUrl = (urlString) => {
       if (!urlString) return { accessToken: null, refreshToken: null, type: null };
@@ -254,6 +165,8 @@ const WelcomeScreen = ({ navigation }) => {
 
           if (type === 'recovery') {
             navigation.replace('ResetPassword');
+          } else {
+            navigation.replace('Main');
           }
         }
       } catch (err) {
@@ -273,7 +186,7 @@ const WelcomeScreen = ({ navigation }) => {
         if (!isMounted) return;
 
         if (!error && data?.session) {
-          await finalizeLogin(data.session.user);
+          navigation.replace('Main');
         }
       } catch (err) {
         console.error('WelcomeScreen session check error:', err);
@@ -353,7 +266,55 @@ const WelcomeScreen = ({ navigation }) => {
         Alert.alert('Login failed', 'No user returned from Supabase.');
         return;
       }
-      await finalizeLogin(user);
+
+      // Fetch profile and brand metadata in parallel
+      const [
+        { data: profile, error: profileError },
+        { data: brandRow, error: brandError },
+      ] = await Promise.all([
+        supabase
+          .from('profiles')
+          .select('user_id, name, username')
+          .eq('user_id', user.id)
+          .maybeSingle(),
+        supabase
+          .from('brands')
+          .select('id, name, status, logo_url')
+          .eq('user_id', user.id)
+          .maybeSingle(),
+      ]);
+
+      if (profileError && profileError.code !== 'PGRST116') {
+        Alert.alert('Error', profileError.message || 'Failed to load profile.');
+        return;
+      }
+
+      if (brandError) {
+        console.warn('Error loading brand for user:', brandError.message || brandError);
+      }
+
+      const hasApprovedBrand = brandRow?.status === 'approved';
+
+      let effectiveRole = 'customer';
+      if (user.email === ADMIN_EMAIL) {
+        effectiveRole = 'admin';
+      } else if (hasApprovedBrand) {
+        effectiveRole = 'brand';
+      }
+
+      let effectiveName = profile?.name || '';
+      if (effectiveRole === 'brand' && brandRow?.name) {
+        effectiveName = brandRow.name;
+      }
+
+      setAuthUser({
+        id: user.id,
+        email: user.email,
+        role: effectiveRole,
+        name: effectiveName,
+        brandLogoUrl: brandRow?.logo_url || null,
+      });
+      navigation.replace('Main');
     } catch (err) {
       Alert.alert('Error', 'Something went wrong with authentication.');
       console.error('Auth error:', err);
