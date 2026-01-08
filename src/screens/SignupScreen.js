@@ -69,6 +69,7 @@ const InputField = React.memo(({ label, icon: Icon, value, onChangeText, placeho
 
 const SignupScreen = ({ navigation }) => {
   const setAuthUser = useStore((state) => state.setAuthUser);
+  const clearAuthUser = useStore((state) => state.clearAuthUser);
 
   const [name, setName] = useState('');
   const [username, setUsername] = useState('');
@@ -84,9 +85,12 @@ const SignupScreen = ({ navigation }) => {
   // Additional fields
   const [gender, setGender] = useState('');
   const [dob, setDob] = useState('');
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [dobDate, setDobDate] = useState(new Date(2000, 0, 1));
   const [country, setCountry] = useState('Somaliland');
   const [city, setCity] = useState('');
   const [district, setDistrict] = useState('');
+  const [village, setVillage] = useState('');
   const [phone, setPhone] = useState('');
   const [secondaryPhone, setSecondaryPhone] = useState('');
   const [address, setAddress] = useState('');
@@ -460,6 +464,9 @@ const SignupScreen = ({ navigation }) => {
   };
 
   const handleNextStep = async () => {
+    // Prevent multiple taps while a request is already in progress
+    if (loading) return;
+
     if (!validateStep()) return;
 
     if (step === 1) {
@@ -468,6 +475,8 @@ const SignupScreen = ({ navigation }) => {
       const trimmedPassword = password.trim();
 
       try {
+        // Show loading while we call Supabase signUp so the button uses its loading state
+        setLoading(true);
         if (trimmedUsername) {
           const { data: existingProfile, error: usernameCheckError } = await supabase
             .from('profiles')
@@ -522,6 +531,8 @@ const SignupScreen = ({ navigation }) => {
         console.error('Signup step 1 error:', err);
         Alert.alert('Error', 'Something went wrong while creating your account.');
         return;
+      } finally {
+        setLoading(false);
       }
     }
 
@@ -591,15 +602,26 @@ const SignupScreen = ({ navigation }) => {
         }
       }
 
+      // After creating the account and saving profile/address, log the user out so they
+      // can log in manually from the Welcome screen.
+      try {
+        await supabase.auth.signOut();
+      } catch (signOutErr) {
+        console.log('[SignupWizard] signOut after signup error', signOutErr);
+      }
+
+      clearAuthUser && clearAuthUser();
+
       setSuccess(true);
       setTimeout(() => {
         Alert.alert(
-          'Account created',
-          'Your account has been created. Please sign in with your new credentials.',
+          'Successfully created account',
+          'Your account has been created successfully. Please log in with the email and password you just used.',
           [
             {
               text: 'OK',
               onPress: () => {
+                // Go back to the login (Welcome) screen so the user can sign in, then your login flow can take them to Home
                 navigation.replace('Welcome');
               },
             },

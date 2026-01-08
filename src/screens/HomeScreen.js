@@ -997,7 +997,7 @@ const HomeScreen = ({ navigation }) => {
           contentContainerStyle={styles.brandHomeContent}
           showsVerticalScrollIndicator={false}
         >
-          {/* Brand header */}
+          {/* Header */}
           <View style={styles.brandHeaderCard}>
             <View style={styles.brandHeaderRow}>
               <View style={styles.brandAvatarWrapper}>
@@ -1013,142 +1013,202 @@ const HomeScreen = ({ navigation }) => {
                   </Text>
                 )}
               </View>
+
               <View style={styles.brandHeaderTextCol}>
-                <Text style={styles.brandHeaderName}>{brand?.name || 'Your Store'}</Text>
-                <View style={styles.brandStatusRow}>
-                  <View style={styles.brandStatusDot} />
-                  <Text style={styles.brandStatusText}>Online Store</Text>
+                <View style={styles.brandHeaderTitleRow}>
+                  <Text style={styles.brandHeaderName}>{brand?.name || 'Style Boutique'}</Text>
+                  <View style={styles.brandActivePill}>
+                    <Text style={styles.brandActivePillText}>ACTIVE</Text>
+                  </View>
                 </View>
+                <Text style={styles.brandHeaderSubtitle}>
+                  Welcome back, {userName || 'Sarah'}
+                </Text>
               </View>
+
               <TouchableOpacity
-                onPress={() => navigation.navigate('Notifications')}
+                onPress={() => {
+                  setUnreadNotifications(0);
+                  navigation.navigate('Notifications');
+                }}
                 style={styles.brandHeaderBell}
               >
-                <Bell color="#111827" size={20} />
-                {unreadNotifications > 0 && (
-                  <View style={styles.notificationBadge}>
-                    <Text style={styles.notificationBadgeText}>
-                      {unreadNotifications > 9 ? '9+' : unreadNotifications}
-                    </Text>
-                  </View>
-                )}
-              </TouchableOpacity>
-            </View>
-            <View style={styles.brandHeaderButtonsRow}>
-              <TouchableOpacity style={styles.brandStatusButtonPrimary} activeOpacity={0.9}>
-                <Text style={styles.brandStatusButtonPrimaryText}>Open for Business</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.brandStatusButtonSecondary} activeOpacity={0.9}>
-                <Text style={styles.brandStatusButtonSecondaryText}>Store Closed</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          {/* Overview */}
-          <View style={styles.brandSectionHeaderRow}>
-            <Text style={styles.brandSectionTitle}>Overview</Text>
-            <Text style={styles.brandSectionSubtitle}>Last 24 hours</Text>
-          </View>
-
-          <View style={styles.brandOverviewRow}>
-            <View style={styles.brandOverviewCardPrimary}>
-              <View style={styles.brandOverviewIconCircle}>
-                <ShoppingBag color="#ffffff" size={22} />
-              </View>
-              <Text style={styles.brandOverviewLabel}>Today's Orders</Text>
-              <Text style={styles.brandOverviewValue}>{todaysOrders}</Text>
-            </View>
-
-            <View style={styles.brandOverviewCardSecondary}>
-              <View style={styles.brandOverviewBadgeRow}>
-                <Text style={styles.brandOverviewBadgeText}>Action</Text>
-              </View>
-              <Text style={styles.brandOverviewSecondaryLabel}>Pending Orders</Text>
-              <Text style={styles.brandOverviewSecondaryValue}>{pendingOrdersCount}</Text>
-            </View>
-          </View>
-
-          {/* Inventory alert */}
-          <View style={styles.brandAlertCard}>
-            <Text style={styles.brandAlertTitle}>Inventory Alert</Text>
-            <Text style={styles.brandAlertText}>
-              Some items may be out of stock. Customers cannot purchase them.
-            </Text>
-            <TouchableOpacity
-              style={styles.brandAlertButton}
-              onPress={() => navigation.navigate('OutOfStockProducts')}
-            >
-              <Text style={styles.brandAlertButtonText}>Restock Now</Text>
-            </TouchableOpacity>
-          </View>
-
-          {/* Order status grid */}
-          <Text style={styles.brandSectionTitle}>Order Status</Text>
-          <View style={styles.brandStatusGrid}>
-            <View style={styles.brandStatusCardLive}>
-              <View style={styles.brandStatusCardHeaderRow}>
-                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                  <Package color="#111827" size={16} />
-                  <Text style={[styles.brandStatusCardLabel, { marginLeft: 6 }]}>New Orders</Text>
+                <View>
+                  <Bell color="#111827" size={20} />
+                  {unreadNotifications > 0 && (
+                    <View style={styles.notificationBadge}>
+                      <Text style={styles.notificationBadgeText}>
+                        {unreadNotifications > 9 ? '9+' : unreadNotifications}
+                      </Text>
+                    </View>
+                  )}
                 </View>
-                <View style={styles.brandLiveBadge}>
-                  <Text style={styles.brandLiveBadgeText}>Live</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          {/* Top stats row */}
+          <View style={styles.brandTopStatsRow}>
+            <View style={styles.brandStatCardPrimary}>
+              <View style={styles.brandStatIconCircle}>
+                <ShoppingBag color="#090966" size={20} />
+              </View>
+              <Text style={styles.brandStatLabel}>Today's Orders</Text>
+              <Text style={styles.brandStatValue}>{todaysOrders}</Text>
+              <Text style={styles.brandStatChange}>+24% vs yesterday</Text>
+            </View>
+
+            <View style={styles.brandStatCardSecondary}>
+              <View style={styles.brandStatIconCircleSecondary}>
+                <Clock color="#F97316" size={20} />
+              </View>
+              <Text style={styles.brandStatLabelSecondary}>Pending</Text>
+              <Text style={styles.brandStatValueSecondary}>{pendingOrdersCount}</Text>
+              <Text style={styles.brandStatWarning}>Action Needed</Text>
+            </View>
+          </View>
+
+          {/* Balance card */}
+          <View style={styles.brandBalanceCard}>
+            <View style={styles.brandBalanceTopRow}>
+              <View>
+                <Text style={styles.brandBalanceLabel}>Available Balance</Text>
+              </View>
+              <View style={styles.brandBalanceIconBadge}>
+                <View style={styles.brandBalanceIconInner}>
+                  <Package size={16} color="#EEF2FF" />
                 </View>
               </View>
-              <Text style={styles.brandStatusCardValue}>{newOrdersCount}</Text>
             </View>
-
-            <View style={styles.brandStatusCard}>
-              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                <Clock color="#111827" size={16} />
-                <Text style={[styles.brandStatusCardLabel, { marginLeft: 6 }]}>Packing</Text>
-              </View>
-              <Text style={styles.brandStatusCardValue}>{packingOrdersCount}</Text>
-            </View>
-
-            <View style={styles.brandStatusCard}>
-              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                <Truck color="#111827" size={16} />
-                <Text style={[styles.brandStatusCardLabel, { marginLeft: 6 }]}>Shipped</Text>
-              </View>
-              <Text style={styles.brandStatusCardValue}>{shippedOrdersCount}</Text>
-            </View>
-
-            <View style={styles.brandStatusCard}>
-              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                <CheckCircle color="#111827" size={16} />
-                <Text style={[styles.brandStatusCardLabel, { marginLeft: 6 }]}>Completed</Text>
-              </View>
-              <Text style={styles.brandStatusCardValue}>{completedOrdersCount}</Text>
-            </View>
-          </View>
-
-          {/* Quick actions */}
-          <Text style={styles.brandSectionTitle}>Quick Actions</Text>
-          <TouchableOpacity
-            style={styles.brandPrimaryActionButton}
-            onPress={() => navigation.navigate('AddProduct')}
-            activeOpacity={0.9}
-          >
-            <Text style={styles.brandPrimaryActionIcon}>＋</Text>
-            <Text style={styles.brandPrimaryActionText}>Add Product</Text>
-          </TouchableOpacity>
-
-          <View style={styles.brandQuickActionsRow}>
+            <Text style={styles.brandBalanceValue}>$1,240.50</Text>
+            <Text style={styles.brandBalanceSubLabel}>On-Hold Balance</Text>
+            <Text style={styles.brandBalanceSubValue}>$350.00</Text>
             <TouchableOpacity
-              style={styles.brandSecondaryActionButton}
-              onPress={() => navigation.navigate('VendorOrders')}
+              style={styles.brandBalanceButton}
               activeOpacity={0.9}
-            >
-              <Text style={styles.brandSecondaryActionText}>View Orders</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.brandSecondaryActionButton}
               onPress={() => navigation.navigate('Vendor')}
-              activeOpacity={0.9}
             >
-              <Text style={styles.brandSecondaryActionText}>Request Payout</Text>
+              <Text style={styles.brandBalanceButtonText}>Withdraw</Text>
             </TouchableOpacity>
+          </View>
+
+          {/* Orders Summary */}
+          <View style={styles.brandSectionHeaderRow}>
+            <Text style={styles.brandSectionTitle}>Orders Summary</Text>
+            <TouchableOpacity onPress={() => navigation.navigate('VendorOrders')}>
+              <Text style={styles.brandSectionLink}>View All</Text>
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.brandOrdersSummaryRow}>
+            <View style={styles.brandSummaryCardNew}>
+              <View style={styles.brandSummaryHeaderRow}>
+                <View style={styles.brandSummaryIconBadgeNew}>
+                  <Text style={styles.brandSummaryIconBadgeText}>NEW</Text>
+                </View>
+              </View>
+              <Text style={styles.brandSummaryLabel}>New</Text>
+              <Text style={styles.brandSummaryCount}>{newOrdersCount}</Text>
+              <Text style={styles.brandSummarySub}>Orders</Text>
+            </View>
+
+            <View style={styles.brandSummaryCardProcessing}>
+              <View style={styles.brandSummaryHeaderRow}>
+                <View style={styles.brandSummaryIconCircleProcessing}>
+                  <Clock size={16} color="#6366F1" />
+                </View>
+              </View>
+              <Text style={styles.brandSummaryLabel}>Processing</Text>
+              <Text style={styles.brandSummaryCount}>{packingOrdersCount}</Text>
+              <Text style={styles.brandSummarySub}>Orders</Text>
+            </View>
+
+            <View style={styles.brandSummaryCardShipped}>
+              <View style={styles.brandSummaryHeaderRow}>
+                <View style={styles.brandSummaryIconCircleShipped}>
+                  <Truck size={16} color="#0EA5E9" />
+                </View>
+              </View>
+              <Text style={styles.brandSummaryLabel}>Shipped</Text>
+              <Text style={styles.brandSummaryCount}>{shippedOrdersCount}</Text>
+              <Text style={styles.brandSummarySub}>Orders</Text>
+            </View>
+
+            <View style={styles.brandSummaryCardCompleted}>
+              <View style={styles.brandSummaryHeaderRow}>
+                <View style={styles.brandSummaryIconCircleCompleted}>
+                  <CheckCircle size={16} color="#16A34A" />
+                </View>
+              </View>
+              <Text style={styles.brandSummaryLabel}>Completed</Text>
+              <Text style={styles.brandSummaryCount}>{completedOrdersCount}</Text>
+              <Text style={styles.brandSummarySub}>Orders</Text>
+            </View>
+          </View>
+
+          {/* Primary / secondary CTAs */}
+          <View style={styles.brandPrimaryCtasRow}>
+            <TouchableOpacity
+              style={styles.brandPrimaryCta}
+              activeOpacity={0.9}
+              onPress={() => navigation.navigate('AddProduct')}
+            >
+              <Text style={styles.brandPrimaryCtaText}>Add Product</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.brandSecondaryCta}
+              activeOpacity={0.9}
+              onPress={() => navigation.navigate('BrandOrders')}
+            >
+              <Text style={styles.brandSecondaryCtaText}>View Orders</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Recent Activity */}
+          <View style={styles.brandRecentHeaderRow}>
+            <Text style={styles.brandSectionTitle}>Recent Activity</Text>
+          </View>
+
+          <View style={styles.brandRecentList}>
+            <View style={styles.brandRecentItem}>
+              <View style={styles.brandRecentDotNew} />
+              <View style={styles.brandRecentTextCol}>
+                <View style={styles.brandRecentTitleRow}>
+                  <Text style={styles.brandRecentTitle}>New Order #1023 Received</Text>
+                  <Text style={styles.brandRecentTime}>10m ago</Text>
+                </View>
+                <Text style={styles.brandRecentBody}>
+                  Order for "Vintage Leather Jacket" is pending confirmation.
+                </Text>
+              </View>
+            </View>
+
+            <View style={styles.brandRecentItem}>
+              <View style={styles.brandRecentDotEscrow} />
+              <View style={styles.brandRecentTextCol}>
+                <View style={styles.brandRecentTitleRow}>
+                  <Text style={styles.brandRecentTitle}>Escrow Released</Text>
+                  <Text style={styles.brandRecentTime}>2h ago</Text>
+                </View>
+                <Text style={styles.brandRecentBody}>
+                  Funds for Order #1010 have been added to your available balance.
+                </Text>
+              </View>
+            </View>
+
+            <View style={styles.brandRecentItem}>
+              <View style={styles.brandRecentDotAdmin} />
+              <View style={styles.brandRecentTextCol}>
+                <View style={styles.brandRecentTitleRow}>
+                  <Text style={styles.brandRecentTitle}>Admin Announcement</Text>
+                  <Text style={styles.brandRecentTime}>1d ago</Text>
+                </View>
+                <Text style={styles.brandRecentBody}>
+                  Platform maintenance scheduled for Sunday at 2:00 AM UTC.
+                </Text>
+              </View>
+            </View>
           </View>
         </ScrollView>
       </SafeAreaView>
@@ -1800,7 +1860,7 @@ const styles = StyleSheet.create({
   },
   searchModeChip: {
     paddingHorizontal: 17,
-    paddingVertical: 12,
+    paddingVertical: 8,
     borderRadius: 999,
     backgroundColor: '#f3f4f6',
     marginRight: 8,
@@ -1960,6 +2020,28 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: '#111827',
   },
+  brandHeaderTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  brandActivePill: {
+    marginLeft: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 999,
+    backgroundColor: '#22C55E',
+  },
+  brandActivePillText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#ffffff',
+    textTransform: 'uppercase',
+  },
+  brandHeaderSubtitle: {
+    fontSize: 12,
+    color: '#6B7280',
+  },
   brandStatusRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1983,6 +2065,15 @@ const styles = StyleSheet.create({
     backgroundColor: '#EEF2FF',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  brandHeaderSettings: {
+    width: 36,
+    height: 36,
+    borderRadius: 999,
+    backgroundColor: '#EEF2FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 8,
   },
   brandHeaderButtonsRow: {
     flexDirection: 'row',
@@ -2032,10 +2123,82 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#9CA3AF',
   },
+  brandSectionLink: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#090966',
+  },
   brandOverviewRow: {
     flexDirection: 'row',
     marginBottom: 18,
     gap: 12,
+  },
+  brandTopStatsRow: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 18,
+  },
+  brandStatCardPrimary: {
+    flex: 1,
+    backgroundColor: '#ffffff',
+    borderRadius: 20,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  brandStatIconCircle: {
+    width: 34,
+    height: 34,
+    borderRadius: 12,
+    backgroundColor: '#E0E7FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 10,
+  },
+  brandStatLabel: {
+    fontSize: 13,
+    color: '#6B7280',
+    marginBottom: 4,
+  },
+  brandStatValue: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: '#111827',
+  },
+  brandStatChange: {
+    marginTop: 4,
+    fontSize: 11,
+    color: '#16A34A',
+  },
+  brandStatCardSecondary: {
+    flex: 1,
+    backgroundColor: '#FFF7ED',
+    borderRadius: 20,
+    padding: 16,
+  },
+  brandStatIconCircleSecondary: {
+    width: 34,
+    height: 34,
+    borderRadius: 12,
+    backgroundColor: '#FFEDD5',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 10,
+  },
+  brandStatLabelSecondary: {
+    fontSize: 13,
+    color: '#FB923C',
+    marginBottom: 4,
+  },
+  brandStatValueSecondary: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: '#111827',
+  },
+  brandStatWarning: {
+    marginTop: 4,
+    fontSize: 11,
+    color: '#DC2626',
   },
   brandOverviewCardPrimary: {
     flex: 1,
@@ -2099,6 +2262,67 @@ const styles = StyleSheet.create({
     padding: 16,
     marginBottom: 20,
   },
+  brandBalanceCard: {
+    marginTop: 4,
+    marginBottom: 20,
+    borderRadius: 24,
+    padding: 20,
+    backgroundColor: '#090966',
+  },
+  brandBalanceTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  brandBalanceLabel: {
+    fontSize: 13,
+    color: '#E5E7EB',
+    marginBottom: 4,
+  },
+  brandBalanceValue: {
+    fontSize: 28,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    marginBottom: 12,
+  },
+  brandBalanceSubLabel: {
+    fontSize: 12,
+    color: '#CBD5F5',
+  },
+  brandBalanceSubValue: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#FFFFFF',
+    marginBottom: 14,
+  },
+  brandBalanceIconBadge: {
+    width: 40,
+    height: 40,
+    borderRadius: 16,
+    backgroundColor: 'rgba(15,23,42,0.35)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  brandBalanceIconInner: {
+    width: 28,
+    height: 28,
+    borderRadius: 12,
+    backgroundColor: 'rgba(15,23,42,0.9)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  brandBalanceButton: {
+    alignSelf: 'flex-end',
+    paddingHorizontal: 18,
+    paddingVertical: 8,
+    borderRadius: 999,
+    backgroundColor: '#F9FAFB',
+  },
+  brandBalanceButtonText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#090966',
+  },
   brandAlertTitle: {
     fontSize: 15,
     fontWeight: '700',
@@ -2127,6 +2351,94 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     gap: 12,
     marginBottom: 20,
+  },
+  brandOrdersSummaryRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+    marginBottom: 18,
+  },
+  brandSummaryCardNew: {
+    flexBasis: '48%',
+    backgroundColor: '#EEF2FF',
+    borderRadius: 18,
+    padding: 14,
+  },
+  brandSummaryHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 6,
+  },
+  brandSummaryIconBadgeNew: {
+    width: 32,
+    height: 24,
+    borderRadius: 10,
+    backgroundColor: '#1D4ED8',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  brandSummaryIconBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    textTransform: 'uppercase',
+  },
+  brandSummaryLabel: {
+    fontSize: 12,
+    color: '#6B7280',
+  },
+  brandSummaryCount: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#111827',
+    marginTop: 2,
+  },
+  brandSummarySub: {
+    fontSize: 11,
+    color: '#9CA3AF',
+  },
+  brandSummaryCardProcessing: {
+    flexBasis: '48%',
+    backgroundColor: '#F3F4F6',
+    borderRadius: 18,
+    padding: 14,
+  },
+  brandSummaryCardShipped: {
+    flexBasis: '48%',
+    backgroundColor: '#ECFEFF',
+    borderRadius: 18,
+    padding: 14,
+  },
+  brandSummaryCardCompleted: {
+    flexBasis: '48%',
+    backgroundColor: '#ECFDF3',
+    borderRadius: 18,
+    padding: 14,
+  },
+  brandSummaryIconCircleProcessing: {
+    width: 28,
+    height: 28,
+    borderRadius: 12,
+    backgroundColor: '#EEF2FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  brandSummaryIconCircleShipped: {
+    width: 28,
+    height: 28,
+    borderRadius: 12,
+    backgroundColor: '#E0F2FE',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  brandSummaryIconCircleCompleted: {
+    width: 28,
+    height: 28,
+    borderRadius: 12,
+    backgroundColor: '#DCFCE7',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   brandStatusCardLive: {
     width: '48%',
@@ -2167,6 +2479,39 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: '#111827',
   },
+  brandPrimaryCtasRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: 16,
+  },
+  brandPrimaryCta: {
+    flex: 1,
+    borderRadius: 999,
+    paddingVertical: 12,
+    backgroundColor: '#090966',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  brandPrimaryCtaText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  brandSecondaryCta: {
+    flex: 1,
+    borderRadius: 999,
+    paddingVertical: 12,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#111827',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  brandSecondaryCtaText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#111827',
+  },
   brandPrimaryActionButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -2205,5 +2550,73 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
     color: '#111827',
+  },
+  brandRecentHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 12,
+    marginBottom: 8,
+  },
+  brandRecentList: {
+    borderRadius: 20,
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  brandRecentItem: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+  },
+  brandRecentDotNew: {
+    width: 8,
+    height: 8,
+    borderRadius: 999,
+    backgroundColor: '#2563EB',
+    marginTop: 6,
+    marginRight: 10,
+  },
+  brandRecentDotEscrow: {
+    width: 8,
+    height: 8,
+    borderRadius: 999,
+    backgroundColor: '#22C55E',
+    marginTop: 6,
+    marginRight: 10,
+  },
+  brandRecentDotAdmin: {
+    width: 8,
+    height: 8,
+    borderRadius: 999,
+    backgroundColor: '#F97316',
+    marginTop: 6,
+    marginRight: 10,
+  },
+  brandRecentTextCol: {
+    flex: 1,
+  },
+  brandRecentTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 4,
+  },
+  brandRecentTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#111827',
+    flex: 1,
+    marginRight: 8,
+  },
+  brandRecentTime: {
+    fontSize: 11,
+    color: '#9CA3AF',
+  },
+  brandRecentBody: {
+    fontSize: 12,
+    color: '#4B5563',
   },
 });
