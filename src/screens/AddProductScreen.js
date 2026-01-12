@@ -35,6 +35,7 @@ const AddProductScreen = ({ navigation }) => {
   const [brandLoading, setBrandLoading] = useState(false);
   const [brandLoaded, setBrandLoaded] = useState(false);
   const [generatingDescription, setGeneratingDescription] = useState(false);
+  const [categoryOpen, setCategoryOpen] = useState(false);
 
   const handleChange = (key, value) => {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -418,55 +419,46 @@ const AddProductScreen = ({ navigation }) => {
           </View>
 
           <Text style={styles.label}>Category</Text>
-          <View style={styles.chipRow}>
-            {[
-              { id: 'clothes', label: 'Clothes' },
-              { id: 'shoes', label: 'Shoes' },
-              { id: 'coats', label: 'Coats' },
-              { id: 'phones', label: 'Phones' },
-              { id: 'laptops', label: 'Laptops' },
-              { id: 'bags', label: 'Bags' },
-            ].map((cat) => {
-              const active = form.category === cat.id;
-              return (
-                <TouchableOpacity
-                  key={cat.id}
-                  style={[styles.categoryChip, active && styles.categoryChipActive]}
-                  onPress={() => handleChange('category', cat.id)}
-                >
-                  <Text
-                    style={[styles.categoryChipText, active && styles.categoryChipTextActive]}
+          <View style={styles.dropdownWrapper}>
+            <TouchableOpacity
+              style={styles.dropdownSelected}
+              activeOpacity={0.8}
+              onPress={() => setCategoryOpen((prev) => !prev)}
+            >
+              <Text style={styles.dropdownSelectedText}>
+                {[
+                  { id: 'clothes', label: 'Clothes' },
+                  { id: 'shoes', label: 'Shoes' },
+                  { id: 'coats', label: 'Coats' },
+                  { id: 'phones', label: 'Phones' },
+                  { id: 'laptops', label: 'Laptops' },
+                  { id: 'bags', label: 'Bags' },
+                ].find((c) => c.id === form.category)?.label || 'Select category'}
+              </Text>
+            </TouchableOpacity>
+            {categoryOpen && (
+              <View style={styles.dropdownOptions}>
+                {[
+                  { id: 'clothes', label: 'Clothes' },
+                  { id: 'shoes', label: 'Shoes' },
+                  { id: 'coats', label: 'Coats' },
+                  { id: 'phones', label: 'Phones' },
+                  { id: 'laptops', label: 'Laptops' },
+                  { id: 'bags', label: 'Bags' },
+                ].map((cat) => (
+                  <TouchableOpacity
+                    key={cat.id}
+                    style={styles.dropdownOption}
+                    onPress={() => {
+                      handleChange('category', cat.id);
+                      setCategoryOpen(false);
+                    }}
                   >
-                    {cat.label}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-
-          <Text style={styles.label}>Audience</Text>
-          <View style={styles.chipRow}>
-            {[
-              { id: 'all', label: 'All' },
-              { id: 'men', label: 'Men' },
-              { id: 'women', label: 'Women' },
-              { id: 'kids', label: 'Kids' },
-            ].map((aud) => {
-              const active = form.audience === aud.id;
-              return (
-                <TouchableOpacity
-                  key={aud.id}
-                  style={[styles.audienceChip, active && styles.audienceChipActive]}
-                  onPress={() => handleChange('audience', aud.id)}
-                >
-                  <Text
-                    style={[styles.audienceChipText, active && styles.audienceChipTextActive]}
-                  >
-                    {aud.label}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
+                    <Text style={styles.dropdownOptionText}>{cat.label}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
           </View>
 
           <Text style={styles.label}>Product Code</Text>
@@ -663,55 +655,38 @@ const styles = StyleSheet.create({
   textArea: {
     height: 120,
   },
-  chipRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    marginHorizontal: -4,
-    marginBottom: 8,
+  dropdownWrapper: {
+    marginBottom: 12,
   },
-  categoryChip: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 999,
+  dropdownSelected: {
+    backgroundColor: '#f9fafb',
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: '#e5e7eb',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  dropdownSelectedText: {
+    fontSize: 14,
+    color: '#111827',
+  },
+  dropdownOptions: {
+    marginTop: 6,
     backgroundColor: '#ffffff',
-    marginHorizontal: 4,
-    marginBottom: 8,
-  },
-  categoryChipActive: {
-    backgroundColor: '#111827',
-    borderColor: '#111827',
-  },
-  categoryChipText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#4b5563',
-  },
-  categoryChipTextActive: {
-    color: '#ffffff',
-  },
-  audienceChip: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 999,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: '#e5e7eb',
-    backgroundColor: '#ffffff',
-    marginHorizontal: 4,
-    marginBottom: 8,
+    overflow: 'hidden',
   },
-  audienceChipActive: {
-    backgroundColor: '#2563EB',
-    borderColor: '#2563EB',
+  dropdownOption: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f3f4f6',
   },
-  audienceChipText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#4b5563',
-  },
-  audienceChipTextActive: {
-    color: '#ffffff',
+  dropdownOptionText: {
+    fontSize: 14,
+    color: '#374151',
   },
   codeRow: {
     flexDirection: 'row',

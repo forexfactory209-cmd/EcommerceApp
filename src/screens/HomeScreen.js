@@ -197,10 +197,26 @@ const HomeScreen = ({ navigation }) => {
 
     const loadBrandOrdersFromSupabase = async () => {
       try {
+        // Derive brand orders from order_items so we always use the correct
+        // brand_user_id attached to each item, not the legacy field on orders.
         const { data, error } = await supabase
-          .from('orders')
-          .select('id,placed_at,brand_user_id,brand_accepted_at,on_the_way_at,delivered_at')
-          .eq('brand_user_id', authUserId);
+          .from('order_items')
+          .select(
+            `
+            id,
+            order_id,
+            brand_user_id,
+            orders:orders (
+              id,
+              placed_at,
+              brand_accepted_at,
+              on_the_way_at,
+              delivered_at
+            )
+          `,
+          )
+          .eq('brand_user_id', authUserId)
+          .order('order_id', { ascending: false });
 
         if (error) {
           console.warn('Failed to load brand orders from Supabase', error.message || error);
@@ -213,6 +229,19 @@ const HomeScreen = ({ navigation }) => {
         }
         const todayStr = new Date().toDateString();
 
+        // Collapse potential duplicate rows per order id coming from order_items
+        const byOrderId = rows.reduce((acc, row) => {
+          const o = row.orders;
+          if (!o) return acc;
+          const orderId = o.id;
+          if (!acc[orderId]) {
+            acc[orderId] = o;
+          }
+          return acc;
+        }, {});
+
+        const uniqueOrders = Object.values(byOrderId);
+
         let todaysOrders = 0;
         let newOrders = 0;
         let pending = 0;
@@ -220,7 +249,7 @@ const HomeScreen = ({ navigation }) => {
         let shipped = 0;
         let completed = 0;
 
-        rows.forEach((o) => {
+        uniqueOrders.forEach((o) => {
           const placedAt = o.placed_at ? new Date(o.placed_at) : null;
           const brandAcceptedAt = o.brand_accepted_at ? new Date(o.brand_accepted_at) : null;
           const onTheWayAt = o.on_the_way_at ? new Date(o.on_the_way_at) : null;
@@ -1086,7 +1115,7 @@ const HomeScreen = ({ navigation }) => {
             <TouchableOpacity
               style={styles.brandBalanceButton}
               activeOpacity={0.9}
-              onPress={() => navigation.navigate('Vendor')}
+              onPress={() => navigation.navigate('BrandWallet')}
             >
               <Text style={styles.brandBalanceButtonText}>Withdraw</Text>
             </TouchableOpacity>
@@ -1095,7 +1124,7 @@ const HomeScreen = ({ navigation }) => {
           {/* Orders Summary */}
           <View style={styles.brandSectionHeaderRow}>
             <Text style={styles.brandSectionTitle}>Orders Summary</Text>
-            <TouchableOpacity onPress={() => navigation.navigate('VendorOrders')}>
+            <TouchableOpacity onPress={() => navigation.navigate('BrandOrders')}>
               <Text style={styles.brandSectionLink}>View All</Text>
             </TouchableOpacity>
           </View>
@@ -1252,6 +1281,9 @@ const ProductCard = React.memo(
     const ratingCount = stats?.count ?? 0;
     const { currentPrice, flashPrice, isFlashActive } = getFlashSaleState(item);
     const isOutOfStock = Number(item.quantity) === 0;
+    const byUser = item.brand_user_id ? brandDiscountLookup[`user:${item.brand_user_id}`] : null;
+    const byName = !byUser && item.brand ? brandDiscountLookup[`name:${item.brand}`] : null;
+    const brandDiscount = byUser != null ? byUser : byName;
 
     return (
       <TouchableOpacity
@@ -1270,6 +1302,11 @@ const ProductCard = React.memo(
           {isFlashActive && (
             <View style={styles.flashBadge}>
               <Text style={styles.flashBadgeText}>Flash Sale</Text>
+            </View>
+          )}
+          {!isFlashActive && brandDiscount && (
+            <View style={styles.discountBadge}>
+              <Text style={styles.discountBadgeText}>-{Math.round(brandDiscount)}%</Text>
             </View>
           )}
           {isOutOfStock && !isFlashActive && (
@@ -1325,9 +1362,7 @@ const ProductCard = React.memo(
               );
             }
 
-            const byUser = item.brand_user_id ? brandDiscountLookup[`user:${item.brand_user_id}`] : null;
-            const byName = !byUser && item.brand ? brandDiscountLookup[`name:${item.brand}`] : null;
-            const discount = byUser != null ? byUser : byName;
+            const discount = brandDiscount;
 
             if (!discount || currentPrice <= 0) {
               return <Text style={styles.productPrice}>${currentPrice.toFixed(2)}</Text>;

@@ -33,9 +33,11 @@ const getOrderImageUrl = (item, firstItem) => {
     src.image_full_url,
     src.image_thumb_url,
     src.image,
+    src.image_url,
     item.image_full_url,
     item.image_thumb_url,
     item.image,
+    item.image_url,
   ];
 
   for (let i = 0; i < candidates.length; i += 1) {
@@ -158,7 +160,9 @@ const BrandOrdersScreen = ({ navigation }) => {
           return acc;
         }, {});
 
-        // Merge in per-brand items from order_items so bundles and new orders are unified
+        // Merge in per-brand items from order_items so bundles and new orders are unified.
+        // If legacy items already exist on the order, we replace them so that
+        // the first item (used for image/name) comes from order_items.
         (orderItemRows || []).forEach((row) => {
           const o = row.orders;
           if (!o) return;
@@ -187,9 +191,18 @@ const BrandOrdersScreen = ({ navigation }) => {
             };
           }
 
-          const list = Array.isArray(byOrderId[orderId].items)
+          let list = Array.isArray(byOrderId[orderId].items)
             ? byOrderId[orderId].items
             : [];
+
+          // On first order_items row for this order, drop any legacy items so
+          // that we only show the per-brand items (with proper image_url, etc.).
+          if (!byOrderId[orderId].itemsFromOrderItems) {
+            list = [];
+            byOrderId[orderId].itemsFromOrderItems = true;
+          }
+
+          const imageUrl = row.image_url || null;
 
           list.push({
             id: row.product_id || row.id,
@@ -199,7 +212,12 @@ const BrandOrdersScreen = ({ navigation }) => {
             color: row.color,
             size: row.size,
             delivery_type: row.delivery_type,
-            image_full_url: row.image_url,
+            // Store the product image URL in several common fields so different
+            // screens/components can pick it up consistently
+            image_full_url: imageUrl,
+            image_thumb_url: imageUrl,
+            image: imageUrl,
+            image_url: imageUrl,
           });
 
           byOrderId[orderId].items = list;
@@ -369,10 +387,7 @@ const BrandOrdersScreen = ({ navigation }) => {
       <TouchableOpacity
         activeOpacity={0.9}
         onPress={() => {
-          // For New tab, allow full order detail view in VendorOrders
-          if (statusTone === 'new') {
-            navigation.navigate('VendorOrders', { highlightOrderId: item.id });
-          }
+          navigation.navigate('BrandOrderDetails', { order: item });
         }}
         style={styles.card}
       >
@@ -464,7 +479,7 @@ const BrandOrdersScreen = ({ navigation }) => {
             <TouchableOpacity
               style={styles.singleActionButton}
               onPress={() => {
-                setExpandedOrderId(isExpanded ? null : item.id);
+                navigation.navigate('BrandOrderDetails', { order: item });
               }}
             >
               <Text style={styles.singleActionButtonText}>
