@@ -6,6 +6,7 @@ import { supabase } from '../lib/supabase';
 import { Mail, Lock, LogIn, Eye, EyeOff, ShoppingBag } from 'lucide-react-native';
 import BeegsoButton from '../components/BeegsoButton';
 import OnboardingBg from '../../assets/onboarding/bg_main.png';
+import { registerForPushNotificationsAsync } from './pushNotifications';
 
 const { width } = Dimensions.get('window');
 
@@ -212,6 +213,13 @@ const WelcomeScreen = ({ navigation }) => {
         name: effectiveName,
         brandLogoUrl: brandRow?.logo_url || null,
       });
+
+      // Register this device for push notifications after we have a valid user session
+      try {
+        await registerForPushNotificationsAsync(user.id);
+      } catch (pushErr) {
+        console.warn('Failed to register push notifications:', pushErr);
+      }
 
       navigation.replace('Main');
     } catch (err) {

@@ -123,7 +123,7 @@ const EditFlashSaleScreen = ({ route, navigation }) => {
           text: 'OK',
           onPress: () =>
             navigation.navigate('Main', {
-              screen: 'Vendor',
+              screen: 'BrandProducts',
             }),
         },
       ]);

@@ -3,7 +3,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { NavigationContainer, createNavigationContainerRef } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Home, ShoppingBag, User, Store, Heart, Zap, Tag } from 'lucide-react-native';
+import { Home, ShoppingBag, User, Store, Heart, Zap, Tag, Wallet } from 'lucide-react-native';
 import { View, Text, StyleSheet, Linking } from 'react-native';
 
 // Import Screens
@@ -15,6 +15,9 @@ import SuccessScreen from '../screens/SuccessScreen';
 import VendorScreen from '../screens/VendorScreen';
 import BrandAnalyticsScreen from '../screens/BrandAnalyticsScreen';
 import BrandOrdersScreen from '../screens/BrandOrdersScreen';
+import BrandProductsScreen from '../screens/BrandProductsScreen';
+import BrandOrderDetailsScreen from '../screens/BrandOrderDetailsScreen';
+import BrandDiscountScreen from '../screens/BrandDiscountScreen';
 import VendorOrdersScreen from '../screens/VendorOrdersScreen';
 import FlashSaleScreen from '../screens/FlashSaleScreen';
 import EditFlashSaleScreen from '../screens/EditFlashSaleScreen';
@@ -63,6 +66,13 @@ import OrderDeliveredSuccessScreen from '../screens/OrderDeliveredSuccessScreen'
 import PromoCodesScreen from '../screens/PromoCodesScreen';
 import ProductReviewsScreen from '../screens/ProductReviewsScreen';
 import ProductWriteReviewScreen from '../screens/ProductWriteReviewScreen';
+import ProductQuestionsScreen from '../screens/ProductQuestionsScreen';
+import ProductAskQuestionScreen from '../screens/ProductAskQuestionScreen';
+import BrandReviewsScreen from '../screens/BrandReviewsScreen';
+import BrandQAScreen from '../screens/BrandQAScreen';
+import BrandWalletScreen from '../screens/BrandWalletScreen';
+import BrandTransactionsScreen from '../screens/BrandTransactionsScreen';
+import ManagePayoutsScreen from '../screens/ManagePayoutsScreen';
 import { useStore } from '../store/store';
 
 export const navigationRef = createNavigationContainerRef();
@@ -117,13 +127,29 @@ const TabNavigator = () => {
         }}
       />
       {userType === 'brand' && authRole !== 'admin' && (
-        <Tab.Screen
-          name="BrandOrders"
-          component={BrandOrdersScreen}
-          options={{
-            tabBarIcon: ({ color }) => <ShoppingBag color={color} size={24} />,
-          }}
-        />
+        <>
+          <Tab.Screen
+            name="BrandOrders"
+            component={BrandOrdersScreen}
+            options={{
+              tabBarIcon: ({ color }) => <ShoppingBag color={color} size={24} />,
+            }}
+          />
+          <Tab.Screen
+            name="BrandProducts"
+            component={BrandProductsScreen}
+            options={{
+              tabBarIcon: ({ color }) => <Store color={color} size={24} />,
+            }}
+          />
+          <Tab.Screen
+            name="BrandWallet"
+            component={BrandWalletScreen}
+            options={{
+              tabBarIcon: ({ color }) => <Wallet color={color} size={24} />,
+            }}
+          />
+        </>
       )}
       {userType !== 'brand' && authRole !== 'admin' && (
         <Tab.Screen
@@ -152,38 +178,9 @@ const TabNavigator = () => {
           }}
         />
       )}
-      {userType === 'brand' && authRole !== 'admin' && (
-        <>
-          <Tab.Screen
-            name="Vendor"
-            component={VendorScreen}
-            options={{
-              tabBarIcon: ({ color }) => (
-                <View style={{ alignItems: 'center' }}>
-                  <Store color={color} size={24} />
-                  {pendingOrders > 0 && (
-                    <>
-                      <View style={styles.vendorBadge}>
-                        <Text style={styles.vendorBadgeText}>{pendingOrders}</Text>
-                      </View>
-                      <Text style={styles.vendorHintText} numberOfLines={1}>
-                        {pendingOrders === 1 ? '1 order waiting' : `${pendingOrders} orders`}
-                      </Text>
-                    </>
-                  )}
-                </View>
-              )
-            }}
-          />
-          <Tab.Screen
-            name="PromoCodes"
-            component={PromoCodesScreen}
-            options={{
-              tabBarIcon: ({ color }) => <Tag color={color} size={24} />,
-            }}
-          />
-        </>
-      )}
+      {/* Removed extra brand-only bottom tabs (Vendor, PromoCodes) so brand users
+          only see Home, BrandOrders, BrandProducts, and Profile in the main bar.
+          The underlying screens remain available via the stack navigator. */}
       {userType !== 'brand' && authRole !== 'admin' && (
         <Tab.Screen
           name="Cart"
@@ -280,7 +277,16 @@ const RootStackNavigator = () => {
         <Stack.Screen name="TrackOrderDetails" component={TrackOrderDetailsScreen} />
         <Stack.Screen name="SimpleOrderTracking" component={SimpleOrderTrackingScreen} />
         <Stack.Screen name="OrderDeliveredSuccess" component={OrderDeliveredSuccessScreen} />
+        <Stack.Screen name="BrandOrderDetails" component={BrandOrderDetailsScreen} />
+        <Stack.Screen name="BrandDiscount" component={BrandDiscountScreen} />
+        <Stack.Screen name="BrandWallet" component={BrandWalletScreen} />
+        <Stack.Screen name="BrandTransactions" component={BrandTransactionsScreen} />
+        <Stack.Screen name="ManagePayouts" component={ManagePayoutsScreen} />
         <Stack.Screen name="ProductReviews" component={ProductReviewsScreen} />
+        <Stack.Screen name="BrandReviews" component={BrandReviewsScreen} />
+        <Stack.Screen name="BrandQA" component={BrandQAScreen} />
+        <Stack.Screen name="ProductQuestions" component={ProductQuestionsScreen} />
+        <Stack.Screen name="ProductAskQuestion" component={ProductAskQuestionScreen} />
         <Stack.Screen name="ProductWriteReview" component={ProductWriteReviewScreen} />
         <Stack.Screen name="FollowedStores" component={FollowedStoresScreen} />
         <Stack.Screen name="HelpFAQ" component={HelpFAQScreen} />
