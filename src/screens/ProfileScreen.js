@@ -1,8 +1,9 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { View, Text, FlatList, StyleSheet, TouchableOpacity, ActivityIndicator, ScrollView, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useStore } from '../store/store';
 import { supabase } from '../lib/supabase';
+import { useFocusEffect } from '@react-navigation/native';
 import {
   User,
   Package,
@@ -37,6 +38,7 @@ const ProfileScreen = ({ navigation }) => {
   const setUserType = useStore((state) => state.setUserType);
   const setUserProfile = useStore((state) => state.setUserProfile);
   const clearAuthUser = useStore((state) => state.clearAuthUser);
+  const setOrders = useStore((state) => state.setOrders);
 
   const [brandId, setBrandId] = useState(null);
   const [brandLoading, setBrandLoading] = useState(true);
@@ -133,6 +135,118 @@ const ProfileScreen = ({ navigation }) => {
 
     loadCustomerProfile();
   }, [authUserId, authRole, authEmail, setUserProfile]);
+
+  // For brand users, ensure global orders include the full history of orders
+  // for this brand, derived from order_items joined to orders.
+  useFocusEffect(
+    useCallback(() => {
+      if (!authUserId || authRole !== 'brand') return undefined;
+
+      let isActive = true;
+
+      const loadBrandOrders = async () => {
+        try {
+          const { data, error } = await supabase
+            .from('order_items')
+            .select(
+              `
+              id,
+              order_id,
+              product_id,
+              brand_user_id,
+              name,
+              quantity,
+              unit_price,
+              color,
+              size,
+              delivery_type,
+              image_url,
+              orders:orders (
+                id,
+                subtotal,
+                shipping,
+                total,
+                status,
+                placed_at,
+                payment_method,
+                delivery_address,
+                shipping_method,
+                promo_code,
+                customer_name,
+                customer_phone,
+                customer_secondary_phone,
+                brand_accepted_at,
+                on_the_way_at,
+                delivered_at
+              )
+            `,
+            )
+            .eq('brand_user_id', authUserId)
+            .order('order_id', { ascending: false });
+
+          if (error) {
+            console.warn('ProfileScreen: failed to load brand orders', error.message || error);
+            return;
+          }
+
+          if (!isActive) return;
+
+          const byOrderId = (data || []).reduce((acc, row) => {
+            const o = row.orders;
+            if (!o) return acc;
+
+            const orderId = o.id;
+            if (!acc[orderId]) {
+              acc[orderId] = {
+                id: orderId,
+                items: [],
+                subtotal: Number(o.subtotal) || 0,
+                shipping: Number(o.shipping) || 0,
+                total: Number(o.total) || 0,
+                status: o.status || 'Pending',
+                date: o.placed_at ? new Date(o.placed_at).toLocaleDateString() : '',
+                brand_user_id: authUserId,
+                payment_method: o.payment_method || 'cash_on_delivery',
+                delivery_address: o.delivery_address || '',
+                shipping_method: o.shipping_method || null,
+                promo_code: o.promo_code || null,
+                customer_name: o.customer_name || null,
+                customer_phone: o.customer_phone || null,
+                customer_secondary_phone: o.customer_secondary_phone || null,
+                brand_accepted_at: o.brand_accepted_at || null,
+                on_the_way_at: o.on_the_way_at || null,
+                delivered_at: o.delivered_at || null,
+              };
+            }
+
+            acc[orderId].items.push({
+              id: row.product_id || row.id,
+              name: row.name,
+              quantity: row.quantity,
+              price: row.unit_price,
+              color: row.color,
+              size: row.size,
+              delivery_type: row.delivery_type,
+              image: row.image_url,
+            });
+
+            return acc;
+          }, {});
+
+          const mapped = Object.values(byOrderId);
+          setOrders(mapped);
+        } catch (e) {
+          console.warn('ProfileScreen: unexpected error loading brand orders', e.message || e);
+        }
+      };
+
+      loadBrandOrders();
+
+      return () => {
+        isActive = false;
+      };
+    }, [authUserId, authRole, setOrders]),
+  );
 
   const myOrders =
     userType === 'brand' && authUserId
@@ -604,13 +718,16 @@ const ProfileScreen = ({ navigation }) => {
           <View style={styles.brandSectionGroup}>
             <Text style={styles.brandSectionLabel}>COMMUNICATION</Text>
             <View style={styles.brandSectionCard}>
-              <TouchableOpacity style={styles.brandRow}>
+              <TouchableOpacity
+                style={styles.brandRow}
+                onPress={() => navigation.navigate('BrandQA')}
+              >
                 <View style={styles.brandRowLeft}>
                   <View style={[styles.brandIconCircle, { backgroundColor: '#ECFEFF' }]}>
                     <MessageSquare size={18} color="#0369A1" />
                   </View>
                   <View>
-                    <Text style={styles.brandRowTitle}>Messages</Text>
+                    <Text style={styles.brandRowTitle}>Q/A</Text>
                   </View>
                 </View>
               </TouchableOpacity>

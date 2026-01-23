@@ -1,4 +1,5 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useRef } from 'react';
+
 import {
   View,
   Text,
@@ -50,8 +51,10 @@ const getOrderImageUrl = (item, firstItem) => {
   return null;
 };
 
-const BrandOrdersScreen = ({ navigation }) => {
+const BrandOrdersScreen = ({ navigation, route }) => {
   const authUserId = useStore((state) => state.authUserId);
+
+  const highlightOrderId = route?.params?.highlightOrderId || null;
 
   const [loading, setLoading] = useState(true);
   const [orders, setOrders] = useState([]);
@@ -59,6 +62,8 @@ const BrandOrdersScreen = ({ navigation }) => {
 
   const [expandedOrderId, setExpandedOrderId] = useState(null);
   const [justAcceptedId, setJustAcceptedId] = useState(null);
+
+  const listRef = useRef(null);
 
   useEffect(() => {
     let isActive = true;
@@ -282,6 +287,35 @@ const BrandOrdersScreen = ({ navigation }) => {
       return true;
     });
   }, [orders, filter]);
+
+  // When navigated from a notification with a specific order, ensure we show the
+  // "New" tab and try to scroll to / expand that order card.
+  useEffect(() => {
+    if (!highlightOrderId || !filteredOrders || filteredOrders.length === 0) {
+      return;
+    }
+
+    // Ensure we're on the New tab so new incoming orders are visible.
+    if (filter !== 'new') {
+      setFilter('new');
+    }
+
+    const index = filteredOrders.findIndex((o) => o.id === highlightOrderId);
+    if (index === -1) return;
+
+    setExpandedOrderId(highlightOrderId);
+
+    // Give FlatList a moment to render before attempting to scroll.
+    setTimeout(() => {
+      try {
+        if (listRef.current && typeof listRef.current.scrollToIndex === 'function') {
+          listRef.current.scrollToIndex({ index, animated: true });
+        }
+      } catch (e) {
+        // If scrolling fails (e.g. out of range), we still have the card expanded.
+      }
+    }, 300);
+  }, [highlightOrderId, filteredOrders, filter]);
 
   const handleAcceptOrder = async (orderId) => {
     if (!orderId) return;
@@ -567,6 +601,7 @@ const BrandOrdersScreen = ({ navigation }) => {
       </View>
 
       <FlatList
+        ref={listRef}
         data={filteredOrders}
         keyExtractor={(item) => String(item.id)}
         renderItem={renderOrderCard}

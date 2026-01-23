@@ -66,7 +66,10 @@ import OrderDeliveredSuccessScreen from '../screens/OrderDeliveredSuccessScreen'
 import PromoCodesScreen from '../screens/PromoCodesScreen';
 import ProductReviewsScreen from '../screens/ProductReviewsScreen';
 import ProductWriteReviewScreen from '../screens/ProductWriteReviewScreen';
+import ProductQuestionsScreen from '../screens/ProductQuestionsScreen';
+import ProductAskQuestionScreen from '../screens/ProductAskQuestionScreen';
 import BrandReviewsScreen from '../screens/BrandReviewsScreen';
+import BrandQAScreen from '../screens/BrandQAScreen';
 import BrandWalletScreen from '../screens/BrandWalletScreen';
 import BrandTransactionsScreen from '../screens/BrandTransactionsScreen';
 import ManagePayoutsScreen from '../screens/ManagePayoutsScreen';
@@ -281,6 +284,9 @@ const RootStackNavigator = () => {
         <Stack.Screen name="ManagePayouts" component={ManagePayoutsScreen} />
         <Stack.Screen name="ProductReviews" component={ProductReviewsScreen} />
         <Stack.Screen name="BrandReviews" component={BrandReviewsScreen} />
+        <Stack.Screen name="BrandQA" component={BrandQAScreen} />
+        <Stack.Screen name="ProductQuestions" component={ProductQuestionsScreen} />
+        <Stack.Screen name="ProductAskQuestion" component={ProductAskQuestionScreen} />
         <Stack.Screen name="ProductWriteReview" component={ProductWriteReviewScreen} />
         <Stack.Screen name="FollowedStores" component={FollowedStoresScreen} />
         <Stack.Screen name="HelpFAQ" component={HelpFAQScreen} />

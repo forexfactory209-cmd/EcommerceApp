@@ -71,13 +71,13 @@ const ProductReviewsScreen = () => {
     products.find((p) => p.id === productId && p.brand_user_id === authUserId)
   );
 
-  const hasPurchasedProduct = orders.some(
-    (order) =>
-      order &&
-      order.status === 'Delivered' &&
-      Array.isArray(order.items) &&
-      order.items.some((item) => item && item.id === productId),
-  );
+  const hasPurchasedProduct = orders.some((order) => {
+    if (!order || !Array.isArray(order.items)) return false;
+    const status = (order.status || '').toLowerCase();
+    const isDeliveredLike = status === 'delivered' || status === 'customer_confirmed';
+    if (!isDeliveredLike) return false;
+    return order.items.some((item) => item && item.id === productId);
+  });
 
   const [reviews, setReviews] = useState([]);
   const [reviewsPage, setReviewsPage] = useState(1);

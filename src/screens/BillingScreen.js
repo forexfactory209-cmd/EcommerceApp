@@ -321,6 +321,7 @@ const BillingScreen = ({ navigation }) => {
         id: item.id,
         name: item.name,
         brand: item.brand,
+        code: item.code || null,
         quantity: item.quantity,
         price: (() => {
           const { currentPrice, flashPrice, isFlashActive } = getFlashSaleState(item);
@@ -430,7 +431,7 @@ const BillingScreen = ({ navigation }) => {
 
       // Create a notification for each distinct brand in the cart
       try {
-        const brandIds = Array.from(
+        const brandUserIds = Array.from(
           new Set(
             cart
               .map((item) => item.brand_user_id)
@@ -438,16 +439,33 @@ const BillingScreen = ({ navigation }) => {
           ),
         );
 
-        if (brandIds.length > 0) {
-          const notificationsPayload = brandIds.map((brandId) => ({
-            user_id: brandId,
-            type: 'brand_order_placed',
-            order_id: orderRow.id,
-            title: 'New order received',
-            body: `You have a new order #${orderRow.id} to review.`,
-          }));
+        if (brandUserIds.length > 0) {
+          const { data: brandRows, error: brandsError } = await supabase
+            .from('brands')
+            .select('id, user_id')
+            .in('user_id', brandUserIds);
 
-          await supabase.from('notifications').insert(notificationsPayload);
+          if (brandsError) {
+            console.warn(
+              'Billing: failed to load brands for notifications',
+              brandsError.message || brandsError,
+            );
+          } else if (Array.isArray(brandRows) && brandRows.length > 0) {
+            const notificationsPayload = brandRows
+              .filter((b) => b.user_id)
+              .map((b) => ({
+                user_id: b.user_id,
+                brand_id: b.id,
+                title: 'New order received',
+                message: `You have a new order #${orderRow.id} to review.`,
+                data: { order_id: orderRow.id },
+                is_read: false,
+              }));
+
+            if (notificationsPayload.length > 0) {
+              await supabase.from('notifications').insert(notificationsPayload);
+            }
+          }
         }
       } catch (notifErr) {
         console.warn('Billing: failed to create brand notifications', notifErr.message || notifErr);
