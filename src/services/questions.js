@@ -34,8 +34,11 @@ export async function createProductQuestion({
   text,
   countryCode,
   deviceLang,
+  userName,
 }) {
   if (!productId || !userId || !text) return null;
+
+  console.log('[createProductQuestion] productId:', productId, 'typeof:', typeof productId);
 
   const payload = {
     product_id: productId,
@@ -43,6 +46,8 @@ export async function createProductQuestion({
     text,
     country_code: countryCode || null,
     device_lang: deviceLang || null,
+    // Optional denormalized display name so brand Q&A can show customer name
+    user_name: userName || null,
   };
 
   const { data, error } = await supabase
@@ -141,6 +146,40 @@ export async function deleteProductAnswer({ answerId, userId }) {
 
   if (error) {
     console.warn('Error deleting product answer', error.message || error);
+    throw error;
+  }
+}
+
+export async function updateProductQuestion({ questionId, userId, text }) {
+  if (!questionId || !userId || !text) return null;
+
+  const { data, error } = await supabase
+    .from('product_questions')
+    .update({ text })
+    .eq('id', questionId)
+    .eq('user_id', userId)
+    .select('*')
+    .single();
+
+  if (error) {
+    console.warn('Error updating product question', error.message || error);
+    throw error;
+  }
+
+  return data;
+}
+
+export async function deleteProductQuestion({ questionId, userId }) {
+  if (!questionId || !userId) return;
+
+  const { error } = await supabase
+    .from('product_questions')
+    .delete()
+    .eq('id', questionId)
+    .eq('user_id', userId);
+
+  if (error) {
+    console.warn('Error deleting product question', error.message || error);
     throw error;
   }
 }
