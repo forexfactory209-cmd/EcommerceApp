@@ -1,8 +1,9 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { View, Text, FlatList, StyleSheet, TouchableOpacity, ActivityIndicator, ScrollView, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useStore } from '../store/store';
 import { supabase } from '../lib/supabase';
+import { useFocusEffect } from '@react-navigation/native';
 import {
   User,
   Package,
@@ -17,6 +18,12 @@ import {
   Truck,
   Clock3,
   DollarSign,
+  Star,
+  Settings,
+  MessageSquare,
+  BarChart3,
+  Bell,
+  Lock,
 } from 'lucide-react-native';
 
 const ProfileScreen = ({ navigation }) => {
@@ -31,9 +38,11 @@ const ProfileScreen = ({ navigation }) => {
   const setUserType = useStore((state) => state.setUserType);
   const setUserProfile = useStore((state) => state.setUserProfile);
   const clearAuthUser = useStore((state) => state.clearAuthUser);
+  const setOrders = useStore((state) => state.setOrders);
 
   const [brandId, setBrandId] = useState(null);
   const [brandLoading, setBrandLoading] = useState(true);
+  const [brandProfile, setBrandProfile] = useState(null);
 
   useEffect(() => {
     const loadBrandForProfile = async () => {
@@ -42,12 +51,13 @@ const ProfileScreen = ({ navigation }) => {
         if (!authUserId || authRole !== 'brand') {
           console.log('[ProfileScreen] Not a brand user, setting brandId to null');
           setBrandId(null);
+          setBrandProfile(null);
           return;
         }
 
         const { data, error } = await supabase
           .from('brands')
-          .select('id')
+          .select('id,name,logo_url,rating_average,rating_count,created_at')
           .eq('user_id', authUserId)
           .maybeSingle();
 
@@ -60,9 +70,22 @@ const ProfileScreen = ({ navigation }) => {
         const brandId = data?.id || null;
         console.log('[ProfileScreen] Loaded brandId:', brandId, typeof brandId);
         setBrandId(brandId);
+        if (data) {
+          setBrandProfile({
+            id: data.id,
+            name: data.name || null,
+            logo_url: data.logo_url || null,
+            rating_average: typeof data.rating_average === 'number' ? data.rating_average : null,
+            rating_count: typeof data.rating_count === 'number' ? data.rating_count : 0,
+            created_at: data.created_at || null,
+          });
+        } else {
+          setBrandProfile(null);
+        }
       } catch (e) {
         console.warn('Unexpected error loading brand for profile screen:', e.message || e);
         setBrandId(null);
+        setBrandProfile(null);
       } finally {
         setBrandLoading(false);
       }
@@ -113,6 +136,118 @@ const ProfileScreen = ({ navigation }) => {
     loadCustomerProfile();
   }, [authUserId, authRole, authEmail, setUserProfile]);
 
+  // For brand users, ensure global orders include the full history of orders
+  // for this brand, derived from order_items joined to orders.
+  useFocusEffect(
+    useCallback(() => {
+      if (!authUserId || authRole !== 'brand') return undefined;
+
+      let isActive = true;
+
+      const loadBrandOrders = async () => {
+        try {
+          const { data, error } = await supabase
+            .from('order_items')
+            .select(
+              `
+              id,
+              order_id,
+              product_id,
+              brand_user_id,
+              name,
+              quantity,
+              unit_price,
+              color,
+              size,
+              delivery_type,
+              image_url,
+              orders:orders (
+                id,
+                subtotal,
+                shipping,
+                total,
+                status,
+                placed_at,
+                payment_method,
+                delivery_address,
+                shipping_method,
+                promo_code,
+                customer_name,
+                customer_phone,
+                customer_secondary_phone,
+                brand_accepted_at,
+                on_the_way_at,
+                delivered_at
+              )
+            `,
+            )
+            .eq('brand_user_id', authUserId)
+            .order('order_id', { ascending: false });
+
+          if (error) {
+            console.warn('ProfileScreen: failed to load brand orders', error.message || error);
+            return;
+          }
+
+          if (!isActive) return;
+
+          const byOrderId = (data || []).reduce((acc, row) => {
+            const o = row.orders;
+            if (!o) return acc;
+
+            const orderId = o.id;
+            if (!acc[orderId]) {
+              acc[orderId] = {
+                id: orderId,
+                items: [],
+                subtotal: Number(o.subtotal) || 0,
+                shipping: Number(o.shipping) || 0,
+                total: Number(o.total) || 0,
+                status: o.status || 'Pending',
+                date: o.placed_at ? new Date(o.placed_at).toLocaleDateString() : '',
+                brand_user_id: authUserId,
+                payment_method: o.payment_method || 'cash_on_delivery',
+                delivery_address: o.delivery_address || '',
+                shipping_method: o.shipping_method || null,
+                promo_code: o.promo_code || null,
+                customer_name: o.customer_name || null,
+                customer_phone: o.customer_phone || null,
+                customer_secondary_phone: o.customer_secondary_phone || null,
+                brand_accepted_at: o.brand_accepted_at || null,
+                on_the_way_at: o.on_the_way_at || null,
+                delivered_at: o.delivered_at || null,
+              };
+            }
+
+            acc[orderId].items.push({
+              id: row.product_id || row.id,
+              name: row.name,
+              quantity: row.quantity,
+              price: row.unit_price,
+              color: row.color,
+              size: row.size,
+              delivery_type: row.delivery_type,
+              image: row.image_url,
+            });
+
+            return acc;
+          }, {});
+
+          const mapped = Object.values(byOrderId);
+          setOrders(mapped);
+        } catch (e) {
+          console.warn('ProfileScreen: unexpected error loading brand orders', e.message || e);
+        }
+      };
+
+      loadBrandOrders();
+
+      return () => {
+        isActive = false;
+      };
+    }, [authUserId, authRole, setOrders]),
+  );
+
   const myOrders =
     userType === 'brand' && authUserId
       ? orders.filter((o) => o.brand_user_id === authUserId)
@@ -122,6 +257,26 @@ const ProfileScreen = ({ navigation }) => {
   const deliveredCount = myOrders.filter((o) => o.status === 'Delivered').length;
   const pendingCount = myOrders.filter((o) => o.status !== 'Delivered').length;
   const totalSpent = myOrders.reduce((sum, o) => sum + (o.total || 0), 0);
+
+  const brandRatingAvg =
+    typeof brandProfile?.rating_average === 'number' && !Number.isNaN(brandProfile.rating_average)
+      ? brandProfile.rating_average
+      : null;
+  const brandRatingCount =
+    typeof brandProfile?.rating_count === 'number' && !Number.isNaN(brandProfile.rating_count)
+      ? brandProfile.rating_count
+      : 0;
+
+  const responsePercent = totalOrders > 0
+    ? Math.round((deliveredCount / totalOrders) * 100)
+    : 0;
+
+  const brandDisplayName =
+    (brandProfile?.name && brandProfile.name.trim()) ||
+    (userProfile?.name && userProfile.name.trim()) ||
+    'Brand Store';
+
+  const brandLogoUrl = brandProfile?.logo_url || userProfile?.avatar_url || null;
 
   const unseenDeliveredCount = Math.max(deliveredCount - (seenDeliveredOrdersCount || 0), 0);
 
@@ -398,6 +553,283 @@ const ProfileScreen = ({ navigation }) => {
 
   const isBrandRole = authRole === 'brand';
 
+  const handleLogout = async () => {
+    try {
+      await supabase.auth.signOut();
+    } catch (e) {
+      // ignore sign-out errors, we'll still clear local state
+    }
+    clearAuthUser();
+    setUserProfile({ name: '', email: '' });
+    setUserType('customer');
+    navigation.reset({
+      index: 0,
+      routes: [{ name: 'Welcome' }],
+    });
+  };
+
+  // --- Brand profile layout (for authRole === 'brand') ---
+  if (isBrandRole) {
+    return (
+      <SafeAreaView style={styles.brandContainer} edges={['top', 'right', 'bottom', 'left']}>
+        <ScrollView contentContainerStyle={styles.brandScrollContent} showsVerticalScrollIndicator={false}>
+          {/* Header */}
+          {/* <View style={styles.brandHeaderRow}>
+            <Text style={styles.brandHeaderTitle}>Profile</Text>
+            <TouchableOpacity style={styles.brandHeaderIconButton} onPress={() => navigation.navigate('BrandOnboarding')}>
+              <Settings color="#0F172A" size={18} />
+            </TouchableOpacity>
+          </View> */}
+
+          {/* Avatar + Name */}
+          <View style={styles.brandAvatarSection}>
+            <View style={styles.brandAvatarWrapper}>
+              <View style={styles.brandAvatarCircle}>
+                {brandLogoUrl ? (
+                  <Image source={{ uri: brandLogoUrl }} style={styles.brandAvatarImage} />
+                ) : (
+                  <Text style={styles.brandAvatarInitial}>
+                    {(brandDisplayName || 'B').charAt(0).toUpperCase()}
+                  </Text>
+                )}
+              </View>
+              <View style={styles.brandAvatarBadge}>
+                <Text style={styles.brandAvatarBadgeText}>✓</Text>
+              </View>
+            </View>
+            <Text style={styles.brandNameTitle}>{brandDisplayName}</Text>
+            <View style={styles.brandTagRow}>
+              <View style={styles.brandTagPill}>
+                <Text style={styles.brandTagPillText}>Trusted Seller</Text>
+              </View>
+              <Text style={styles.brandTagMeta}>
+                {brandProfile?.created_at ? ` · Since ${new Date(brandProfile.created_at).getFullYear()}` : ''}
+              </Text>
+            </View>
+          </View>
+
+          {/* Stats row */}
+          <View style={styles.brandStatsCardsRow}>
+            <View style={styles.brandStatCard}>
+              <Text style={styles.brandStatValue}>
+                {brandRatingAvg != null ? brandRatingAvg.toFixed(1) : '0.0'}
+              </Text>
+              <Text style={styles.brandStatLabel}>
+                Rating{brandRatingCount ? ` • ${brandRatingCount}` : ''}
+              </Text>
+            </View>
+            <View style={styles.brandStatCard}>
+              <Text style={styles.brandStatValue}>{responsePercent}%</Text>
+              <Text style={styles.brandStatLabel}>Response</Text>
+            </View>
+            <View style={styles.brandStatCard}>
+              <Text style={styles.brandStatValue}>{totalOrders}</Text>
+              <Text style={styles.brandStatLabel}>Orders</Text>
+            </View>
+          </View>
+
+          {/* STORE & BUSINESS */}
+          <View style={styles.brandSectionGroup}>
+            <Text style={styles.brandSectionLabel}>STORE & BUSINESS</Text>
+            <View style={styles.brandSectionCard}>
+              <TouchableOpacity
+                style={styles.brandRow}
+                onPress={() => navigation.navigate('BrandOnboarding')}
+              >
+                <View style={styles.brandRowLeft}>
+                  <View style={[styles.brandIconCircle, { backgroundColor: '#EEF2FF' }]}>
+                    <Store size={18} color="#11126F" />
+                  </View>
+                  <View>
+                    <Text style={styles.brandRowTitle}>Store Profile</Text>
+                    <Text style={styles.brandRowSubtitle}>Manage logo, banner, and description</Text>
+                  </View>
+                </View>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.brandRow}
+                onPress={() => {
+                  if (brandId) {
+                    navigation.navigate('Brand', { brandId });
+                  }
+                }}
+              >
+                <View style={styles.brandRowLeft}>
+                  <View style={[styles.brandIconCircle, { backgroundColor: '#ECFEFF' }]}>
+                    <Store size={18} color="#0369A1" />
+                  </View>
+                  <View>
+                    <Text style={styles.brandRowTitle}>Store Preview</Text>
+                    <Text style={styles.brandRowSubtitle}>View as customer</Text>
+                  </View>
+                </View>
+              </TouchableOpacity>
+
+              <TouchableOpacity style={[styles.brandRow, styles.brandRowLast]}>
+                <View style={styles.brandRowLeft}>
+                  <View style={[styles.brandIconCircle, { backgroundColor: '#F5F3FF' }]}>
+                    <FileText size={18} color="#4C1D95" />
+                  </View>
+                  <View>
+                    <Text style={styles.brandRowTitle}>Business Information</Text>
+                    <Text style={styles.brandRowSubtitle}>Legal and tax details</Text>
+                  </View>
+                </View>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          {/* PERFORMANCE */}
+          <View style={styles.brandSectionGroup}>
+            <Text style={styles.brandSectionLabel}>PERFORMANCE</Text>
+            <View style={styles.brandSectionCard}>
+              <TouchableOpacity
+                style={styles.brandRow}
+                onPress={() => navigation.navigate('BrandReviews')}
+              >
+                <View style={styles.brandRowLeft}>
+                  <View style={[styles.brandIconCircle, { backgroundColor: '#FEF9C3' }]}>
+                    <Star size={18} color="#CA8A04" />
+                  </View>
+                  <View>
+                    <Text style={styles.brandRowTitle}>Reviews & Ratings</Text>
+                  </View>
+                </View>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.brandRow, styles.brandRowLast]}
+                onPress={() => navigation.navigate('BrandAnalytics')}
+              >
+                <View style={styles.brandRowLeft}>
+                  <View style={[styles.brandIconCircle, { backgroundColor: '#EEF2FF' }]}>
+                    <BarChart3 size={18} color="#11126F" />
+                  </View>
+                  <View>
+                    <Text style={styles.brandRowTitle}>Analytics</Text>
+                  </View>
+                </View>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          {/* COMMUNICATION */}
+          <View style={styles.brandSectionGroup}>
+            <Text style={styles.brandSectionLabel}>COMMUNICATION</Text>
+            <View style={styles.brandSectionCard}>
+              <TouchableOpacity
+                style={styles.brandRow}
+                onPress={() => navigation.navigate('BrandQA')}
+              >
+                <View style={styles.brandRowLeft}>
+                  <View style={[styles.brandIconCircle, { backgroundColor: '#ECFEFF' }]}>
+                    <MessageSquare size={18} color="#0369A1" />
+                  </View>
+                  <View>
+                    <Text style={styles.brandRowTitle}>Q/A</Text>
+                  </View>
+                </View>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.brandRow, styles.brandRowLast]}
+                onPress={() => navigation.navigate('ReportProblem')}
+              >
+                <View style={styles.brandRowLeft}>
+                  <View style={[styles.brandIconCircle, { backgroundColor: '#FEF2F2' }]}>
+                    <AlertCircle size={18} color="#B91C1C" />
+                  </View>
+                  <View>
+                    <Text style={styles.brandRowTitle}>Disputes & Support</Text>
+                  </View>
+                </View>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          {/* ACCOUNT & SECURITY */}
+          <View style={styles.brandSectionGroup}>
+            <Text style={styles.brandSectionLabel}>ACCOUNT & SECURITY</Text>
+            <View style={styles.brandSectionCard}>
+              <TouchableOpacity
+                style={styles.brandRow}
+                onPress={() => navigation.navigate('EditProfile')}
+              >
+                <View style={styles.brandRowLeft}>
+                  <View style={[styles.brandIconCircle, { backgroundColor: '#EEF2FF' }]}>
+                    <User size={18} color="#11126F" />
+                  </View>
+                  <View>
+                    <Text style={styles.brandRowTitle}>Account Settings</Text>
+                  </View>
+                </View>
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.brandRow}>
+                <View style={styles.brandRowLeft}>
+                  <View style={[styles.brandIconCircle, { backgroundColor: '#EFF6FF' }]}>
+                    <Bell size={18} color="#1D4ED8" />
+                  </View>
+                  <View>
+                    <Text style={styles.brandRowTitle}>Notification Settings</Text>
+                  </View>
+                </View>
+              </TouchableOpacity>
+
+              <TouchableOpacity style={[styles.brandRow, styles.brandRowLast]}>
+                <View style={styles.brandRowLeft}>
+                  <View style={[styles.brandIconCircle, { backgroundColor: '#EEF2FF' }]}>
+                    <Lock size={18} color="#11126F" />
+                  </View>
+                  <View>
+                    <Text style={styles.brandRowTitle}>Security</Text>
+                  </View>
+                </View>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          {/* LEGAL */}
+          <View style={styles.brandSectionGroup}>
+            <Text style={styles.brandSectionLabel}>LEGAL</Text>
+            <View style={styles.brandSectionCard}>
+              <TouchableOpacity
+                style={styles.brandRow}
+                onPress={() => navigation.navigate('TermsConditions')}
+              >
+                <View style={styles.brandRowLeft}>
+                  <View style={[styles.brandIconCircle, { backgroundColor: '#EEF2FF' }]}>
+                    <FileText size={18} color="#11126F" />
+                  </View>
+                  <View>
+                    <Text style={styles.brandRowTitle}>Terms & Policies</Text>
+                  </View>
+                </View>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.brandRow, styles.brandRowLast]}
+                onPress={handleLogout}
+              >
+                <View style={styles.brandRowLeft}>
+                  <View style={[styles.brandIconCircle, { backgroundColor: '#FEF2F2' }]}>
+                    <LogOutIcon size={18} color="#B91C1C" />
+                  </View>
+                  <View>
+                    <Text style={[styles.brandRowTitle, { color: '#B91C1C' }]}>Log out</Text>
+                  </View>
+                </View>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          <Text style={styles.brandVersionText}>Version 2.4.0 (Build 302)</Text>
+        </ScrollView>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.container} edges={['top', 'right', 'bottom', 'left']}>
       <View style={styles.mainContent}>
@@ -581,19 +1013,7 @@ const ProfileScreen = ({ navigation }) => {
 
       <TouchableOpacity
         style={styles.logoutButton}
-        onPress={async () => {
-          try {
-            await supabase.auth.signOut();
-          } catch (e) {
-          }
-          clearAuthUser();
-          setUserProfile({ name: '', email: '' });
-          setUserType('customer');
-          navigation.reset({
-            index: 0,
-            routes: [{ name: 'Welcome' }],
-          });
-        }}
+        onPress={handleLogout}
       >
         <Text style={styles.logoutText}>Logout</Text>
       </TouchableOpacity>
@@ -802,6 +1222,199 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: '#ef4444',
+  },
+  // --- Brand profile styles ---
+  brandContainer: {
+    flex: 1,
+    backgroundColor: '#F5F7FB',
+  },
+  brandScrollContent: {
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 32,
+  },
+  brandHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+  },
+  brandHeaderTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#111827',
+  },
+  brandHeaderIconButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#E5E7EB',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  brandAvatarSection: {
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  brandAvatarWrapper: {
+    width: 96,
+    height: 96,
+    borderRadius: 48,
+    borderWidth: 4,
+    borderColor: '#E5E7EB',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
+  },
+  brandAvatarCircle: {
+    width: 84,
+    height: 84,
+    borderRadius: 42,
+    backgroundColor: '#11126F',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  brandAvatarImage: {
+    width: 84,
+    height: 84,
+    borderRadius: 42,
+  },
+  brandAvatarInitial: {
+    fontSize: 32,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  brandAvatarBadge: {
+    position: 'absolute',
+    right: 0,
+    bottom: 0,
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: '#2563EB',
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  brandAvatarBadgeText: {
+    fontSize: 14,
+    color: '#FFFFFF',
+    fontWeight: '700',
+  },
+  brandNameTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#111827',
+  },
+  brandTagRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 6,
+  },
+  brandTagPill: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 999,
+    backgroundColor: '#E0E7FF',
+  },
+  brandTagPillText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#11126F',
+  },
+  brandTagMeta: {
+    fontSize: 11,
+    color: '#6B7280',
+  },
+  brandStatsCardsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  brandStatCard: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    paddingVertical: 10,
+    marginHorizontal: 4,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOpacity: 0.03,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 1,
+  },
+  brandStatValue: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#111827',
+  },
+  brandStatLabel: {
+    marginTop: 2,
+    fontSize: 11,
+    color: '#6B7280',
+  },
+  brandSectionGroup: {
+    marginTop: 16,
+  },
+  brandSectionLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#9CA3AF',
+    letterSpacing: 0.6,
+    marginBottom: 6,
+  },
+  brandSectionCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 18,
+    paddingHorizontal: 14,
+    paddingVertical: 4,
+    shadowColor: '#000',
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 1,
+  },
+  brandRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+  },
+  brandRowLast: {
+    borderBottomWidth: 0,
+  },
+  brandRowLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  brandIconCircle: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
+  },
+  brandRowTitle: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#111827',
+  },
+  brandRowSubtitle: {
+    marginTop: 2,
+    fontSize: 11,
+    color: '#6B7280',
+  },
+  brandVersionText: {
+    marginTop: 24,
+    textAlign: 'center',
+    fontSize: 11,
+    color: '#9CA3AF',
   },
   logoutLabel: {
     fontSize: 14,

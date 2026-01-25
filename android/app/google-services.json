@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1011067595132",
+    "project_id": "ecommerceapp-bec73",
+    "storage_bucket": "ecommerceapp-bec73.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1011067595132:android:dc6b7a38c8f76917089cf9",
+        "android_client_info": {
+          "package_name": "com.udoon.udoon"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD7WGsDur5YYd_Ze_NWrvZ0HTkT6gge0-M"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

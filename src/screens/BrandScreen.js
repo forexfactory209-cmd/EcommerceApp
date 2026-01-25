@@ -12,6 +12,7 @@ import { supabase } from '../lib/supabase';
 const BrandScreen = ({ route, navigation }) => {
   const { brandId, brand: routeBrand } = route.params || {};
   const products = useStore((state) => state.products);
+  const authUserId = useStore((state) => state.authUserId);
   const followedBrandIds = useStore((state) => state.followedBrandIds || []);
   const toggleFollowBrand = useStore((state) => state.toggleFollowBrand);
   const deletedProductIds = useStore((state) => state.deletedProductIds || []);
@@ -125,6 +126,24 @@ const BrandScreen = ({ route, navigation }) => {
       }),
     [baseData, brandUserId, brandName],
   );
+
+  useEffect(() => {
+    const logVisit = async () => {
+      try {
+        if (!brandUserId || !authUserId) return;
+        if (brandUserId === authUserId) return;
+
+        await supabase.from('brand_visits').insert({
+          brand_user_id: brandUserId,
+          visitor_user_id: authUserId,
+        });
+      } catch (e) {
+        console.warn('Failed to log brand visit', e.message || e);
+      }
+    };
+
+    logVisit();
+  }, [brandUserId, authUserId]);
 
   const ratingProductIds = useMemo(
     () =>

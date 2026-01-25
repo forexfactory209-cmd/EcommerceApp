@@ -45,66 +45,22 @@ export default function App() {
   useEffect(() => {
     const subscription = Notifications.addNotificationResponseReceivedListener((response) => {
       try {
-        const data = response?.notification?.request?.content?.data || {};
-        const type = data.type || data.notificationType || null;
-        const orderId = data.orderId || data.order_id;
-        const productId = data.productId || data.product_id;
-        const brandId = data.brandId || data.brand_id;
-        const questionId = data.questionId || data.question_id;
-
-        // Q&A: new question for a product -> take brand owner straight to product Q&A
-        if (type === 'new_question' && productId && navigationRef.isReady()) {
-          if (data.product) {
-            navigationRef.navigate('ProductDetails', {
-              product: data.product,
-              focusQuestionId: questionId || null,
-              initialTab: 'reviews',
-            });
-          } else {
-            navigationRef.navigate('ProductDetails', {
-              product: {
-                id: productId,
-              },
-              focusQuestionId: questionId || null,
-              initialTab: 'reviews',
-            });
-          }
-          return;
-        }
-
-        // Product-level: restock / product notifications
-        if (productId && navigationRef.isReady()) {
-          if (data.product) {
-            navigationRef.navigate('ProductDetails', { product: data.product });
-          } else {
-            navigationRef.navigate('ProductDetails', {
-              product: {
-                id: productId,
-              },
-            });
-          }
-          return;
-        }
-
-        // Brand-level: flash sales, discounts, collections
-        if (brandId && navigationRef.isReady()) {
-          if (data.brand) {
-            navigationRef.navigate('Brand', {
-              brandId,
-              brand: data.brand,
-            });
-          } else {
-            navigationRef.navigate('Brand', { brandId });
-          }
-          return;
-        }
-
-        // Order-level: status updates
-        if (orderId && navigationRef.isReady()) {
-          navigationRef.navigate('TrackOrderDetails', { orderId });
+        // For any push tap (from lockscreen, banner, or notification center),
+        // always take the user into the in-app Notifications screen. More
+        // specific routing is handled inside NotificationsScreen when the user
+        // taps on a list item there.
+        if (navigationRef.isReady()) {
+          navigationRef.navigate('Notifications');
+        } else {
+          // If navigation is not yet ready (cold start), retry shortly.
+          setTimeout(() => {
+            if (navigationRef.isReady()) {
+              navigationRef.navigate('Notifications');
+            }
+          }, 500);
         }
       } catch (e) {
-        // Swallow navigation errors from malformed payloads
+        // Swallow navigation errors from malformed payloads or startup timing.
       }
     });
 

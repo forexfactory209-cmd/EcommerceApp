@@ -351,7 +351,7 @@ const BrandOnboardingScreen = ({ navigation, route }) => {
           onPress={() =>
             isAdminMode
               ? navigation.navigate('AdminBrands')
-              : navigation.navigate('Main', { screen: 'HomeTab' })
+              : navigation.navigate('Main', { screen: 'ProfileScreen' })
           }
         >
           <Text style={styles.backButtonText}>{isAdminMode ? 'Back to Admin' : 'Back to Home'}</Text>
