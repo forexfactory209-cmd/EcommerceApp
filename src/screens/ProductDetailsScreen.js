@@ -1588,10 +1588,10 @@ const styles = StyleSheet.create({
   productName: {
     fontSize: 24,
     fontWeight: '700',
-    color: '#111827',
+    color: '#090966',
   },
   productBrand: {
-    color: '#9ca3af',
+    color: '#090966',
     fontWeight: '700',
     fontSize: 16,
     marginTop: 4,
@@ -1609,7 +1609,7 @@ const styles = StyleSheet.create({
     marginLeft: 4,
   },
   description: {
-    color: '#6b7280',
+    color: '#090966',
     lineHeight: 22,
     marginTop: 0,
     marginBottom: 0,
@@ -1653,7 +1653,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     marginBottom: 8,
-    color: '#111827',
+    color: '#090966',
   },
   chipRow: {
     flexDirection: 'row',
@@ -1676,7 +1676,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#090966',
   },
   chipText: {
-    color: '#111827',
+    color: '#090966',
     fontWeight: '600',
     fontSize: 14,
     textAlign: 'center',
@@ -1703,7 +1703,7 @@ const styles = StyleSheet.create({
   deliveryTitle: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#111827',
+    color: '#090966',
   },
   deliveryMeta: {
     fontSize: 12,
@@ -1713,7 +1713,7 @@ const styles = StyleSheet.create({
   deliveryPrice: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#111827',
+    color: '#090966',
   },
   deliveryTimeTag: {
     fontSize: 12,
@@ -1737,7 +1737,7 @@ const styles = StyleSheet.create({
   bottomPriceLabel: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#111827',
+    color: '#090966',
   },
   bottomPriceMeta: {
     fontSize: 11,
@@ -1755,7 +1755,7 @@ const styles = StyleSheet.create({
   bottomPriceValue: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#111827',
+    color: '#090966',
   },
   bottomButtonsRow: {
     flexDirection: 'row',
@@ -1873,7 +1873,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
     marginBottom: 8,
-    color: '#111827',
+    color: '#090966',
   },
   reviewStarsRow: {
     flexDirection: 'row',

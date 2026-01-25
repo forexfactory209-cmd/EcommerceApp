@@ -4,7 +4,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { NavigationContainer, createNavigationContainerRef } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Home, ShoppingBag, User, Store, Heart, Zap, Tag } from 'lucide-react-native';
-import { View, Text, StyleSheet, Linking } from 'react-native';
+import { View, Text, StyleSheet, Linking, Dimensions } from 'react-native';
 
 // Import Screens
 import HomeScreen from '../screens/HomeScreen';
@@ -90,30 +90,53 @@ const TabNavigator = () => {
   const userType = useStore((state) => state.userType);
   const authRole = useStore((state) => state.authRole);
 
+  const tabWidth = Dimensions.get('window').width / (userType === 'brand' && authRole !== 'admin' ? 4 : 5);
+
+  const TabIndicator = ({ focused }) => (
+    <View
+      style={[
+        styles.indicator,
+        focused && { backgroundColor: '#ffd60a', width: tabWidth * 0.4 },
+      ]}
+    />
+  );
+
   return (
     <Tab.Navigator
       screenOptions={{
         headerShown: false,
         tabBarStyle: {
-          backgroundColor: '#ffffff',
+          backgroundColor: '#090966',
           borderTopWidth: 0,
           elevation: 0,
-          // Base height plus safe area at the bottom so the bar sits above
+          // Base height plus safe area at bottom so that bar sits above
           // gesture/navigation areas on modern devices.
           height: 60 + insets.bottom,
           paddingBottom: Math.max(insets.bottom, 8),
           paddingTop: 8,
         },
-        tabBarActiveTintColor: '#2563EB',
-        tabBarInactiveTintColor: '#9CA3AF',
+        tabBarActiveTintColor: '#FFFFFF',
+        tabBarInactiveTintColor: '#FFFFFF',
         tabBarShowLabel: false,
+        animationEnabled: false,
+        transitionSpec: {
+          animation: 'timing',
+          config: {
+            duration: 0,
+          },
+        },
       }}
     >
       <Tab.Screen
         name="HomeTab"
         component={HomeScreen}
         options={{
-          tabBarIcon: ({ color }) => <Home color={color} size={24} />
+          tabBarIcon: ({ focused }) => (
+            <View style={styles.iconContainer}>
+              <Home color="#FFFFFF" size={24} />
+              <TabIndicator focused={focused} />
+            </View>
+          ),
         }}
       />
       {userType === 'brand' && authRole !== 'admin' && (
@@ -121,7 +144,12 @@ const TabNavigator = () => {
           name="BrandOrders"
           component={BrandOrdersScreen}
           options={{
-            tabBarIcon: ({ color }) => <ShoppingBag color={color} size={24} />,
+            tabBarIcon: ({ focused }) => (
+              <View style={styles.iconContainer}>
+                <ShoppingBag color="#FFFFFF" size={24} />
+                <TabIndicator focused={focused} />
+              </View>
+            ),
           }}
         />
       )}
@@ -130,7 +158,12 @@ const TabNavigator = () => {
           name="FlashSaleTab"
           component={FlashSaleScreen}
           options={{
-            tabBarIcon: ({ color }) => <Zap color={color} size={24} />,
+            tabBarIcon: ({ focused }) => (
+              <View style={styles.iconContainer}>
+                <Zap color="#FFFFFF" size={24} />
+                <TabIndicator focused={focused} />
+              </View>
+            ),
           }}
         />
       )}
@@ -139,16 +172,17 @@ const TabNavigator = () => {
           name="Wishlist"
           component={WishlistScreen}
           options={{
-            tabBarIcon: ({ color }) => (
-              <View>
-                <Heart color={color} size={24} />
+            tabBarIcon: ({ focused }) => (
+              <View style={styles.iconContainer}>
+                <Heart color="#FFFFFF" size={24} />
+                <TabIndicator focused={focused} />
                 {wishlistCount > 0 && (
                   <View style={styles.cartBadge}>
                     <Text style={styles.cartBadgeText}>{wishlistCount}</Text>
                   </View>
                 )}
               </View>
-            )
+            ),
           }}
         />
       )}
@@ -158,9 +192,10 @@ const TabNavigator = () => {
             name="Vendor"
             component={VendorScreen}
             options={{
-              tabBarIcon: ({ color }) => (
-                <View style={{ alignItems: 'center' }}>
-                  <Store color={color} size={24} />
+              tabBarIcon: ({ focused }) => (
+                <View style={[styles.iconContainer, { alignItems: 'center' }]}>
+                  <Store color="#FFFFFF" size={24} />
+                  <TabIndicator focused={focused} />
                   {pendingOrders > 0 && (
                     <>
                       <View style={styles.vendorBadge}>
@@ -172,14 +207,19 @@ const TabNavigator = () => {
                     </>
                   )}
                 </View>
-              )
+              ),
             }}
           />
           <Tab.Screen
             name="PromoCodes"
             component={PromoCodesScreen}
             options={{
-              tabBarIcon: ({ color }) => <Tag color={color} size={24} />,
+              tabBarIcon: ({ focused }) => (
+                <View style={styles.iconContainer}>
+                  <Tag color="#FFFFFF" size={24} />
+                  <TabIndicator focused={focused} />
+                </View>
+              ),
             }}
           />
         </>
@@ -189,16 +229,17 @@ const TabNavigator = () => {
           name="Cart"
           component={CartScreen}
           options={{
-            tabBarIcon: ({ color }) => (
-              <View>
-                <ShoppingBag color={color} size={24} />
+            tabBarIcon: ({ focused }) => (
+              <View style={styles.iconContainer}>
+                <ShoppingBag color="#FFFFFF" size={24} />
+                <TabIndicator focused={focused} />
                 {cartItems > 0 && (
                   <View style={styles.cartBadge}>
                     <Text style={styles.cartBadgeText}>{cartItems}</Text>
                   </View>
                 )}
               </View>
-            )
+            ),
           }}
         />
       )}
@@ -206,7 +247,12 @@ const TabNavigator = () => {
         name="Profile"
         component={ProfileScreen}
         options={{
-          tabBarIcon: ({ color }) => <User color={color} size={24} />
+          tabBarIcon: ({ focused }) => (
+            <View style={styles.iconContainer}>
+              <User color="#FFFFFF" size={24} />
+              <TabIndicator focused={focused} />
+            </View>
+          ),
         }}
       />
     </Tab.Navigator>
@@ -238,7 +284,13 @@ const RootStackNavigator = () => {
   }
 
   return (
-      <Stack.Navigator initialRouteName={initialRoute} screenOptions={{ headerShown: false }}>
+      <Stack.Navigator initialRouteName={initialRoute} screenOptions={{ 
+        headerShown: false,
+        // Enable slide animation for stack navigation (not tabs)
+        gestureEnabled: true,
+        animationTypeForReplace: 'push',
+        animation: 'slide_from_right',
+      }}>
         <Stack.Screen name="CustomerOnboarding" component={CustomerOnboardingScreen} />
         <Stack.Screen name="Welcome" component={WelcomeScreen} />
         <Stack.Screen name="Signup" component={SignupScreen} />
@@ -314,16 +366,32 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: '700',
   },
+  iconContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    flex: 1,
+  },
+  indicator: {
+    height: 3,
+    borderRadius: 2,
+    marginTop: 4,
+    width: 0,
+    backgroundColor: 'transparent',
+    transition: 'width 0.2s ease-in-out',
+  },
   cartBadge: {
     position: 'absolute',
     top: -8,
     right: -8,
-    backgroundColor: '#ef4444',
-    width: 16,
+    minWidth: 16,
     height: 16,
+    paddingHorizontal: 3,
     borderRadius: 999,
+    backgroundColor: '#ef4444',
     alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#ffffff',
   },
   cartBadgeText: {
     color: '#ffffff',
@@ -332,14 +400,17 @@ const styles = StyleSheet.create({
   },
   vendorBadge: {
     position: 'absolute',
-    top: -8,
-    right: -8,
-    backgroundColor: '#ef4444',
-    width: 16,
+    top: -6,
+    right: -6,
+    minWidth: 16,
     height: 16,
+    paddingHorizontal: 3,
     borderRadius: 999,
+    backgroundColor: '#ef4444',
     alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#ffffff',
   },
   vendorBadgeText: {
     color: '#ffffff',
@@ -347,8 +418,12 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   vendorHintText: {
-    marginTop: 2,
-    fontSize: 10,
-    color: '#6B7280',
+    position: 'absolute',
+    bottom: -20,
+    fontSize: 9,
+    fontWeight: '600',
+    color: '#6b7280',
+    textAlign: 'center',
+    width: 80,
   },
 });
