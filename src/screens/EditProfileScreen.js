@@ -277,7 +277,7 @@ const EditProfileScreen = ({ navigation }) => {
                     style={styles.backButton}
                     onPress={() => navigation.goBack()}
                 >
-                    <ChevronLeft color="#111827" size={24} />
+                    <ChevronLeft color="#FFFFFF" size={24} />
                 </TouchableOpacity>
                 <Text style={styles.headerTitle}>Edit Profile</Text>
                 <View style={styles.placeholder} />
@@ -502,10 +502,9 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'space-between',
         paddingHorizontal: 16,
-        paddingVertical: 12,
-        backgroundColor: '#ffffff',
-        borderBottomWidth: 1,
-        borderBottomColor: '#E5E7EB',
+        paddingTop: 10,
+        paddingBottom: 12,
+        backgroundColor: '#090966',
     },
     backButton: {
         padding: 8,
@@ -513,7 +512,7 @@ const styles = StyleSheet.create({
     headerTitle: {
         fontSize: 18,
         fontWeight: '700',
-        color: '#111827',
+        color: '#FFFFFF',
     },
     placeholder: {
         width: 40,

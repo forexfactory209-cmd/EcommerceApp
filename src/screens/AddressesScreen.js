@@ -208,7 +208,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 10,
     paddingBottom: 12,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#090966',
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: '#E5E7EB',
   },
@@ -220,16 +220,16 @@ const styles = StyleSheet.create({
     borderColor: '#E5E7EB',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#090966',
   },
   headerBackIcon: {
     fontSize: 16,
-    color: '#111827',
+    color: '#FFFFFF',
   },
   headerTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#111827',
+    color: '#FFFFFF',
   },
   loadingWrapper: {
     flex: 1,

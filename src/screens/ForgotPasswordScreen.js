@@ -1,81 +1,17 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, KeyboardAvoidingView, Platform, StatusBar, Animated, Easing, Dimensions, ScrollView, ImageBackground } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, KeyboardAvoidingView, Platform, StatusBar, ScrollView, ImageBackground, Dimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { supabase } from '../lib/supabase';
-import { Mail } from 'lucide-react-native';
+import { Mail, ShoppingBag, ArrowRight } from 'lucide-react-native';
 import BeegsoButton from '../components/BeegsoButton';
 
-const { width } = Dimensions.get('window');
+const { width, height } = Dimensions.get('window');
 
 const ForgotPasswordScreen = ({ navigation }) => {
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
   const [isEmailFocused, setIsEmailFocused] = useState(false);
   const [emailError, setEmailError] = useState('');
-
-  // Animations
-  const fadeAnim = useRef(new Animated.Value(0)).current;
-  const slideAnim = useRef(new Animated.Value(100)).current;
-  const circle1Anim = useRef(new Animated.Value(0)).current;
-  const circle2Anim = useRef(new Animated.Value(0)).current;
-  const rectAnim = useRef(new Animated.Value(0)).current;
-
-  const BRAND_COLOR = '#090966';
-
-  useEffect(() => {
-    // Entry animations
-    Animated.parallel([
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 800,
-        useNativeDriver: true,
-      }),
-      Animated.spring(slideAnim, {
-        toValue: 0,
-        friction: 8,
-        tension: 40,
-        useNativeDriver: true,
-      }),
-    ]).start();
-
-    // Background loop animations
-    const createLoop = (anim, duration) => {
-      return Animated.loop(
-        Animated.sequence([
-          Animated.timing(anim, {
-            toValue: 1,
-            duration: duration,
-            easing: Easing.inOut(Easing.sin),
-            useNativeDriver: true,
-          }),
-          Animated.timing(anim, {
-            toValue: 0,
-            duration: duration,
-            easing: Easing.inOut(Easing.sin),
-            useNativeDriver: true,
-          }),
-        ])
-      );
-    };
-
-    createLoop(circle1Anim, 4000).start();
-    createLoop(circle2Anim, 6000).start();
-    createLoop(rectAnim, 8000).start();
-  }, []);
-
-  // Interpolated values for shapes
-  const circle1TranslateY = circle1Anim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0, -30],
-  });
-  const circle2TranslateX = circle2Anim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0, 40],
-  });
-  const rectRotate = rectAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: ['0deg', '45deg'],
-  });
 
   const validateEmail = (val) => {
     if (!val) return null;
@@ -138,84 +74,97 @@ const ForgotPasswordScreen = ({ navigation }) => {
   };
 
   return (
-    <SafeAreaView style={styles.screen} edges={['top', 'left', 'right']}>
-      <StatusBar barStyle="light-content" backgroundColor="#090966" />
+    <View style={styles.screen}>
+      <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
       <ImageBackground
         source={require('../../assets/photo4.jpg')}
         style={styles.bgImage}
         resizeMode="cover"
       >
         <View style={styles.bgOverlay}>
+          <SafeAreaView style={styles.safeArea} edges={['top']}>
+            <View style={styles.headerContainer}>
+              {/* Logo Section */}
+              <View style={styles.logoCircle}>
+                <ShoppingBag size={28} color="#090966" fill="#090966" />
+              </View>
+              <View style={styles.brandRow}>
+                <Text style={styles.brandName}>Beegso</Text>
+                <Text style={styles.brandDot}>.</Text>
+              </View>
+            </View>
+          </SafeAreaView>
+
           <KeyboardAvoidingView
-            style={{ flex: 1 }}
+            style={styles.keyboardView}
             behavior={Platform.OS === 'ios' ? 'padding' : undefined}
           >
-            <View style={styles.headerSection}>
-              <Animated.View style={[styles.bgCircle1, { transform: [{ translateY: circle1TranslateY }] }]} />
-              <Animated.View style={[styles.bgCircle2, { transform: [{ translateX: circle2TranslateX }] }]} />
-              <Animated.View style={[styles.bgRect, { transform: [{ rotate: rectRotate }] }]} />
-            </View>
-
-            <Animated.View
-              style={[
-                styles.bottomSheet,
-                { transform: [{ translateY: slideAnim }] }
-              ]}
-            >
+            <View style={styles.bottomSheet}>
               <ScrollView
-                style={styles.contentContainer}
-                contentContainerStyle={styles.scrollContent}
                 showsVerticalScrollIndicator={false}
+                contentContainerStyle={styles.scrollContent}
               >
-                <View style={styles.card}>
-                  <Text style={styles.cardHint} numberOfLines={2}>
-                    We’ll email you a secure link to create a new password.
-                  </Text>
+                <Text style={styles.title}>Forgot Password</Text>
 
-                  <View style={styles.fieldGroup}>
-                    <View
-                      style={[
-                        styles.inputContainer,
-                        isEmailFocused && styles.inputFocused,
-                        emailError && styles.inputError,
-                      ]}
-                    >
-                      <Mail size={22} color="#4c4c9d" style={styles.inputIcon} />
-                      <TextInput
-                        style={styles.input}
-                        placeholder="Email Address"
-                        placeholderTextColor="#9CA3AF"
-                        keyboardType="email-address"
-                        autoCapitalize="none"
-                        value={email}
-                        onChangeText={handleEmailChange}
-                        onFocus={() => setIsEmailFocused(true)}
-                        onBlur={() => setIsEmailFocused(false)}
-                      />
-                    </View>
-                    {emailError && <Text style={styles.errorText}>{emailError}</Text>}
+                <View style={styles.inputWrapper}>
+                  <View
+                    style={[
+                      styles.inputContainer,
+                      isEmailFocused && styles.inputFocused,
+                      emailError && styles.inputError,
+                    ]}
+                  >
+                    <Mail size={20} color="#9CA3AF" style={styles.inputIcon} />
+                    <TextInput
+                      style={styles.input}
+                      placeholder="Email Address"
+                      placeholderTextColor="#9CA3AF"
+                      keyboardType="email-address"
+                      autoCapitalize="none"
+                      value={email}
+                      onChangeText={handleEmailChange}
+                      onFocus={() => setIsEmailFocused(true)}
+                      onBlur={() => setIsEmailFocused(false)}
+                    />
                   </View>
-
-                  <BeegsoButton
-                    label={loading ? 'Sending...' : 'Send Reset Link'}
-                    onPress={handleSendReset}
-                    loading={loading}
-                    disabled={!email || emailError || loading}
-                  />
-
-                  <View style={styles.footerRow}>
-                    <Text style={styles.footerText}>Remembered your password? </Text>
-                    <TouchableOpacity onPress={() => navigation.goBack()} activeOpacity={0.85}>
-                      <Text style={styles.footerLink}>Back to Sign In</Text>
-                    </TouchableOpacity>
-                  </View>
+                  {emailError ? <Text style={styles.errorText}>{emailError}</Text> : null}
                 </View>
+
+                <BeegsoButton
+                  label={loading ? 'Sending...' : 'Send Reset Link'}
+                  onPress={handleSendReset}
+                  loading={loading}
+                  disabled={!email || !!emailError || loading}
+                  icon={ArrowRight}
+                  style={{ backgroundColor: '#5B5EA6', marginTop: 12 }} // Using a direct style override close to reference
+                />
+
+                <View style={styles.footerRow}>
+                  <Text style={styles.footerText}>Remembered your password? </Text>
+                  <TouchableOpacity onPress={() => navigation.goBack()}>
+                    <Text style={styles.footerLink}>Back to Sign In</Text>
+                  </TouchableOpacity>
+                </View>
+
+                <View style={styles.dividerRow}>
+                  <View style={styles.dividerLine} />
+                  <Text style={styles.dividerText}>HELP</Text>
+                  <View style={styles.dividerLine} />
+                </View>
+
+                <TouchableOpacity
+                  style={styles.contactSupportButton}
+                  onPress={() => Alert.alert('Support', 'Contact support feature coming soon.')}
+                >
+                  <Text style={styles.contactSupportText}>Contact Support</Text>
+                </TouchableOpacity>
+
               </ScrollView>
-            </Animated.View>
+            </View>
           </KeyboardAvoidingView>
         </View>
       </ImageBackground>
-    </SafeAreaView>
+    </View>
   );
 };
 
@@ -233,134 +182,80 @@ const styles = StyleSheet.create({
   },
   bgOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(9, 9, 102, 0.75)',
+    backgroundColor: 'rgba(9, 9, 102, 0.85)', // Slightly darker overlay for contrast
   },
-  headerSection: {
-    height: '35%',
-    justifyContent: 'center',
+  safeArea: {
     alignItems: 'center',
-    paddingBottom: 30,
-    position: 'relative',
-    overflow: 'hidden',
+    height: '35%', // Top section height
+    justifyContent: 'center',
   },
-  bgCircle1: {
-    position: 'absolute',
-    top: -50,
-    left: -50,
-    width: 200,
-    height: 200,
-    borderRadius: 100,
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+  headerContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  bgCircle2: {
-    position: 'absolute',
-    top: '20%',
-    right: -30,
-    width: 150,
-    height: 150,
-    borderRadius: 75,
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+  logoCircle: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: '#ffffff',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOpacity: 0.15,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 5,
   },
-  bgRect: {
-    position: 'absolute',
-    bottom: 20,
-    left: '10%',
-    width: 80,
-    height: 80,
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    borderRadius: 12,
+  brandRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
   },
-  headerContent: {
-    position: 'absolute',
-    left: 22,
-    right: 22,
-    bottom: 26,
-  },
-  headerEyebrow: {
-    color: 'rgba(255, 255, 255, 0.86)',
-    fontSize: 12,
-    fontWeight: '700',
-    letterSpacing: 1.2,
-    textTransform: 'uppercase',
-    marginBottom: 6,
-  },
-  headerHeadline: {
-    color: '#FFFFFF',
+  brandName: {
     fontSize: 28,
-    fontWeight: '900',
-    letterSpacing: -0.4,
-    marginBottom: 6,
+    fontWeight: '800', // Heavy bold
+    color: '#ffffff',
+    letterSpacing: 0.5,
   },
-  headerSubtext: {
-    color: 'rgba(255, 255, 255, 0.9)',
-    fontSize: 14,
-    lineHeight: 20,
-    maxWidth: 340,
+  brandDot: {
+    fontSize: 28,
+    fontWeight: '800',
+    color: '#FBBF24', // Yellow dot
+  },
+  keyboardView: {
+    flex: 1,
   },
   bottomSheet: {
     flex: 1,
-    backgroundColor: 'transparent',
-  },
-  contentContainer: {
-    flex: 1,
+    backgroundColor: '#ffffff',
+    borderTopLeftRadius: 32,
+    borderTopRightRadius: 32,
+    paddingHorizontal: 24,
+    paddingTop: 32,
+    // Shadow for the card feel
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: -5 },
+    elevation: 10,
   },
   scrollContent: {
-    paddingHorizontal: 18,
-    paddingTop: 18,
-    paddingBottom: 24,
+    paddingBottom: 40,
   },
-  card: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 22,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.18)',
-    shadowColor: '#000',
-    shadowOpacity: 0.08,
-    shadowRadius: 14,
-    shadowOffset: { width: 0, height: 8 },
-    elevation: 6,
-  },
-  cardTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 14,
-  },
-  cardIconWrap: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: 'rgba(9, 9, 102, 0.08)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 12,
-  },
-  cardTitle: {
-    fontSize: 18,
-    fontWeight: '900',
-    color: '#090966',
-    letterSpacing: -0.2,
-  },
-  cardHint: {
-    marginTop: 2,
-    fontSize: 13,
-    lineHeight: 18,
-    color: '#6B7280',
-  },
-  fieldGroup: {
-    marginBottom: 18,
-  },
-  inputLabel: {
-    fontSize: 12,
+  title: {
+    fontSize: 22,
     fontWeight: '800',
-    color: '#090966',
-    letterSpacing: 0.3,
-    marginBottom: 8,
+    color: '#111827',
+    textAlign: 'center',
+    marginBottom: 32,
+  },
+  inputWrapper: {
+    marginBottom: 20,
   },
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F9FAFB',
+    backgroundColor: '#ffffff',
     borderRadius: 16,
     borderWidth: 1,
     borderColor: '#E5E7EB',
@@ -374,13 +269,6 @@ const styles = StyleSheet.create({
   inputError: {
     borderColor: '#EF4444',
   },
-  errorText: {
-    color: '#EF4444',
-    fontSize: 12,
-    marginTop: 4,
-    marginLeft: 4,
-    fontWeight: '500',
-  },
   inputIcon: {
     marginRight: 14,
   },
@@ -391,21 +279,23 @@ const styles = StyleSheet.create({
     color: '#090966',
     fontWeight: '500',
   },
-  whiteButton: {
-    borderWidth: 1,
-    borderColor: 'rgba(9, 9, 102, 0.14)',
-    shadowColor: '#000',
-    shadowOpacity: 0.06,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 4,
+  errorText: {
+    color: '#EF4444',
+    fontSize: 12,
+    marginTop: 4,
+    marginLeft: 4,
+    fontWeight: '500',
+  },
+  mainButton: {
+    marginTop: 8,
+    backgroundColor: '#6366F1', // Indigo color from screenshot, adjusting
+    // BeegsoButton handles its own styles, usually primary color. 
   },
   footerRow: {
-    marginTop: 14,
+    marginTop: 24,
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    paddingVertical: 8,
   },
   footerText: {
     fontSize: 14,
@@ -414,8 +304,35 @@ const styles = StyleSheet.create({
   },
   footerLink: {
     fontSize: 14,
-    color: '#090966',
-    fontWeight: '900',
-    marginLeft: 4,
+    color: '#111827', // Black/Dark for link
+    fontWeight: '800',
+  },
+  dividerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 40,
+    marginBottom: 20,
+    opacity: 0.5,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: '#E5E7EB',
+  },
+  dividerText: {
+    marginHorizontal: 12,
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#9CA3AF',
+    letterSpacing: 1,
+  },
+  contactSupportButton: {
+    alignSelf: 'center',
+    paddingVertical: 8,
+  },
+  contactSupportText: {
+    fontSize: 13,
+    color: '#9CA3AF',
+    fontWeight: '500',
   },
 });

@@ -262,6 +262,8 @@ const WelcomeScreen = ({ navigation }) => {
 
           if (type === 'recovery') {
             navigation.replace('ResetPassword');
+          } else {
+            navigation.replace('Main');
           }
         }
       } catch (err) {
@@ -281,7 +283,7 @@ const WelcomeScreen = ({ navigation }) => {
         if (!isMounted) return;
 
         if (!error && data?.session) {
-          await finalizeLogin(data.session.user);
+          navigation.replace('Main');
         }
       } catch (err) {
         console.error('WelcomeScreen session check error:', err);
@@ -361,7 +363,55 @@ const WelcomeScreen = ({ navigation }) => {
         Alert.alert('Login failed', 'No user returned from Supabase.');
         return;
       }
-      await finalizeLogin(user);
+
+      // Fetch profile and brand metadata in parallel
+      const [
+        { data: profile, error: profileError },
+        { data: brandRow, error: brandError },
+      ] = await Promise.all([
+        supabase
+          .from('profiles')
+          .select('user_id, name, username')
+          .eq('user_id', user.id)
+          .maybeSingle(),
+        supabase
+          .from('brands')
+          .select('id, name, status, logo_url')
+          .eq('user_id', user.id)
+          .maybeSingle(),
+      ]);
+
+      if (profileError && profileError.code !== 'PGRST116') {
+        Alert.alert('Error', profileError.message || 'Failed to load profile.');
+        return;
+      }
+
+      if (brandError) {
+        console.warn('Error loading brand for user:', brandError.message || brandError);
+      }
+
+      const hasApprovedBrand = brandRow?.status === 'approved';
+
+      let effectiveRole = 'customer';
+      if (user.email === ADMIN_EMAIL) {
+        effectiveRole = 'admin';
+      } else if (hasApprovedBrand) {
+        effectiveRole = 'brand';
+      }
+
+      let effectiveName = profile?.name || '';
+      if (effectiveRole === 'brand' && brandRow?.name) {
+        effectiveName = brandRow.name;
+      }
+
+      setAuthUser({
+        id: user.id,
+        email: user.email,
+        role: effectiveRole,
+        name: effectiveName,
+        brandLogoUrl: brandRow?.logo_url || null,
+      });
+      navigation.replace('Main');
     } catch (err) {
       Alert.alert('Error', 'Something went wrong with authentication.');
       console.error('Auth error:', err);

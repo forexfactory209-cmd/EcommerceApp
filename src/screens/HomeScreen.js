@@ -3,7 +3,7 @@ import { View, Text, ScrollView, TouchableOpacity, TextInput, FlatList, StyleShe
 import { Image } from 'expo-image';
 import { FlashList } from '@shopify/flash-list';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Search, ShoppingBag, Heart, Bell, Star, Mic, Menu, Package, Truck, CheckCircle, Clock } from 'lucide-react-native';
+import { Search, ShoppingBag, Heart, Bell, Star, Mic, Menu, Package, Truck, CheckCircle, Clock, Flame, Sparkles, LayoutGrid, Shirt, Footprints, ThermometerSnowflake, Smartphone, Laptop, ArrowRight } from 'lucide-react-native';
 import { useStore } from '../store/store';
 import { fetchManyProductRatingSummaries } from '../services/ratings';
 import { fetchApprovedBrandsFromSupabase } from '../services/brands';
@@ -48,8 +48,11 @@ const HomeScreen = ({ navigation }) => {
   const [categorySheetVisible, setCategorySheetVisible] = useState(false);
   const [pendingCategory, setPendingCategory] = useState('all');
   const categorySlide = useRef(new Animated.Value(0)).current; // 0 = hidden, 1 = visible
+  const hotAnim = useRef(new Animated.Value(1)).current;
+  const newAnim = useRef(new Animated.Value(0)).current;
   const productsLoadedAtRef = useRef(null);
   const brandsLoadedAtRef = useRef(null);
+  const trendingScrollRef = useRef(null);
   const [brandOrderStats, setBrandOrderStats] = useState({
     todaysOrders: 0,
     pending: 0,
@@ -148,6 +151,46 @@ const HomeScreen = ({ navigation }) => {
       loadUnreadNotifications();
     }, []),
   );
+
+  useEffect(() => {
+    // Hot Animation: Pulse Scale
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(hotAnim, {
+          toValue: 1.2,
+          duration: 800,
+          useNativeDriver: true,
+        }),
+        Animated.timing(hotAnim, {
+          toValue: 1,
+          duration: 800,
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
+
+    // New Animation: Wiggle / Rotate
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(newAnim, {
+          toValue: 1,
+          duration: 150,
+          useNativeDriver: true,
+        }),
+        Animated.timing(newAnim, {
+          toValue: -1,
+          duration: 150,
+          useNativeDriver: true,
+        }),
+        Animated.timing(newAnim, {
+          toValue: 0,
+          duration: 150,
+          useNativeDriver: true,
+        }),
+        Animated.delay(2000),
+      ])
+    ).start();
+  }, []);
 
   useEffect(() => {
     const loadBrandLogoForAvatar = async () => {
@@ -321,6 +364,8 @@ const HomeScreen = ({ navigation }) => {
 
   const filterByCategory = useCallback((item) => {
     if (selectedCategory === 'all') return true;
+    if (selectedCategory === 'hot') return true; // TODO: Implement hot logic
+    if (selectedCategory === 'new') return true; // TODO: Implement new logic
 
     const explicit = (item.category || '').toString().toLowerCase();
     if (explicit) {
@@ -363,6 +408,18 @@ const HomeScreen = ({ navigation }) => {
         return true;
     }
   }, [selectedCategory]);
+
+  const categories = useMemo(() => [
+    { id: 'all', label: 'All', icon: LayoutGrid },
+    { id: 'hot', label: 'Hot', icon: Flame, isAnimated: true, animValue: hotAnim, animStyle: 'scale', color: '#F97316' },
+    { id: 'new', label: 'New', icon: Sparkles, isAnimated: true, animValue: newAnim, animStyle: 'rotate', color: '#8B5CF6' },
+    { id: 'clothes', label: 'Clothes', icon: Shirt },
+    { id: 'shoes', label: 'Shoes', icon: Footprints },
+    { id: 'coats', label: 'Coats', icon: ThermometerSnowflake },
+    { id: 'phones', label: 'Phones', icon: Smartphone },
+    { id: 'laptops', label: 'Laptops', icon: Laptop },
+    { id: 'bags', label: 'Bags', icon: ShoppingBag },
+  ], [hotAnim, newAnim]);
 
   const filterByAudience = useCallback((item) => {
     if (selectedAudience === 'all') return true;
@@ -492,6 +549,30 @@ const HomeScreen = ({ navigation }) => {
     };
   }, [filteredProducts]);
 
+  useEffect(() => {
+    if (!trendingProducts.length) return;
+
+    const interval = setInterval(() => {
+      setTrendingIndex((prevIndices) => {
+        let nextIndex = prevIndices + 1;
+        if (nextIndex >= trendingProducts.length) {
+          nextIndex = 0;
+        }
+
+        if (trendingScrollRef.current) {
+          trendingScrollRef.current.scrollTo({
+            x: nextIndex * (windowWidth - 32),
+            animated: true,
+          });
+        }
+
+        return nextIndex;
+      });
+    }, 4000);
+
+    return () => clearInterval(interval);
+  }, [trendingProducts]);
+
   const handleFindByCode = useCallback(async () => {
     const trimmed = searchCode.trim();
     if (!trimmed) return;
@@ -520,7 +601,42 @@ const HomeScreen = ({ navigation }) => {
       Alert.alert('Not found', 'No product found for this code.');
     }
   }, [searchCode, remoteProducts, products, loadProducts, navigation]);
-  
+
+  const handleSearch = useCallback(async () => {
+    const query = searchQuery.trim();
+    if (!query) return;
+
+    // Ensure we have products loaded
+    if (!remoteProducts.length && !products.length) {
+      try {
+        await loadProducts({ reset: false });
+      } catch (e) {
+        // If loading fails, we'll still fall back to whatever is in store.
+      }
+    }
+
+    // Search in both remote and local products
+    const allProducts = [...remoteProducts, ...products];
+    const filtered = allProducts.filter((product) => {
+      const searchStr = query.toLowerCase();
+      return (
+        product.name?.toLowerCase().includes(searchStr) ||
+        product.code?.toLowerCase().includes(searchStr) ||
+        product.brand?.toLowerCase().includes(searchStr)
+      );
+    });
+
+    if (filtered.length > 0) {
+      // Navigate to filtered results or update state
+      navigation.navigate('AllProducts', { 
+        searchQuery: query,
+        filteredProducts: filtered 
+      });
+    } else {
+      Alert.alert('No results', 'No products found matching your search.');
+    }
+  }, [searchQuery, remoteProducts, products, loadProducts, navigation]);
+
   const getProductThumbUri = (item) => {
     const toThumbCdn = (url) => {
       if (!url) return '';
@@ -667,73 +783,35 @@ const HomeScreen = ({ navigation }) => {
                 )}
               </View>
             </TouchableOpacity>
-            
+
           </View>
         </View>
 
 
         <View style={styles.searchCard}>
-          <View style={styles.searchModeRow}>
-            <TouchableOpacity
-              style={[styles.searchModeChip, searchMode === 'text' && styles.searchModeChipActive]}
-              onPress={() => setSearchMode('text')}
-            >
-              <Text
-                style={[styles.searchModeText, searchMode === 'text' && styles.searchModeTextActive]}
-              >
-                Search
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.searchModeChip, searchMode === 'code' && styles.searchModeChipActive]}
-              onPress={() => setSearchMode('code')}
-            >
-              <Text
-                style={[styles.searchModeText, searchMode === 'code' && styles.searchModeTextActive]}
-              >
-                Product code
-              </Text>
-            </TouchableOpacity>
-          </View>
-
-          <View style={styles.searchRow}>
-            <View style={styles.searchBar}>
-              <Search color="gray" size={20} />
+          <View style={styles.searchContainer}>
+            <View style={styles.searchInputWrapper}>
+              <Search color="#9ca3af" size={18} style={styles.searchIcon} />
               <TextInput
-                placeholder={searchMode === 'code' ? 'Enter product code' : 'Search products'}
+                placeholder="Search products or enter code"
                 style={styles.searchInput}
-                value={searchMode === 'code' ? searchCode : searchQuery}
-                onChangeText={(text) => {
-                  if (searchMode === 'code') {
-                    setSearchCode(text);
-                  } else {
-                    setSearchQuery(text);
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+                onSubmitEditing={() => {
+                  if (searchQuery.trim()) {
+                    handleSearch();
                   }
                 }}
-                autoCapitalize={searchMode === 'code' ? 'characters' : 'none'}
               />
             </View>
             <TouchableOpacity
-              style={styles.micButton}
-              activeOpacity={0.85}
-              onPress={() => {
-                if (searchMode === 'code') {
-                  handleFindByCode();
-                }
-              }}
+              style={styles.searchButton}
+              onPress={handleSearch}
+              activeOpacity={0.8}
             >
-              <Search color="#ffffff" size={20} />
+              <Search color="#ffffff" size={16} />
             </TouchableOpacity>
           </View>
-{/* 
-          <View style={styles.headerCategoriesRow}>
-            <TouchableOpacity
-              style={styles.headerCategoryButton}
-              onPress={() => navigation.navigate('AllProducts', { openCategories: true })}
-            >
-              <Text style={styles.headerCategoryText}>Categories</Text>
-            </TouchableOpacity>
-          </View> */}
         </View>
 
         {authRole !== 'brand' && userType !== 'brand' && trendingProducts.length > 0 && (
@@ -742,6 +820,7 @@ const HomeScreen = ({ navigation }) => {
               <Text style={styles.sectionTitle}>Trending products</Text>
             </View>
             <ScrollView
+              ref={trendingScrollRef}
               horizontal
               pagingEnabled
               showsHorizontalScrollIndicator={false}
@@ -778,9 +857,11 @@ const HomeScreen = ({ navigation }) => {
                     </Text>
                     <TouchableOpacity
                       style={styles.trendingButton}
+                      activeOpacity={0.9}
                       onPress={() => navigation.navigate('ProductDetails', { product: item })}
                     >
                       <Text style={styles.trendingButtonText}>Shop now</Text>
+                      <ArrowRight size={16} color="#090966" strokeWidth={2.5} />
                     </TouchableOpacity>
                   </View>
                 </TouchableOpacity>
@@ -925,22 +1006,48 @@ const HomeScreen = ({ navigation }) => {
                 showsHorizontalScrollIndicator={false}
                 contentContainerStyle={styles.categoriesRow}
               >
-                {[
-                  { id: 'all', label: 'All' },
-                  { id: 'clothes', label: 'Clothes' },
-                  { id: 'shoes', label: 'Shoes' },
-                  { id: 'coats', label: 'Coats' },
-                  { id: 'phones', label: 'Phones' },
-                  { id: 'laptops', label: 'Laptops' },
-                  { id: 'bags', label: 'Bags' },
-                ].map((cat) => {
+                {categories.map((cat) => {
                   const active = selectedCategory === cat.id;
+                  const IconComponent = cat.icon;
+
+                  let iconStyle = {};
+                  if (cat.isAnimated) {
+                    if (cat.animStyle === 'scale') {
+                      iconStyle = { transform: [{ scale: cat.animValue }] };
+                    } else if (cat.animStyle === 'rotate') {
+                      iconStyle = {
+                        transform: [{
+                          rotate: cat.animValue.interpolate({
+                            inputRange: [-1, 1],
+                            outputRange: ['-15deg', '15deg']
+                          })
+                        }]
+                      }
+                    }
+                  }
+
                   return (
                     <TouchableOpacity
                       key={cat.id}
                       onPress={() => setSelectedCategory(cat.id)}
-                      style={[styles.categoryChip, active && styles.categoryChipActive]}
+                      style={[
+                        styles.categoryChip,
+                        active && styles.categoryChipActive,
+                        !active && cat.id === 'hot' && { borderColor: '#FED7AA', backgroundColor: '#FFF7ED' }, // custom styles for Hot inactive
+                        !active && cat.id === 'new' && { borderColor: '#E9D5FF', backgroundColor: '#FAF5FF' }, // custom styles for New inactive
+                      ]}
                     >
+                      {cat.isAnimated ? (
+                        <Animated.View style={iconStyle}>
+                          <IconComponent
+                            size={18}
+                            color={active ? '#ffd60a' : (cat.color || '#090966')}
+                            fill={active ? '#ffd60a' : (cat.id === 'hot' ? cat.color : 'transparent')}
+                          />
+                        </Animated.View>
+                      ) : (
+                        <IconComponent size={18} color={active ? '#ffd60a' : '#090966'} />
+                      )}
                       <Text
                         style={[styles.categoryChipText, active && styles.categoryChipTextActive]}
                       >
@@ -959,7 +1066,7 @@ const HomeScreen = ({ navigation }) => {
     categorySheetVisible,
     pendingCategory,
     selectedCategory,
-    selectedAudience,
+    // selectedAudience,
     searchMode,
     searchCode,
     searchQuery,
@@ -976,6 +1083,10 @@ const HomeScreen = ({ navigation }) => {
     brandDiscountLookup,
     brandLogoUrl,
     navigation,
+    categories,
+    hotAnim,
+    newAnim,
+    categorySlide
   ]);
 
   const renderProductItem = useCallback(
@@ -1526,23 +1637,23 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#ffffff',
-    borderRadius: 16,
-    paddingHorizontal: 16,
-    paddingVertical: 20,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
     borderWidth: 1,
-    borderColor: '#f3f4f6', // gray-100
+    borderColor: '#f3f4f6',
     shadowColor: '#090966',
-    shadowOpacity: 0.06,
-    shadowRadius: 4,
-    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 3,
+    shadowOffset: { width: 0, height: 1 },
     elevation: 1,
     flex: 1,
   },
   micButton: {
-    marginLeft: 12,
-    width: 52,
-    height: 52,
-    borderRadius: 18,
+    marginLeft: 8,
+    width: 44,
+    height: 44,
+    borderRadius: 12,
     backgroundColor: '#090966',
     alignItems: 'center',
     justifyContent: 'center',
@@ -1558,6 +1669,8 @@ const styles = StyleSheet.create({
     height: 54,
     borderRadius: 27,
     backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
   },
   searchInput: {
     flex: 1,
@@ -1567,7 +1680,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 20,
     fontWeight: '700',
-    color: '#111827',
+    color: '#090966',
     marginBottom: 16,
   },
   brandsScroll: {
@@ -1583,10 +1696,10 @@ const styles = StyleSheet.create({
   },
   // Outer dark circle behind brand logos in Top brands row (creates the ring effect)
   brandIconWrapper: {
-    width: 72,
-    height: 72,
-    backgroundColor: '#111827',
-    borderRadius: 55,
+    width: 62,
+    height: 62,
+    backgroundColor: '#090966',
+    borderRadius: 31,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 8,
@@ -1598,13 +1711,13 @@ const styles = StyleSheet.create({
   },
   brandIconText: {
     fontWeight: '700',
-    fontSize: 16,
-    color: '#111827',
+    fontSize: 18,
+    color: '#ffffff',
   },
   brandName: {
     fontSize: 12,
     fontWeight: '500',
-    color: '#4b5563', // gray-600
+    color: '#090966',
     marginTop: 6,
   },
   productsHeader: {
@@ -1614,7 +1727,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   seeAllText: {
-    color: '#000', // primary
+    color: '#090966',
     fontWeight: '700',
   },
   productsGrid: {
@@ -1707,7 +1820,7 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   productPrice: {
-     color: '#2563EB',
+    color: '#2563EB',
     fontWeight: '800',
     fontSize: 15,
   },
@@ -1751,15 +1864,18 @@ const styles = StyleSheet.create({
     borderColor: '#e5e7eb',
     backgroundColor: '#ffffff',
     marginRight: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
   },
   categoryChipActive: {
-    backgroundColor: '#111827',
-    borderColor: '#111827',
+    backgroundColor: '#090966',
+    borderColor: '#090966',
   },
   categoryChipText: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#4b5563',
+    color: '#090966',
   },
   categoryChipTextActive: {
     color: '#ffffff',
@@ -1878,33 +1994,63 @@ const styles = StyleSheet.create({
   },
   searchCard: {
     backgroundColor: '#ffffff',
-    borderRadius: 20,
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-    marginBottom: 20,
-    marginTop: 22,
+    borderRadius: 16,
+    padding: 16,
+    marginHorizontal: 16,
+    marginBottom: 16,
     shadowColor: '#000',
-    shadowOpacity: 0.05,
+    shadowOpacity: 0.08,
     shadowRadius: 8,
-    shadowOffset: { width: 0, height: 3 },
+    shadowOffset: { width: 0, height: 2 },
     elevation: 2,
+  },
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f8fafc',
+    borderRadius: 12,
+    paddingHorizontal: 4,
+    paddingVertical: 4,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+  },
+  searchInputWrapper: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  searchIcon: {
+    marginRight: 8,
+  },
+  searchButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 8,
+    backgroundColor: '#090966',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 4,
   },
   searchModeRow: {
     flexDirection: 'row',
-    marginBottom: 12,
+    marginBottom: 8,
   },
   searchModeChip: {
-    paddingHorizontal: 17,
-    paddingVertical: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
     borderRadius: 999,
     backgroundColor: '#f3f4f6',
-    marginRight: 8,
+    marginRight: 6,
+    fontSize: 11,
+    fontWeight: '600',
   },
   searchModeChipActive: {
     backgroundColor: '#090966',
   },
   searchModeText: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '600',
     color: '#6b7280',
   },
@@ -1926,7 +2072,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
     color: '#4b5563',
-   
+
   },
   trendingSection: {
     marginBottom: 24,
@@ -1956,9 +2102,9 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(17,24,39,0.6)',
+    backgroundColor: 'rgba(9, 9, 102, 0.75)', // Brand color overlay
   },
-  
+
   trendingContent: {
     flex: 1,
     paddingHorizontal: 20,
@@ -1978,15 +2124,23 @@ const styles = StyleSheet.create({
   },
   trendingButton: {
     alignSelf: 'flex-start',
-    paddingHorizontal: 18,
-    paddingVertical: 9,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
     borderRadius: 999,
-    backgroundColor: 'rgba(255,255,255,0.96)',
+    backgroundColor: '#ffffff',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 2,
   },
   trendingButtonText: {
-    color: '#4B5563',
-    fontWeight: '700',
-    fontSize: 13,
+    color: '#090966',
+    fontWeight: '800',
+    fontSize: 14,
   },
   // trendingImageWrapper and trendingImage are no longer used in the new full-background layout
   trendingDotsRow: {

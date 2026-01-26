@@ -189,12 +189,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 16,
+    backgroundColor: '#090966',
+    paddingHorizontal: 16,
+    paddingTop: 10,
+    paddingBottom: 12,
   },
   backButton: {
     width: 36,
     height: 36,
     borderRadius: 999,
-    backgroundColor: '#E5E7EB',
+    backgroundColor: '#090966',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
@@ -202,7 +206,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 20,
     fontWeight: '700',
-    color: '#11146E',
+    color: '#FFFFFF',
   },
   searchWrapper: {
     flexDirection: 'row',
