@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, Alert } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
 import { Image } from 'expo-image';
 import { FlashList } from '@shopify/flash-list';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -17,6 +17,11 @@ const BrandScreen = ({ route, navigation }) => {
   const toggleFollowBrand = useStore((state) => state.toggleFollowBrand);
   const deletedProductIds = useStore((state) => state.deletedProductIds || []);
   const [remoteProducts, setRemoteProducts] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
   const [ratingStats, setRatingStats] = useState({});
   const [fetchedBrand, setFetchedBrand] = useState(null);
   const [brandRatingAvg, setBrandRatingAvg] = useState(null);
@@ -26,23 +31,55 @@ const BrandScreen = ({ route, navigation }) => {
   useEffect(() => {
     let isMounted = true;
 
-    const loadProducts = async () => {
+    const loadProducts = async ({ reset = false } = {}) => {
       try {
-        const data = await fetchProductsFromSupabase();
+        const targetPage = reset ? 1 : page;
+
+        if (!reset && targetPage > 1) {
+          if (!hasMore || isLoadingMore) return;
+          setIsLoadingMore(true);
+        } else if (reset) {
+          setRefreshing(true);
+          setHasMore(true);
+        } else {
+          setLoading(true);
+        }
+
+        const data = await fetchProductsFromSupabase({ page: targetPage, pageSize: 20 });
         if (isMounted && Array.isArray(data) && data.length > 0) {
-          setRemoteProducts(data);
+          if (reset || targetPage === 1) {
+            setRemoteProducts(data);
+          } else {
+            const current = remoteProducts || [];
+            const merged = [
+              ...current,
+              ...data.filter((p) => !current.some((existing) => existing.id === p.id)),
+            ];
+            setRemoteProducts(merged);
+          }
+        }
+
+        if (!data || data.length < 20) {
+          setHasMore(false);
         }
       } catch (e) {
         Alert.alert('Supabase error', e.message || 'Failed to load products from Supabase');
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+          setRefreshing(false);
+          setIsLoadingMore(false);
+          setPage((prev) => (reset ? 2 : prev + 1));
+        }
       }
     };
 
-    loadProducts();
+    loadProducts({ reset: true });
 
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [page, hasMore, isLoadingMore, remoteProducts]);
 
   const brand = fetchedBrand || routeBrand || null;
 
@@ -126,6 +163,20 @@ const BrandScreen = ({ route, navigation }) => {
       }),
     [baseData, brandUserId, brandName],
   );
+
+  const handleRefresh = () => {
+    if (loading) return;
+    // Trigger a fresh load from page 1
+    setPage(1);
+    setHasMore(true);
+    setRefreshing(true);
+  };
+
+  const handleLoadMore = () => {
+    if (loading || refreshing || isLoadingMore || !hasMore) return;
+    // Just rely on effect-driven pagination
+    setPage((prev) => prev + 1);
+  };
 
   useEffect(() => {
     const logVisit = async () => {
@@ -460,7 +511,7 @@ const BrandScreen = ({ route, navigation }) => {
         </View>
       </View>
 
-      {brandProducts.length === 0 ? (
+      {brandProducts.length === 0 && !loading ? (
         <Text style={styles.emptyText}>No products for this brand yet.</Text>
       ) : (
         <FlashList
@@ -471,6 +522,15 @@ const BrandScreen = ({ route, navigation }) => {
           columnWrapperStyle={styles.columnWrapper}
           renderItem={renderItem}
           estimatedItemSize={240}
+          refreshing={refreshing}
+          onRefresh={handleRefresh}
+          onEndReached={handleLoadMore}
+          onEndReachedThreshold={0.5}
+          ListFooterComponent={isLoadingMore ? (
+            <View style={styles.loadingWrapper}>
+              <ActivityIndicator size="small" color="#111827" />
+            </View>
+          ) : null}
         />
       )}
     </SafeAreaView>

@@ -327,6 +327,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 20,
     paddingVertical: 12,
+    backgroundColor: '#090966',
   },
   backButton: {
     width: 32,
@@ -340,7 +341,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#111827',
+    color: '#FFFFFF',
   },
   scroll: {
     flex: 1,

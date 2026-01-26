@@ -102,7 +102,7 @@ const CartScreen = ({ navigation }) => {
           activeOpacity={0.85}
           onPress={() => navigation.goBack()}
         >
-          <ArrowLeft size={20} color="#111827" />
+          <ArrowLeft size={20} color="#FFFFFF" />
         </TouchableOpacity>
         <Text style={styles.screenTitle}>My Cart</Text>
         {cart.length > 0 ? (
@@ -173,6 +173,8 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingTop: 12,
     paddingBottom: 20,
+    backgroundColor: '#090966',
+    paddingHorizontal: 16,
   },
   headerIconButton: {
     width: 36,
@@ -192,9 +194,9 @@ const styles = StyleSheet.create({
     height: 36,
   },
   screenTitle: {
-    fontSize: 22,
+    fontSize: 18,
     fontWeight: '700',
-    color: '#111827',
+    color: '#FFFFFF',
   },
   itemRow: {
     flexDirection: 'row',

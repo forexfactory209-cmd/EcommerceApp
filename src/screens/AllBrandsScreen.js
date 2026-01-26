@@ -1,37 +1,72 @@
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, ScrollView, ActivityIndicator } from 'react-native';
 import { Image } from 'expo-image';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { ArrowLeft, Star } from 'lucide-react-native';
-import { fetchApprovedBrandsFromSupabase } from '../services/brands';
+import { fetchApprovedBrandsPageFromSupabase } from '../services/brands';
 import { useStore } from '../store/store';
 
 const AllBrandsScreen = ({ navigation, route }) => {
   const [brands, setBrands] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
   const [selectedAudience, setSelectedAudience] = useState('all');
   const [sortMode, setSortMode] = useState('popular');
 
   const followedBrandIds = useStore((state) => state.followedBrandIds || []);
   const toggleFollowBrand = useStore((state) => state.toggleFollowBrand);
 
-  const loadBrands = useCallback(async () => {
+  const loadBrands = useCallback(async ({ reset = false } = {}) => {
     try {
-      setLoading(true);
-      const data = await fetchApprovedBrandsFromSupabase();
-      setBrands(Array.isArray(data) ? data : []);
+      const targetPage = reset ? 1 : page;
+
+      if (!reset && targetPage > 1) {
+        if (!hasMore || isLoadingMore) return;
+        setIsLoadingMore(true);
+      } else if (reset) {
+        setRefreshing(true);
+        setHasMore(true);
+      } else {
+        setLoading(true);
+      }
+
+      const data = await fetchApprovedBrandsPageFromSupabase({ page: targetPage, pageSize: 20 });
+      const rows = Array.isArray(data) ? data : [];
+
+      if (reset || targetPage === 1) {
+        setBrands(rows);
+      } else if (rows.length) {
+        const current = brands || [];
+        const merged = [
+          ...current,
+          ...rows.filter((b) => !current.some((existing) => existing.id === b.id)),
+        ];
+        setBrands(merged);
+      }
+
+      if (rows.length < 20) {
+        setHasMore(false);
+      }
     } catch (e) {
       console.warn('AllBrands: failed to load brands', e.message || e);
-      setBrands([]);
+      if (reset) {
+        setBrands([]);
+      }
     } finally {
       setLoading(false);
+      setRefreshing(false);
+      setIsLoadingMore(false);
+      setPage((prev) => (reset ? 2 : prev + 1));
     }
-  }, []);
+  }, [page, hasMore, isLoadingMore, brands]);
 
   useFocusEffect(
     useCallback(() => {
-      loadBrands();
+      loadBrands({ reset: true });
     }, [loadBrands]),
   );
 
@@ -248,6 +283,16 @@ const AllBrandsScreen = ({ navigation, route }) => {
     }
   }, [selectedAudience]);
 
+  const handleRefresh = useCallback(() => {
+    if (loading) return;
+    loadBrands({ reset: true });
+  }, [loading, loadBrands]);
+
+  const handleLoadMore = useCallback(() => {
+    if (loading || refreshing || isLoadingMore || !hasMore) return;
+    loadBrands({ reset: false });
+  }, [loading, refreshing, isLoadingMore, hasMore, loadBrands]);
+
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.headerRow}>
@@ -302,9 +347,16 @@ const AllBrandsScreen = ({ navigation, route }) => {
             keyExtractor={(item) => item.id.toString()}
             renderItem={renderItem}
             contentContainerStyle={{ paddingBottom: 24 }}
-            onRefresh={loadBrands}
-            refreshing={loading}
+            onRefresh={handleRefresh}
+            refreshing={refreshing}
             showsVerticalScrollIndicator={false}
+            onEndReached={handleLoadMore}
+            onEndReachedThreshold={0.5}
+            ListFooterComponent={isLoadingMore ? (
+              <View style={styles.loadingFooter}>
+                <ActivityIndicator size="small" color="#090966" />
+              </View>
+            ) : null}
           />
         </>
       )}

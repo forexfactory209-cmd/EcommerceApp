@@ -1422,7 +1422,7 @@ const styles = StyleSheet.create({
     color: '#ef4444',
   },
   headerBackground: {
-    backgroundColor: '#11146E',
+    backgroundColor: '#090966',
     paddingTop: 14,
     paddingBottom: 22,
     paddingHorizontal: 20,
@@ -1457,7 +1457,7 @@ const styles = StyleSheet.create({
   //   fontWeight: '600',
   // },
   headerTitle: {
-    color: '#ffffff',
+    color: '#FFFFFF',
     fontSize: 18,
     fontWeight: '600',
   },

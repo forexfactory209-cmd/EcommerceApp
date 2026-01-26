@@ -21,25 +21,56 @@ const CategoryProductsScreen = ({ navigation, route }) => {
 
   const [remoteProducts, setRemoteProducts] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
 
-  const loadProducts = useCallback(async () => {
+  const loadProducts = useCallback(async ({ reset = false } = {}) => {
     try {
-      setLoading(true);
-      const data = await fetchProductsFromSupabase();
+      const targetPage = reset ? 1 : page;
+
+      if (!reset && targetPage > 1) {
+        if (!hasMore || isLoadingMore) return;
+        setIsLoadingMore(true);
+      } else if (reset) {
+        setRefreshing(true);
+        setHasMore(true);
+      } else {
+        setLoading(true);
+      }
+
+      const data = await fetchProductsFromSupabase({ page: targetPage, pageSize: 20 });
       if (Array.isArray(data) && data.length > 0) {
-        setRemoteProducts(data);
+        if (reset || targetPage === 1) {
+          setRemoteProducts(data);
+        } else {
+          const current = remoteProducts || [];
+          const merged = [
+            ...current,
+            ...data.filter((p) => !current.some((existing) => existing.id === p.id)),
+          ];
+          setRemoteProducts(merged);
+        }
+      }
+
+      if (!data || data.length < 20) {
+        setHasMore(false);
       }
     } catch (e) {
       Alert.alert('Supabase error', e.message || 'Failed to load products from Supabase');
     } finally {
       setLoading(false);
+      setRefreshing(false);
+      setIsLoadingMore(false);
+      setPage((prev) => (reset ? 2 : prev + 1));
     }
-  }, []);
+  }, [page, hasMore, isLoadingMore, remoteProducts]);
 
   useFocusEffect(
     useCallback(() => {
-      loadProducts();
+      loadProducts({ reset: true });
     }, [loadProducts]),
   );
 
@@ -123,6 +154,16 @@ const CategoryProductsScreen = ({ navigation, route }) => {
     );
   }, [wishlist, authRole, addToWishlist, removeFromWishlist, navigation]);
 
+  const handleRefresh = useCallback(() => {
+    if (loading) return;
+    loadProducts({ reset: true });
+  }, [loading, loadProducts]);
+
+  const handleLoadMore = useCallback(() => {
+    if (loading || refreshing || isLoadingMore || !hasMore) return;
+    loadProducts({ reset: false });
+  }, [loading, refreshing, isLoadingMore, hasMore, loadProducts]);
+
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.headerRow}>
@@ -142,7 +183,7 @@ const CategoryProductsScreen = ({ navigation, route }) => {
         />
       </View>
 
-      {loading ? (
+      {loading && data.length === 0 ? (
         <View style={styles.loadingWrapper}>
           <ActivityIndicator size="small" color="#111827" />
         </View>
@@ -155,6 +196,15 @@ const CategoryProductsScreen = ({ navigation, route }) => {
           contentContainerStyle={styles.listContent}
           renderItem={renderItem}
           estimatedItemSize={240}
+          refreshing={refreshing}
+          onRefresh={handleRefresh}
+          onEndReached={handleLoadMore}
+          onEndReachedThreshold={0.5}
+          ListFooterComponent={isLoadingMore ? (
+            <View style={styles.loadingWrapper}>
+              <ActivityIndicator size="small" color="#111827" />
+            </View>
+          ) : null}
         />
       )}
     </SafeAreaView>

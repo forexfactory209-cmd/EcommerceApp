@@ -15,6 +15,9 @@ const BrandProductsScreen = ({ navigation }) => {
   const [brandDiscount, setBrandDiscount] = useState(null);
   const [tab, setTab] = useState('active');
   const [loading, setLoading] = useState(false);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
   const [now, setNow] = useState(Date.now());
 
   useEffect(() => {
@@ -29,14 +32,21 @@ const BrandProductsScreen = ({ navigation }) => {
     useCallback(() => {
       let isActive = true;
 
-      const loadProducts = async () => {
+      const loadProducts = async ({ reset = false } = {}) => {
         if (!authUserId) {
           setRemoteProducts([]);
           return;
         }
 
         try {
-          setLoading(true);
+          if (reset) {
+            setLoading(true);
+            setHasMore(true);
+          } else {
+            if (!hasMore || isLoadingMore) return;
+            setIsLoadingMore(true);
+          }
+
           // Load brand discount percentage
           try {
             const { data: brandRow, error: brandError } = await supabase
@@ -56,32 +66,60 @@ const BrandProductsScreen = ({ navigation }) => {
             console.warn('BrandProducts: exception loading brand discount', e.message || e);
           }
 
+          const pageSize = 20;
+          const targetPage = reset ? 1 : page;
+          const from = (targetPage - 1) * pageSize;
+          const to = from + pageSize - 1;
+
           const { data: prodByOwner, error: prodOwnerError } = await supabase
             .from('products')
             .select('*')
             .eq('brand_user_id', authUserId)
-            .or('is_deleted.is.null,is_deleted.eq.false');
+            .or('is_deleted.is.null,is_deleted.eq.false')
+            .order('created_at', { ascending: false })
+            .range(from, to);
 
           if (prodOwnerError) {
             console.warn('BrandProducts: failed to load products', prodOwnerError.message || prodOwnerError);
           }
 
+          const rows = Array.isArray(prodByOwner) ? prodByOwner : [];
+
           if (isActive) {
-            setRemoteProducts(Array.isArray(prodByOwner) ? prodByOwner : []);
+            if (reset || targetPage === 1) {
+              setRemoteProducts(rows);
+              setPage(2);
+            } else if (rows.length) {
+              setRemoteProducts((prev) => {
+                const current = Array.isArray(prev) ? prev : [];
+                return [
+                  ...current,
+                  ...rows.filter((p) => !current.some((existing) => existing.id === p.id)),
+                ];
+              });
+              setPage((prev) => prev + 1);
+            }
+
+            if (rows.length < pageSize) {
+              setHasMore(false);
+            }
           }
         } catch (e) {
           console.warn('BrandProducts: unexpected error loading products', e.message || e);
         } finally {
-          if (isActive) setLoading(false);
+          if (isActive) {
+            setLoading(false);
+            setIsLoadingMore(false);
+          }
         }
       };
 
-      loadProducts();
+      loadProducts({ reset: true });
 
       return () => {
         isActive = false;
       };
-    }, [authUserId]),
+    }, [authUserId, page, hasMore, isLoadingMore]),
   );
 
   const handleDeleteProduct = async (productId) => {
@@ -379,7 +417,23 @@ const BrandProductsScreen = ({ navigation }) => {
         {currentList.length === 0 ? (
           <Text style={styles.emptyText}>{loading ? 'Loading products...' : 'No products to show.'}</Text>
         ) : (
-          currentList.map(renderProductCard)
+          <>
+            {currentList.map(renderProductCard)}
+            {hasMore && (
+              <View style={{ paddingVertical: 16, alignItems: 'center' }}>
+                {isLoadingMore ? (
+                  <ActivityIndicator size="small" color="#11126F" />
+                ) : (
+                  <TouchableOpacity
+                    style={styles.loadMoreButton}
+                    onPress={handleLoadMore}
+                  >
+                    <Text style={styles.loadMoreButtonText}>Load more</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            )}
+          </>
         )}
       </ScrollView>
     </SafeAreaView>
@@ -452,6 +506,19 @@ const styles = StyleSheet.create({
   emptyText: {
     fontSize: 14,
     color: '#9ca3af',
+  },
+  loadMoreButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#11126F',
+    backgroundColor: '#ffffff',
+  },
+  loadMoreButtonText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#11126F',
   },
   discountActionsRow: {
     flexDirection: 'row',
