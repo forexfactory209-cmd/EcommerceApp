@@ -349,6 +349,112 @@ export const useStore = create(
   clearWishlistByProductIds: (ids) => set((state) => ({
     wishlist: state.wishlist.filter((item) => !ids.includes(item.id)),
   })),
+
+  // Payout methods for brand wallet (Zaad / Edahab), backed by Supabase
+  payoutMethods: [],
+  setPayoutMethods: (methods) =>
+    set({ payoutMethods: Array.isArray(methods) ? methods : [] }),
+  loadPayoutMethods: async () => {
+    try {
+      const authUserId = get().authUserId;
+      if (!authUserId) return;
+
+      const { data, error } = await supabase
+        .from('wallet_payout_methods')
+        .select('id, provider, label, phone_number')
+        .eq('brand_user_id', authUserId);
+
+      if (error) {
+        console.warn('Failed to load payout methods', error.message || error);
+        return;
+      }
+      const normalized = (data || []).map((row) => ({
+        ...row,
+        phoneNumber: row.phone_number,
+      }));
+
+      set({ payoutMethods: normalized });
+    } catch (e) {
+      console.warn('Exception loading payout methods', e.message || e);
+    }
+  },
+  addOrUpdatePayoutMethod: async (method) => {
+    try {
+      const authUserId = get().authUserId;
+      if (!authUserId || !method || !method.provider || !method.phoneNumber) return;
+
+      const base = {
+        brand_user_id: authUserId,
+        provider: method.provider,
+        label: method.label,
+        phone_number: method.phoneNumber,
+      };
+
+      if (method.id) {
+        const { data, error } = await supabase
+          .from('wallet_payout_methods')
+          .update(base)
+          .eq('id', method.id)
+          .select('id, provider, label, phone_number')
+          .single();
+
+        if (error) {
+          console.warn('Failed to update payout method', error.message || error);
+          return;
+        }
+
+        if (data) {
+          const normalized = { ...data, phoneNumber: data.phone_number };
+          set((state) => ({
+            payoutMethods: (state.payoutMethods || []).map((m) =>
+              m.id === normalized.id ? normalized : m,
+            ),
+          }));
+        }
+      } else {
+        const { data, error } = await supabase
+          .from('wallet_payout_methods')
+          .insert(base)
+          .select('id, provider, label, phone_number')
+          .single();
+
+        if (error) {
+          console.warn('Failed to insert payout method', error.message || error);
+          return;
+        }
+
+        if (data) {
+          const normalized = { ...data, phoneNumber: data.phone_number };
+          set((state) => ({
+            payoutMethods: [...(state.payoutMethods || []), normalized],
+          }));
+        }
+      }
+    } catch (e) {
+      console.warn('Exception saving payout method', e.message || e);
+    }
+  },
+  removePayoutMethod: async (id) => {
+    try {
+      if (!id) return;
+
+      const { error } = await supabase
+        .from('wallet_payout_methods')
+        .delete()
+        .eq('id', id);
+
+      if (error) {
+        console.warn('Failed to delete payout method', error.message || error);
+        return;
+      }
+
+      set((state) => ({
+        payoutMethods: (state.payoutMethods || []).filter((m) => m.id !== id),
+      }));
+    } catch (e) {
+      console.warn('Exception deleting payout method', e.message || e);
+    }
+  },
 }),
     {
       name: 'ecommerce-store',
@@ -357,6 +463,7 @@ export const useStore = create(
       partialize: (state) => ({
         cart: state.cart,
         wishlist: state.wishlist,
+        payoutMethods: state.payoutMethods,
       }),
     },
   ),

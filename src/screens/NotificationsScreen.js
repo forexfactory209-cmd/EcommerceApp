@@ -18,37 +18,39 @@ import { ArrowLeft, Bell, BellOff, Check } from 'lucide-react-native';
 import { useStore } from '../store/store';
 
 import { supabase } from '../lib/supabase';
+import { subscribeToNotifications, fetchNotificationsForUser } from './notificationsHelpers';
 
 const NotificationsScreen = () => {
   const navigation = useNavigation();
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [userId, setUserId] = useState(null);
   const followedBrandIds = useStore((state) => state.followedBrandIds || []);
 
-  const fetchNotifications = async () => {
+  const fetchNotifications = async (targetUserId) => {
     try {
       setLoading(true);
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      let effectiveUserId = targetUserId || userId;
 
-      const { data, error } = await supabase
-        .from('notifications')
-        .select(`
-          *,
-          brands:brand_id (id, name, logo_url)
-        `)
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false });
+      if (!effectiveUserId) {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) {
+          return;
+        }
+        effectiveUserId = user.id;
+        setUserId(user.id);
+      }
 
-      if (error) throw error;
-      setNotifications(data || []);
+      const data = await fetchNotificationsForUser(effectiveUserId);
+      setNotifications(data);
     } catch (error) {
       console.error('Error fetching notifications:', error);
+
     } finally {
       setLoading(false);
       setRefreshing(false);
-    }
+    };
   };
 
   const markAsRead = async (notificationId) => {
@@ -95,24 +97,41 @@ const NotificationsScreen = () => {
       }
 
       const data = item.data || {};
-      const type = data.type;
+      // Prefer the top-level type column, fall back to any nested data.type for legacy rows
+      const type = item.type || data.type;
 
-      // Order created for a brand/vendor: open order details with accept/decline popup
-      if (type === 'order_created' && data.order_id) {
-        navigation.navigate('TrackOrderDetails', {
-          orderId: data.order_id,
-          brandDecisionMode: true,
+      // Order created for a brand/vendor: jump to the Brand Orders tab, focusing the "New" list
+      if (type === 'order_created') {
+        navigation.navigate('Main', {
+          screen: 'BrandOrders',
+          params: data.order_id
+            ? { highlightOrderId: data.order_id }
+            : undefined,
         });
         return;
       }
 
-      // New question about a product for a brand owner: jump to product Q&A
-      if (type === 'new_question' && data.product_id) {
-        navigation.navigate('ProductDetails', {
-          product: { id: data.product_id },
-          focusQuestionId: data.question_id || null,
-          initialTab: 'reviews',
+      // Customer order status update: go to the tracking details for that specific order
+      if (type === 'order_status' && data.order_id) {
+        navigation.navigate('SimpleOrderTracking', {
+          orderId: data.order_id,
         });
+        return;
+      }
+
+      // Product Q&A for brand owner: go to the central Brand Q&A inbox
+      if (type === 'new_question' || type === 'question') {
+        navigation.navigate('BrandQA');
+        return;
+      }
+
+      // Reviews & ratings for brand owner: go to the BrandReviews screen
+      if (
+        type === 'review' ||
+        type === 'new_review' ||
+        type === 'product_review'
+      ) {
+        navigation.navigate('BrandReviews');
         return;
       }
 
@@ -134,7 +153,34 @@ const NotificationsScreen = () => {
   };
 
   useEffect(() => {
-    fetchNotifications();
+    let unsubscribe;
+
+    const init = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) {
+          await fetchNotifications();
+          return;
+        }
+
+        setUserId(user.id);
+        await fetchNotifications(user.id);
+
+        unsubscribe = subscribeToNotifications(user.id, (notification) => {
+          setNotifications((current) => [notification, ...current]);
+        });
+      } catch (err) {
+        console.error('Error initializing notifications screen:', err);
+      }
+    };
+
+    init();
+
+    return () => {
+      if (unsubscribe) {
+        unsubscribe();
+      }
+    };
   }, []);
 
   const formatTime = (dateString) => {
@@ -256,9 +302,9 @@ const NotificationsScreen = () => {
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
-            onRefresh={() => {
+            onRefresh={async () => {
               setRefreshing(true);
-              fetchNotifications();
+              await fetchNotifications(userId);
             }}
             colors={['#007AFF']}
             tintColor="#007AFF"

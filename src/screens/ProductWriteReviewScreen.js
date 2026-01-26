@@ -28,13 +28,13 @@ const ProductWriteReviewScreen = () => {
   const userName = useStore((state) => state.userName);
   const orders = useStore((state) => state.orders) || [];
 
-  const hasPurchasedProduct = orders.some(
-    (order) =>
-      order &&
-      order.status === 'Delivered' &&
-      Array.isArray(order.items) &&
-      order.items.some((item) => item && item.id === productId),
-  );
+  const hasPurchasedProduct = orders.some((order) => {
+    if (!order || !Array.isArray(order.items)) return false;
+    const status = (order.status || '').toLowerCase();
+    const isDeliveredLike = status === 'delivered' || status === 'customer_confirmed';
+    if (!isDeliveredLike) return false;
+    return order.items.some((item) => item && item.id === productId);
+  });
 
   const [reviewRating, setReviewRating] = useState(editingReview?.rating || 0);
   const [reviewText, setReviewText] = useState(editingReview?.text || '');

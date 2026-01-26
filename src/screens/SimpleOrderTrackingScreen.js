@@ -1,8 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, ActivityIndicator, TouchableOpacity, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useNavigation, useRoute } from '@react-navigation/native';
 import { supabase } from '../lib/supabase';
+import * as Clipboard from 'expo-clipboard';
 
 const COLORS = {
   background: '#FFFFFF',
@@ -220,6 +221,20 @@ const SimpleOrderTrackingScreen = () => {
                     {details.length > 0 && (
                       <Text style={styles.itemDetails}>{details.join(' · ')}</Text>
                     )}
+                    {prod.code ? (
+                      <View style={styles.itemCodeChip}>
+                        <Text style={styles.itemCodeText}>Product code: {prod.code}</Text>
+                        <TouchableOpacity
+                          style={styles.itemCodeCopyButton}
+                          onPress={() => {
+                            Clipboard.setStringAsync(String(prod.code));
+                            Alert.alert('Copied', 'Product code copied to clipboard.');
+                          }}
+                        >
+                          <Text style={styles.itemCodeCopyText}>Copy</Text>
+                        </TouchableOpacity>
+                      </View>
+                    ) : null}
                   </View>
                   {typeof prod.price === 'number' && (
                     <Text style={styles.itemPrice}>${(prod.price * (prod.quantity || 1)).toFixed(2)}</Text>
@@ -242,19 +257,35 @@ const SimpleOrderTrackingScreen = () => {
           </View>
         )}
 
-        {/* Confirm delivered button (only on delivered step).
-            Before confirmation: tappable primary button.
-            After confirmation: static black "CONFIRMED" button without any action. */}
         {currentStepIndex === 2 && (
-          <TouchableOpacity
-            style={styles.confirmButton}
-            onPress={() => {
-              if (!order?.id) return;
-              navigation.navigate('ReportProblem', { orderId: order.id });
-            }}
-          >
-            <Text style={styles.confirmButtonText}>REPORT A PROBLEM</Text>
-          </TouchableOpacity>
+          <>
+            <TouchableOpacity
+              style={styles.confirmButton}
+              onPress={() => {
+                if (!order?.id) return;
+                navigation.navigate('ReportProblem', { orderId: order.id });
+              }}
+            >
+              <Text style={styles.confirmButtonText}>REPORT A PROBLEM</Text>
+            </TouchableOpacity>
+
+            {Array.isArray(order?.items) && order.items.length > 0 && (
+              <TouchableOpacity
+                style={styles.reviewButton}
+                onPress={() => {
+                  const first = order.items[0];
+                  if (!first || !first.id) return;
+                  navigation.navigate('ProductWriteReview', {
+                    productId: first.id,
+                    productName: first.name || undefined,
+                    returnToProductId: first.id,
+                  });
+                }}
+              >
+                <Text style={styles.reviewButtonText}>WRITE A REVIEW</Text>
+              </TouchableOpacity>
+            )}
+          </>
         )}
       </View>
     </SafeAreaView>
@@ -328,6 +359,7 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: 24,
     paddingTop: 24,
+    paddingBottom: 48,
   },
   stepsRow: {
     flexDirection: 'row',
@@ -446,6 +478,33 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: COLORS.textSecondary,
   },
+  itemCodeChip: {
+    marginTop: 4,
+    alignSelf: 'flex-start',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 999,
+    backgroundColor: '#EEF2FF',
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  itemCodeText: {
+    fontSize: 11,
+    color: COLORS.textPrimary,
+    fontWeight: '500',
+    marginRight: 8,
+  },
+  itemCodeCopyButton: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 999,
+    backgroundColor: '#111827',
+  },
+  itemCodeCopyText: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
   itemPrice: {
     fontSize: 13,
     fontWeight: '600',
@@ -477,7 +536,7 @@ const styles = StyleSheet.create({
   },
   confirmButton: {
     marginTop: 40,
-    marginBottom: 24,
+    marginBottom: 16,
     alignSelf: 'center',
     paddingHorizontal: 40,
     paddingVertical: 12,
@@ -485,6 +544,21 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.primary,
   },
   confirmButtonText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#FFFFFF',
+    letterSpacing: 0.5,
+  },
+  reviewButton: {
+    marginTop: 12,
+    marginBottom: 40,
+    alignSelf: 'center',
+    paddingHorizontal: 40,
+    paddingVertical: 12,
+    borderRadius: 999,
+    backgroundColor: '#111827',
+  },
+  reviewButtonText: {
     fontSize: 13,
     fontWeight: '600',
     color: '#FFFFFF',

@@ -6,6 +6,7 @@ import { supabase } from '../lib/supabase';
 import { Mail, Lock, LogIn, Eye, EyeOff, ShoppingBag } from 'lucide-react-native';
 import BeegsoButton from '../components/BeegsoButton';
 import OnboardingBg from '../../assets/onboarding/bg_main.png';
+import { registerForPushNotificationsAsync } from './pushNotifications';
 
 const { width } = Dimensions.get('window');
 
@@ -129,6 +130,102 @@ const WelcomeScreen = ({ navigation }) => {
       Animated.spring(scaleAnim, { toValue: 1, friction: 5, tension: 40, useNativeDriver: true }),
       opacityAnim && Animated.timing(opacityAnim, { toValue: 1, duration: 200, useNativeDriver: true }),
     ].filter(Boolean)).start();
+  };
+
+  const finalizeLogin = async (user) => {
+    if (!user) return;
+
+    try {
+      const [
+        { data: profile, error: profileError },
+        { data: brandRow, error: brandError },
+      ] = await Promise.all([
+        supabase
+          .from('profiles')
+          .select('user_id, name, username')
+          .eq('user_id', user.id)
+          .maybeSingle(),
+        supabase
+          .from('brands')
+          .select('id, name, status, logo_url')
+          .eq('user_id', user.id)
+          .maybeSingle(),
+      ]);
+
+      if (profileError && profileError.code !== 'PGRST116') {
+        Alert.alert('Error', profileError.message || 'Failed to load profile.');
+        return;
+      }
+
+      if (brandError) {
+        console.warn('Error loading brand for user:', brandError.message || brandError);
+      }
+
+      let effectiveProfile = profile;
+
+      if (!effectiveProfile) {
+        const userMeta = user.user_metadata || {};
+        const inferredNameFromEmail = typeof user.email === 'string' ? user.email.split('@')[0] : null;
+        const inferredName =
+          userMeta.full_name ||
+          userMeta.name ||
+          userMeta.user_name ||
+          userMeta.preferred_username ||
+          inferredNameFromEmail;
+
+        const { data: createdProfile, error: upsertError } = await supabase
+          .from('profiles')
+          .upsert(
+            {
+              user_id: user.id,
+              name: inferredName || null,
+            },
+            { onConflict: 'user_id' },
+          )
+          .select('user_id, name, username')
+          .maybeSingle();
+
+        if (upsertError) {
+          console.warn('[WelcomeScreen] Profile upsert error during login:', upsertError.message || upsertError);
+        } else {
+          effectiveProfile = createdProfile || profile;
+        }
+      }
+
+      const hasApprovedBrand = brandRow?.status === 'approved';
+
+      let effectiveRole = 'customer';
+      if (user.email === ADMIN_EMAIL) {
+        effectiveRole = 'admin';
+      } else if (hasApprovedBrand) {
+        effectiveRole = 'brand';
+      }
+
+      let effectiveName = effectiveProfile?.name || '';
+      if (effectiveRole === 'brand' && brandRow?.name) {
+        effectiveName = brandRow.name;
+      }
+
+      setAuthUser({
+        id: user.id,
+        email: user.email,
+        role: effectiveRole,
+        name: effectiveName,
+        brandLogoUrl: brandRow?.logo_url || null,
+      });
+
+      // Register this device for push notifications after we have a valid user session
+      try {
+        await registerForPushNotificationsAsync(user.id);
+      } catch (pushErr) {
+        console.warn('Failed to register push notifications:', pushErr);
+      }
+
+      navigation.replace('Main');
+    } catch (err) {
+      console.error('Finalize login error:', err);
+      Alert.alert('Error', 'Something went wrong while finalizing sign in.');
+    }
   };
 
   useEffect(() => {
