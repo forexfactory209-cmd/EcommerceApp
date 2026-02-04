@@ -195,13 +195,18 @@ const TabNavigator = () => {
       )}
       {userType !== 'brand' && authRole !== 'admin' && (
         <Tab.Screen
-          name="FlashSaleTab"
-          component={FlashSaleScreen}
+          name="Cart"
+          component={CartScreen}
           options={{
             tabBarIcon: ({ focused }) => (
               <View style={styles.iconContainer}>
-                <Zap color="#FFFFFF" size={24} />
+                <ShoppingBag color="#FFFFFF" size={24} />
                 <TabIndicator focused={focused} />
+                {cartItems > 0 && (
+                  <View style={styles.cartBadge}>
+                    <Text style={styles.cartBadgeText}>{cartItems}</Text>
+                  </View>
+                )}
               </View>
             ),
           }}

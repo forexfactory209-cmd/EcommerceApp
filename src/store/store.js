@@ -126,7 +126,23 @@ export const useStore = create(
       userName: '',
       userEmail: '',
       userProfile: null,
-      seenDeliveredOrdersCount: 0,
+      setUserProfile: (profile) =>
+        set((state) => {
+          const safeProfile = profile || {};
+          return {
+            userName: safeProfile.name ?? state.userName ?? '',
+            userEmail: safeProfile.email ?? state.userEmail ?? '',
+            userProfile: {
+              ...(state.userProfile || {}),
+              ...safeProfile,
+            },
+          };
+        }),
+
+      // Auth state (Supabase)
+      authUserId: null,
+      authEmail: null,
+      authRole: null, // 'customer' | 'brand'
       brandLogoUrl: '',
     }),
 
@@ -237,103 +253,156 @@ export const useStore = create(
       const isNowFollowed = state.followedBrandIds.includes(brandId);
       console.log('[Store] isNowFollowed:', isNowFollowed);
 
-      if (isNowFollowed) {
-        console.log('[Store] Inserting into brand_follows:', { user_id: authUserId, brand_id: brandId });
-        const { data, error } = await supabase
-          .from('brand_follows')
-          .insert({
-            user_id: authUserId,
-            brand_id: brandId,
-          })
-          .select()
-          .single();
-        if (error) {
-          console.warn('Failed to persist follow brand', error.message || error);
-        } else {
-          console.log('[Store] Successfully inserted into brand_follows. Inserted data:', data);
-          console.log('[Store] Inserted brand_id type:', typeof data?.brand_id, 'value:', data?.brand_id);
+      loadFollowedBrands: async () => {
+        try {
+          const authUserId = get().authUserId;
+          if (!authUserId) return;
+
+          const { data, error } = await supabase
+            .from('brand_follows')
+            .select('brand_id')
+            .eq('user_id', authUserId);
+
+          if (error) {
+            console.warn('Failed to load followed brands', error.message || error);
+            return;
+          }
+
+          const ids = (data || [])
+            .map((row) => row.brand_id) // Keep as UUID string
+            .filter((v) => v); // Filter out null/undefined
+
+          console.log('[Store] Loaded followed brand IDs:', ids);
+          set({ followedBrandIds: ids });
+        } catch (e) {
+          console.warn('Failed to load followed brands', e.message || e);
         }
-      } else {
-        const { error } = await supabase
-          .from('brand_follows')
-          .delete()
-          .eq('user_id', authUserId)
-          .eq('brand_id', brandId);
-        if (error) {
-          console.warn('Failed to delete follow brand', error.message || error);
+      },
+
+      toggleFollowBrand: async (brandId) => {
+        console.log('[Store] toggleFollowBrand called with brandId:', brandId, typeof brandId);
+        if (!brandId) return;
+
+        // Don't convert to number - keep as string/UUID
+        const authUserId = get().authUserId;
+        console.log('[Store] authUserId:', authUserId);
+
+        // Update local state immediately for snappy UI
+        set((state) => {
+          const exists = state.followedBrandIds.includes(brandId);
+          console.log('[Store] Currently followed?', exists);
+          return {
+            followedBrandIds: exists
+              ? state.followedBrandIds.filter((id) => id !== brandId)
+              : [...state.followedBrandIds, brandId],
+          };
+        });
+
+        // Persist to Supabase if we have an authenticated user
+        if (!authUserId) return;
+
+        try {
+          const state = get();
+          const isNowFollowed = state.followedBrandIds.includes(brandId);
+          console.log('[Store] isNowFollowed:', isNowFollowed);
+
+          if (isNowFollowed) {
+            console.log('[Store] Inserting into brand_follows:', { user_id: authUserId, brand_id: brandId });
+            const { data, error } = await supabase
+              .from('brand_follows')
+              .insert({
+                user_id: authUserId,
+                brand_id: brandId,
+              })
+              .select()
+              .single();
+            if (error) {
+              console.warn('Failed to persist follow brand', error.message || error);
+            } else {
+              console.log('[Store] Successfully inserted into brand_follows. Inserted data:', data);
+              console.log('[Store] Inserted brand_id type:', typeof data?.brand_id, 'value:', data?.brand_id);
+            }
+          } else {
+            const { error } = await supabase
+              .from('brand_follows')
+              .delete()
+              .eq('user_id', authUserId)
+              .eq('brand_id', brandId);
+            if (error) {
+              console.warn('Failed to delete follow brand', error.message || error);
+            }
+          }
+        } catch (e) {
+          console.warn('Failed to persist follow brand', e.message || e);
         }
-      }
-    } catch (e) {
-      console.warn('Failed to persist follow brand', e.message || e);
-    }
-  },
+      },
 
-  deletedProductIds: [],
+      deletedProductIds: [],
 
-  // Cart
-  cart: [],
-  addToCart: (product) => set((state) => {
-    const existing = state.cart.find((item) => item.id === product.id);
-    if (existing) {
-      return {
-        cart: state.cart.map((item) =>
-          item.id === product.id ? { ...item, quantity: item.quantity + 1 } : item
-        ),
-      };
-    }
-    return { cart: [...state.cart, { ...product, quantity: 1 }] };
-  }),
-  removeFromCart: (id) => set((state) => ({
-    cart: state.cart.filter((item) => item.id !== id),
-  })),
-  increaseQuantity: (id) => set((state) => ({
-    cart: state.cart.map((item) =>
-      item.id === id ? { ...item, quantity: (item.quantity || 1) + 1 } : item,
-    ),
-  })),
-  decreaseQuantity: (id) => set((state) => {
-    const existing = state.cart.find((item) => item.id === id);
-    if (!existing) return state;
-
-    if ((existing.quantity || 1) <= 1) {
-      return {
-        cart: state.cart.filter((item) => item.id !== id),
-      };
-    }
-
-    return {
-      cart: state.cart.map((item) =>
-        item.id === id ? { ...item, quantity: (item.quantity || 1) - 1 } : item,
-      ),
-    };
-  }),
-  clearCart: () => set({ cart: [] }),
-
-  // Checkout: move cart to orders and clear cart
-  checkout: () => set((state) => {
-    if (state.cart.length === 0) return state;
-
-    const total = state.cart.reduce(
-      (sum, item) => sum + item.price * (item.quantity || 1),
-      0,
-    );
-
-    const newOrder = {
-      id: Date.now(),
-      items: state.cart,
-      total,
-      status: 'Pending',
-      date: new Date().toLocaleDateString(),
-    };
-
-    return {
-      orders: [newOrder, ...state.orders],
+      // Cart
       cart: [],
-    };
-  }),
+      addToCart: (product) => set((state) => {
+        const existing = state.cart.find((item) => item.id === product.id);
+        if (existing) {
+          return {
+            cart: state.cart.map((item) =>
+              item.id === product.id ? { ...item, quantity: item.quantity + 1 } : item
+            ),
+          };
+        }
+        return { cart: [...state.cart, { ...product, quantity: 1 }] };
+      }),
+      removeFromCart: (id) => set((state) => ({
+        cart: state.cart.filter((item) => item.id !== id),
+      })),
+      increaseQuantity: (id) => set((state) => ({
+        cart: state.cart.map((item) =>
+          item.id === id ? { ...item, quantity: (item.quantity || 1) + 1 } : item,
+        ),
+      })),
+      decreaseQuantity: (id) => set((state) => {
+        const existing = state.cart.find((item) => item.id === id);
+        if (!existing) return state;
 
-  setSeenDeliveredOrdersCount: (count) =>
-    set({ seenDeliveredOrdersCount: typeof count === 'number' ? count : 0 }),
+        if ((existing.quantity || 1) <= 1) {
+          return {
+            cart: state.cart.filter((item) => item.id !== id),
+          };
+        }
+
+        return {
+          cart: state.cart.map((item) =>
+            item.id === id ? { ...item, quantity: (item.quantity || 1) - 1 } : item,
+          ),
+        };
+      }),
+      clearCart: () => set({ cart: [] }),
+
+      // Checkout: move cart to orders and clear cart
+      checkout: () => set((state) => {
+        if (state.cart.length === 0) return state;
+
+        const total = state.cart.reduce(
+          (sum, item) => sum + item.price * (item.quantity || 1),
+          0,
+        );
+
+        const newOrder = {
+          id: Date.now(),
+          items: state.cart,
+          total,
+          status: 'Pending',
+          date: new Date().toLocaleDateString(),
+        };
+
+        return {
+          orders: [newOrder, ...state.orders],
+          cart: [],
+        };
+      }),
+
+      setSeenDeliveredOrdersCount: (count) =>
+        set({ seenDeliveredOrdersCount: typeof count === 'number' ? count : 0 }),
 
   // Flags for brand realtime data refresh (e.g., disputes)
   brandDisputesDirty: false,

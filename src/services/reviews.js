@@ -27,11 +27,7 @@ export async function fetchProductReviews({
     query = query.not('size_feedback', 'is', null);
   }
 
-  if (sortBy === 'helpful') {
-    query = query.order('created_at', { ascending: false });
-  } else {
-    query = query.order('created_at', { ascending: false });
-  }
+  query = query.order('created_at', { ascending: false });
 
   const from = (page - 1) * PAGE_SIZE;
   const to = from + PAGE_SIZE - 1;
@@ -47,7 +43,7 @@ export async function fetchProductReviews({
   const total = typeof count === 'number' ? count : items.length;
   const hasMore = to + 1 < total;
 
-  return { items, hasMore };
+  return { items, hasMore, total };
 }
 
 export async function createProductReview({

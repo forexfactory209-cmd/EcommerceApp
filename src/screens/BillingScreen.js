@@ -4,7 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useStore } from '../store/store';
 import { supabase } from '../lib/supabase';
 import * as Notifications from 'expo-notifications';
-import { getFlashSaleState } from '../utils/flashSale';
+import { getFlashSaleState } from '../utils/productHelpers';
 
 const BillingScreen = ({ navigation }) => {
   const { cart, clearCart, addOrder, clearWishlistByProductIds, authUserId } = useStore();
@@ -307,8 +307,8 @@ const BillingScreen = ({ navigation }) => {
         const options = Array.isArray(item.deliveryOptions)
           ? item.deliveryOptions
           : Array.isArray(item.delivery_options)
-          ? item.delivery_options
-          : [];
+            ? item.delivery_options
+            : [];
 
         const chosen = options.find((opt) => opt.id === item.selectedDeliveryId);
         if (chosen && !combinedShippingMethod) {
@@ -341,8 +341,8 @@ const BillingScreen = ({ navigation }) => {
           const options = Array.isArray(item.deliveryOptions)
             ? item.deliveryOptions
             : Array.isArray(item.delivery_options)
-            ? item.delivery_options
-            : [];
+              ? item.delivery_options
+              : [];
           const chosen = options.find((opt) => opt.id === item.selectedDeliveryId);
           if (!chosen) return null;
           return chosen.label || chosen.name || null;
@@ -394,8 +394,8 @@ const BillingScreen = ({ navigation }) => {
           const options = Array.isArray(item.deliveryOptions)
             ? item.deliveryOptions
             : Array.isArray(item.delivery_options)
-            ? item.delivery_options
-            : [];
+              ? item.delivery_options
+              : [];
           const chosen = options.find((opt) => opt.id === item.selectedDeliveryId);
 
           return {
@@ -608,213 +608,213 @@ const BillingScreen = ({ navigation }) => {
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
-        <Text style={styles.title}>Billing</Text>
+          <Text style={styles.title}>Billing</Text>
 
-        <Text style={styles.sectionTitle}>Order Summary</Text>
-        <View style={styles.list}>
-          {cart.map((item, index) => {
-            const { currentPrice, flashPrice, isFlashActive } = getFlashSaleState(item);
-            const unit = isFlashActive && flashPrice != null && flashPrice > 0 ? flashPrice : currentPrice;
-            const lineTotal = unit * (item.quantity || 1);
+          <Text style={styles.sectionTitle}>Order Summary</Text>
+          <View style={styles.list}>
+            {cart.map((item, index) => {
+              const { currentPrice, flashPrice, isFlashActive } = getFlashSaleState(item);
+              const unit = isFlashActive && flashPrice != null && flashPrice > 0 ? flashPrice : currentPrice;
+              const lineTotal = unit * (item.quantity || 1);
 
-            const displayColor =
-              (item.selectedColor && String(item.selectedColor)) ||
-              (item.color && String(item.color)) ||
-              null;
-            const displaySize =
-              (item.selectedSize && String(item.selectedSize)) ||
-              (item.size && String(item.size)) ||
-              null;
+              const displayColor =
+                (item.selectedColor && String(item.selectedColor)) ||
+                (item.color && String(item.color)) ||
+                null;
+              const displaySize =
+                (item.selectedSize && String(item.selectedSize)) ||
+                (item.size && String(item.size)) ||
+                null;
 
-            return (
-              <View key={`${item.id}-${index}`} style={styles.itemRow}>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.itemName} numberOfLines={1}>
-                    {item.name}
-                  </Text>
-                  {(displayColor || displaySize) && (
-                    <Text style={styles.itemMeta} numberOfLines={1}>
-                      {displayColor ? `Color: ${displayColor}` : ''}
-                      {displayColor && displaySize ? '  •  ' : ''}
-                      {displaySize ? `Size: ${displaySize}` : ''}
+              return (
+                <View key={`${item.id}-${index}`} style={styles.itemRow}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.itemName} numberOfLines={1}>
+                      {item.name}
                     </Text>
-                  )}
+                    {(displayColor || displaySize) && (
+                      <Text style={styles.itemMeta} numberOfLines={1}>
+                        {displayColor ? `Color: ${displayColor}` : ''}
+                        {displayColor && displaySize ? '  •  ' : ''}
+                        {displaySize ? `Size: ${displaySize}` : ''}
+                      </Text>
+                    )}
+                  </View>
+                  <Text style={styles.itemQty}>x{item.quantity}</Text>
+                  <Text style={styles.itemPrice}>
+                    ${lineTotal.toFixed(2)}
+                  </Text>
                 </View>
-                <Text style={styles.itemQty}>x{item.quantity}</Text>
-                <Text style={styles.itemPrice}>
-                  ${lineTotal.toFixed(2)}
-                </Text>
-              </View>
-            );
-          })}
-        </View>
+              );
+            })}
+          </View>
 
-        <View style={styles.summaryPanel}>
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Subtotal</Text>
-            <Text style={styles.summaryValue}>${subtotal.toFixed(2)}</Text>
-          </View>
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Shipping</Text>
-            <Text style={styles.summaryValue}>${shipping.toFixed(2)}</Text>
-          </View>
-          {promoDiscount > 0 && (
+          <View style={styles.summaryPanel}>
             <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>
-                Promo discount{appliedPromo?.code ? ` (${appliedPromo.code})` : ''}
-              </Text>
-              <Text style={styles.summaryValue}>- ${promoDiscount.toFixed(2)}</Text>
+              <Text style={styles.summaryLabel}>Subtotal</Text>
+              <Text style={styles.summaryValue}>${subtotal.toFixed(2)}</Text>
             </View>
-          )}
-          <View style={styles.summaryDivider} />
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryTotalLabel}>Total</Text>
-            <Text style={styles.summaryTotalValue}>${grandTotal.toFixed(2)}</Text>
-          </View>
-        </View>
-
-        <Text style={styles.sectionTitle}>Promo Code</Text>
-        <View style={styles.promoRow}>
-          <TextInput
-            style={styles.promoInput}
-            placeholder="Enter promo code"
-            autoCapitalize="characters"
-            value={promoCodeInput}
-            onChangeText={(text) => {
-              setPromoCodeInput(text);
-              setPromoFeedback('');
-            }}
-          />
-          <TouchableOpacity
-            style={styles.promoButton}
-            onPress={handleApplyPromo}
-            disabled={promoApplying}
-          >
-            <Text style={styles.promoButtonText}>
-              {promoApplying ? 'Applying...' : appliedPromo ? 'Re-apply' : 'Apply'}
-            </Text>
-          </TouchableOpacity>
-        </View>
-        {!!promoFeedback && (
-          <Text style={styles.promoFeedback}>{promoFeedback}</Text>
-        )}
-
-        <Text style={styles.sectionTitle}>Payment Method</Text>
-        <View style={styles.paymentRow}>
-          {[ 
-            { id: 'cash_on_delivery', label: 'Cash on delivery' },
-            { id: 'zaad', label: 'ZAAD' },
-            { id: 'evc', label: 'EVC' },
-          ].map((method) => {
-            const active = paymentMethod === method.id;
-            return (
-              <TouchableOpacity
-                key={method.id}
-                style={[styles.paymentChip, active && styles.paymentChipActive]}
-                onPress={() => setPaymentMethod(method.id)}
-              >
-                <Text style={[styles.paymentChipText, active && styles.paymentChipTextActive]}>
-                  {method.label}
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabel}>Shipping</Text>
+              <Text style={styles.summaryValue}>${shipping.toFixed(2)}</Text>
+            </View>
+            {promoDiscount > 0 && (
+              <View style={styles.summaryRow}>
+                <Text style={styles.summaryLabel}>
+                  Promo discount{appliedPromo?.code ? ` (${appliedPromo.code})` : ''}
                 </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </View>
-
-        {savedAddresses.length > 0 && (
-          <>
-            <Text style={styles.sectionTitle}>Choose saved address</Text>
-            {addressesLoading ? (
-              <ActivityIndicator style={{ marginVertical: 8 }} />
-            ) : (
-              <FlatList
-                data={savedAddresses}
-                keyExtractor={(item) => item.id.toString()}
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.addressCarouselContent}
-                renderItem={({ item }) => {
-                  const isSelected = selectedAddressId === item.id;
-                  return (
-                    <TouchableOpacity
-                      activeOpacity={0.85}
-                      style={[
-                        styles.addressCard,
-                        isSelected && styles.addressCardSelected,
-                        item.is_primary && styles.addressCardPrimary,
-                      ]}
-                      onPress={() => {
-                        setSelectedAddressId(item.id);
-                        const composed = `${item.address_line}\n${item.city || ''}${item.city && item.country ? ', ' : ''}${item.country || ''}`;
-                        setDeliveryAddress(composed.trim());
-                      }}
-                    >
-                      <View style={styles.addressCardHeaderRow}>
-                        <Text style={styles.addressCardName} numberOfLines={1}>
-                          {item.name || 'Recipient'}
-                        </Text>
-                        {item.is_primary && (
-                          <Text style={styles.addressCardBadge}>Primary</Text>
-                        )}
-                      </View>
-                      <Text style={styles.addressCardAddress} numberOfLines={2}>
-                        {item.address_line}
-                      </Text>
-                      <Text style={styles.addressCardMeta} numberOfLines={1}>
-                        {item.city}
-                        {item.city && item.country ? ', ' : ''}
-                        {item.country}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                }}
-              />
+                <Text style={styles.summaryValue}>- ${promoDiscount.toFixed(2)}</Text>
+              </View>
             )}
-          </>
-        )}
+            <View style={styles.summaryDivider} />
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryTotalLabel}>Total</Text>
+              <Text style={styles.summaryTotalValue}>${grandTotal.toFixed(2)}</Text>
+            </View>
+          </View>
 
-        {savedAddresses.length === 0 && !addressesLoading && (
-          <View style={{ marginTop: 16 }}>
-            <Text style={{ fontSize: 13, color: '#6B7280', marginBottom: 8 }}>
-              You have no saved delivery address yet.
-            </Text>
+          <Text style={styles.sectionTitle}>Promo Code</Text>
+          <View style={styles.promoRow}>
+            <TextInput
+              style={styles.promoInput}
+              placeholder="Enter promo code"
+              autoCapitalize="characters"
+              value={promoCodeInput}
+              onChangeText={(text) => {
+                setPromoCodeInput(text);
+                setPromoFeedback('');
+              }}
+            />
             <TouchableOpacity
-              style={[styles.confirmButton, { backgroundColor: '#090966' }]}
-              onPress={() => navigation.navigate('Addresses')}
+              style={styles.promoButton}
+              onPress={handleApplyPromo}
+              disabled={promoApplying}
             >
-              <Text style={styles.confirmText}>Add Address</Text>
+              <Text style={styles.promoButtonText}>
+                {promoApplying ? 'Applying...' : appliedPromo ? 'Re-apply' : 'Apply'}
+              </Text>
             </TouchableOpacity>
           </View>
-        )}
+          {!!promoFeedback && (
+            <Text style={styles.promoFeedback}>{promoFeedback}</Text>
+          )}
 
-        <Text style={styles.sectionTitle}>Secondary phone for delivery</Text>
-        <TextInput
-          style={styles.secondaryPhoneInput}
-          placeholder="Backup phone number"
-          value={backupPhone}
-          onChangeText={setBackupPhone}
-          keyboardType="phone-pad"
-          placeholderTextColor="#9CA3AF"
-        />
+          <Text style={styles.sectionTitle}>Payment Method</Text>
+          <View style={styles.paymentRow}>
+            {[
+              { id: 'cash_on_delivery', label: 'Cash on delivery' },
+              { id: 'zaad', label: 'ZAAD' },
+              { id: 'evc', label: 'EVC' },
+            ].map((method) => {
+              const active = paymentMethod === method.id;
+              return (
+                <TouchableOpacity
+                  key={method.id}
+                  style={[styles.paymentChip, active && styles.paymentChipActive]}
+                  onPress={() => setPaymentMethod(method.id)}
+                >
+                  <Text style={[styles.paymentChipText, active && styles.paymentChipTextActive]}>
+                    {method.label}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
 
-        <TouchableOpacity
-          style={[styles.confirmButton, placingOrder && { opacity: 0.7 }]}
-          onPress={handleConfirm}
-          disabled={placingOrder}
-        >
-          <Text style={styles.confirmText}>{placingOrder ? 'Placing order...' : 'Confirm Order'}</Text>
-        </TouchableOpacity>
+          {savedAddresses.length > 0 && (
+            <>
+              <Text style={styles.sectionTitle}>Choose saved address</Text>
+              {addressesLoading ? (
+                <ActivityIndicator style={{ marginVertical: 8 }} />
+              ) : (
+                <FlatList
+                  data={savedAddresses}
+                  keyExtractor={(item) => item.id.toString()}
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.addressCarouselContent}
+                  renderItem={({ item }) => {
+                    const isSelected = selectedAddressId === item.id;
+                    return (
+                      <TouchableOpacity
+                        activeOpacity={0.85}
+                        style={[
+                          styles.addressCard,
+                          isSelected && styles.addressCardSelected,
+                          item.is_primary && styles.addressCardPrimary,
+                        ]}
+                        onPress={() => {
+                          setSelectedAddressId(item.id);
+                          const composed = `${item.address_line}\n${item.city || ''}${item.city && item.country ? ', ' : ''}${item.country || ''}`;
+                          setDeliveryAddress(composed.trim());
+                        }}
+                      >
+                        <View style={styles.addressCardHeaderRow}>
+                          <Text style={styles.addressCardName} numberOfLines={1}>
+                            {item.name || 'Recipient'}
+                          </Text>
+                          {item.is_primary && (
+                            <Text style={styles.addressCardBadge}>Primary</Text>
+                          )}
+                        </View>
+                        <Text style={styles.addressCardAddress} numberOfLines={2}>
+                          {item.address_line}
+                        </Text>
+                        <Text style={styles.addressCardMeta} numberOfLines={1}>
+                          {item.city}
+                          {item.city && item.country ? ', ' : ''}
+                          {item.country}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  }}
+                />
+              )}
+            </>
+          )}
 
-        <TouchableOpacity
-          style={[styles.backHomeButton, placingOrder && { opacity: 0.5 }]}
-          onPress={() => {
-            if (placingOrder) return;
-            navigation.navigate('Main', { screen: 'HomeTab' });
-          }}
-          disabled={placingOrder}
-        >
-          <Text style={styles.backHomeText}>Back to Home</Text>
-        </TouchableOpacity>
+          {savedAddresses.length === 0 && !addressesLoading && (
+            <View style={{ marginTop: 16 }}>
+              <Text style={{ fontSize: 13, color: '#6B7280', marginBottom: 8 }}>
+                You have no saved delivery address yet.
+              </Text>
+              <TouchableOpacity
+                style={[styles.confirmButton, { backgroundColor: '#090966' }]}
+                onPress={() => navigation.navigate('Addresses')}
+              >
+                <Text style={styles.confirmText}>Add Address</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
+          <Text style={styles.sectionTitle}>Secondary phone for delivery</Text>
+          <TextInput
+            style={styles.secondaryPhoneInput}
+            placeholder="Backup phone number"
+            value={backupPhone}
+            onChangeText={setBackupPhone}
+            keyboardType="phone-pad"
+            placeholderTextColor="#9CA3AF"
+          />
+
+          <TouchableOpacity
+            style={[styles.confirmButton, placingOrder && { opacity: 0.7 }]}
+            onPress={handleConfirm}
+            disabled={placingOrder}
+          >
+            <Text style={styles.confirmText}>{placingOrder ? 'Placing order...' : 'Confirm Order'}</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.backHomeButton, placingOrder && { opacity: 0.5 }]}
+            onPress={() => {
+              if (placingOrder) return;
+              navigation.navigate('Main', { screen: 'HomeTab' });
+            }}
+            disabled={placingOrder}
+          >
+            <Text style={styles.backHomeText}>Back to Home</Text>
+          </TouchableOpacity>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -921,7 +921,7 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     borderRadius: 16,
     alignItems: 'center',
-    marginBottom:13,
+    marginBottom: 13,
   },
   confirmText: {
     color: '#ffffff',

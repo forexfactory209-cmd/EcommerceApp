@@ -1,14 +1,39 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { View, Text, FlatList, StyleSheet, TouchableOpacity, ActivityIndicator, Alert, ScrollView } from 'react-native';
+import { View, Text, FlatList, StyleSheet, TouchableOpacity, ActivityIndicator, Alert, ScrollView, Animated, Dimensions, StatusBar, Platform, ImageBackground } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { useStore } from '../store/store';
 import { supabase } from '../lib/supabase';
+import {
+  MapPin,
+  Phone,
+  Home,
+  Plus,
+  Edit,
+  Trash2,
+  Star,
+  ChevronLeft,
+  User,
+  Navigation,
+  CheckCircle,
+  Map,
+  Building2,
+  Crown,
+  Sparkles,
+} from 'lucide-react-native';
+
+const { width, height } = Dimensions.get('window');
+const BRAND_COLOR = '#090966';
+const ACCENT_COLOR = '#FBBF24';
 
 const AddressesScreen = ({ navigation }) => {
   const authUserId = useStore((state) => state.authUserId);
   const [addresses, setAddresses] = useState([]);
   const [loading, setLoading] = useState(false);
+  const fadeAnim = React.useRef(new Animated.Value(0)).current;
+  const slideAnim = React.useRef(new Animated.Value(50)).current;
+
+  const cardAnimations = React.useRef({}).current;
 
   const loadAddresses = useCallback(async () => {
     if (!authUserId) {
@@ -42,6 +67,20 @@ const AddressesScreen = ({ navigation }) => {
   useFocusEffect(
     useCallback(() => {
       loadAddresses();
+      // Entrance animation
+      Animated.parallel([
+        Animated.timing(fadeAnim, {
+          toValue: 1,
+          duration: 800,
+          useNativeDriver: true,
+        }),
+        Animated.spring(slideAnim, {
+          toValue: 0,
+          friction: 8,
+          tension: 40,
+          useNativeDriver: true,
+        }),
+      ]).start();
     }, [loadAddresses]),
   );
 
@@ -75,121 +114,202 @@ const AddressesScreen = ({ navigation }) => {
   const primaryAddress = addresses.find((a) => a.is_primary);
   const otherAddresses = addresses.filter((a) => !a.is_primary);
 
-  const renderAddressCard = (item, isPrimaryCard = false) => (
-    <View
-      key={item.id}
-      style={[styles.addressCard, isPrimaryCard && styles.addressCardPrimary]}
-    >
-      <View style={styles.addressCardHeaderRow}>
-        <View style={styles.addressCardTitleRow}>
-          <View style={styles.addressAvatar}>
-            <Text style={styles.addressAvatarText}>
-              {(item.name || 'H').charAt(0).toUpperCase()}
-            </Text>
-          </View>
-          <View>
-            <Text style={styles.addressLabel}>{item.name || 'Address'}</Text>
-            {isPrimaryCard && (
-              <Text style={styles.addressSubLabel}>Default</Text>
-            )}
-          </View>
-        </View>
-        <View style={styles.addressCardActionsRow}>
-          <TouchableOpacity
-            style={styles.iconButton}
-            onPress={() => navigation.navigate('AddAddress', { address: item })}
-          >
-            <Text style={styles.iconButtonText}>✎</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.iconButton, styles.iconButtonDelete]}
-            onPress={() => handleDelete(item.id)}
-          >
-            <Text style={styles.iconButtonText}>🗑</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
+  const renderAddressCard = (item, isPrimaryCard = false, index = 0) => {
+    const delay = index * 100;
+    
+    // Initialize animation for this card if not exists
+    if (!cardAnimations[item.id]) {
+      cardAnimations[item.id] = new Animated.Value(0);
+      Animated.timing(cardAnimations[item.id], {
+        toValue: 1,
+        duration: 600,
+        delay: delay,
+        useNativeDriver: true,
+      }).start();
+    }
 
-      <View style={styles.addressContent}>
-        <Text style={styles.addressName}>{item.name || 'John Doe'}</Text>
-        <Text style={styles.addressLine}>{item.address_line}</Text>
-        <Text style={styles.addressLine}>
-          {item.city}
-          {item.city && item.district ? ', ' : ''}
-          {item.district}
-          {(item.city || item.district) && item.country ? ', ' : ''}
-          {item.country}
-        </Text>
-        {item.phone ? <Text style={styles.addressPhone}>{item.phone}</Text> : null}
-        {item.secondary_phone ? (
-          <Text style={styles.addressPhone}>{item.secondary_phone}</Text>
-        ) : null}
-      </View>
-    </View>
-  );
+    return (
+      <Animated.View
+        key={item.id}
+        style={[
+          styles.addressCard,
+          isPrimaryCard && styles.primaryCard,
+          {
+            opacity: cardAnimations[item.id],
+            transform: [
+              {
+                translateY: cardAnimations[item.id].interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [30, 0],
+                }),
+              },
+            ],
+          },
+        ]}
+      >
+        <TouchableOpacity
+          style={styles.cardContent}
+          activeOpacity={0.8}
+          onPress={() => navigation.navigate('AddAddress', { address: item })}
+        >
+          {/* Premium Header for Primary Address */}
+          {isPrimaryCard && (
+            <View style={styles.premiumHeader}>
+              <View style={styles.premiumBadge}>
+                <Crown size={16} color="#FFFFFF" />
+                <Text style={styles.premiumText}>PRIMARY ADDRESS</Text>
+              </View>
+              <Sparkles size={20} color={ACCENT_COLOR} />
+            </View>
+          )}
+
+          {/* Main Content */}
+          <View style={styles.cardMain}>
+            <View style={styles.addressHeader}>
+              <View style={styles.avatarSection}>
+                <View style={[styles.avatar, isPrimaryCard && styles.primaryAvatar]}>
+                  {isPrimaryCard ? (
+                    <Home size={24} color="#FFFFFF" />
+                  ) : (
+                    <MapPin size={24} color={BRAND_COLOR} />
+                  )}
+                </View>
+                <View style={styles.addressInfo}>
+                  <Text style={styles.addressName}>{item.name || 'Address'}</Text>
+                  <Text style={styles.addressLocation}>
+                    {item.city}, {item.country}
+                  </Text>
+                </View>
+              </View>
+              <TouchableOpacity
+                style={styles.editButton}
+                onPress={() => navigation.navigate('AddAddress', { address: item })}
+              >
+                <Edit size={18} color={BRAND_COLOR} />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.divider} />
+
+            <View style={styles.addressDetails}>
+              <View style={styles.detailRow}>
+                <Navigation size={16} color="#6B7280" />
+                <Text style={styles.detailText} numberOfLines={2}>
+                  {item.address_line}
+                </Text>
+              </View>
+
+              {item.phone && (
+                <View style={styles.detailRow}>
+                  <Phone size={16} color="#6B7280" />
+                  <Text style={styles.detailText}>{item.phone}</Text>
+                </View>
+              )}
+
+              {item.district && (
+                <View style={styles.detailRow}>
+                  <Building2 size={16} color="#6B7280" />
+                  <Text style={styles.detailText}>{item.district}</Text>
+                </View>
+              )}
+            </View>
+
+            <View style={styles.cardFooter}>
+              <TouchableOpacity
+                style={[styles.actionButton, styles.deleteAction]}
+                onPress={() => handleDelete(item.id)}
+              >
+                <Trash2 size={16} color="#EF4444" />
+                <Text style={styles.deleteText}>Remove</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.actionButton}
+                onPress={() => navigation.navigate('AddAddress', { address: item })}
+              >
+                <CheckCircle size={16} color={BRAND_COLOR} />
+                <Text style={styles.selectText}>Edit</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </TouchableOpacity>
+      </Animated.View>
+    );
+  };
 
   return (
-    <SafeAreaView style={styles.screen}>
-      <View style={styles.headerRow}>
+    <SafeAreaView style={styles.container}>
+      <StatusBar barStyle="light-content" backgroundColor={BRAND_COLOR} />
+      
+      {/* Elegant Header */}
+      <View style={styles.header}>
         <TouchableOpacity
-          style={styles.headerBackButton}
+          style={styles.backButton}
           onPress={() => navigation.navigate('Main', { screen: 'Profile' })}
         >
-          <Text style={styles.headerBackIcon}>←</Text>
+          <ChevronLeft size={24} color="#FFFFFF" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Saved Addresses</Text>
-        <View style={{ width: 32 }} />
+        <Text style={styles.headerTitle}>My Addresses</Text>
+        <View style={{ width: 40 }} />
       </View>
 
-      {loading ? (
-        <View style={styles.loadingWrapper}>
-          <ActivityIndicator />
-        </View>
-      ) : addresses.length === 0 ? (
-        <View style={styles.emptyWrapper}>
-          <Text style={styles.emptyTitle}>No addresses yet</Text>
-          <Text style={styles.emptyText}>
-            Add your first delivery address so checkout is faster next time.
-          </Text>
-          <TouchableOpacity
-            style={[styles.addAddressButton, { marginTop: 24 }]}
-            onPress={() => navigation.navigate('AddAddress')}
-          >
-            <Text style={styles.addAddressPlus}>＋</Text>
-            <Text style={styles.addAddressText}>Add New Address</Text>
-          </TouchableOpacity>
-        </View>
-      ) : (
-        <ScrollView
-          style={styles.scroll}
-          contentContainerStyle={styles.scrollContent}
-          showsVerticalScrollIndicator={false}
-        >
-          <View style={styles.cardContainer}>
+      {/* Content */}
+      <ScrollView 
+        style={styles.content} 
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContent}
+      >
+        {loading ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color={BRAND_COLOR} />
+            <Text style={styles.loadingText}>Loading your addresses...</Text>
+          </View>
+        ) : addresses.length === 0 ? (
+          <View style={styles.emptyContainer}>
+            <View style={styles.emptyIcon}>
+              <Map size={48} color="#D1D5DB" />
+            </View>
+            <Text style={styles.emptyTitle}>No saved addresses</Text>
+            <Text style={styles.emptySubtitle}>
+              Add your first address to make checkout faster and easier
+            </Text>
+            <TouchableOpacity
+              style={styles.addFirstButton}
+              onPress={() => navigation.navigate('AddAddress')}
+            >
+              <Plus size={20} color="#FFFFFF" />
+              <Text style={styles.addFirstText}>Add Your First Address</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <View style={styles.addressesList}>
+            {/* Primary Address Section */}
             {primaryAddress && (
               <View style={styles.section}>
-                <Text style={styles.sectionLabel}>Primary Address</Text>
-                {renderAddressCard(primaryAddress, true)}
+                <Text style={styles.sectionTitle}>Primary Address</Text>
+                {renderAddressCard(primaryAddress, true, 0)}
               </View>
             )}
 
+            {/* Other Addresses Section */}
             {otherAddresses.length > 0 && (
               <View style={styles.section}>
-                <Text style={styles.sectionLabel}>Other Addresses</Text>
-                {otherAddresses.map((addr) => renderAddressCard(addr, false))}
+                <Text style={styles.sectionTitle}>Other Addresses</Text>
+                {otherAddresses.map((addr, index) => renderAddressCard(addr, false, index + 1))}
               </View>
             )}
 
+            {/* Add New Address Button */}
             <TouchableOpacity
               style={styles.addAddressButton}
               onPress={() => navigation.navigate('AddAddress')}
             >
-              <Text style={styles.addAddressPlus}>＋</Text>
+              <Plus size={20} color="#FFFFFF" />
               <Text style={styles.addAddressText}>Add New Address</Text>
             </TouchableOpacity>
           </View>
-        </ScrollView>
-      )}
+        )}
+      </ScrollView>
     </SafeAreaView>
   );
 };
@@ -197,189 +317,271 @@ const AddressesScreen = ({ navigation }) => {
 export default AddressesScreen;
 
 const styles = StyleSheet.create({
-  screen: {
+  container: {
     flex: 1,
-    backgroundColor: '#F3F4F6',
+    backgroundColor: '#F8FAFC',
   },
-  headerRow: {
+  header: {
+    backgroundColor: BRAND_COLOR,
+    paddingTop: Platform.OS === 'android' ? 50 : 20,
+    paddingBottom: 20,
+    paddingHorizontal: 20,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingTop: 10,
-    paddingBottom: 12,
-    backgroundColor: '#090966',
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#E5E7EB',
+    shadowColor: BRAND_COLOR,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
   },
-  headerBackButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
+  backButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#090966',
-  },
-  headerBackIcon: {
-    fontSize: 16,
-    color: '#FFFFFF',
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
   },
   headerTitle: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: '700',
     color: '#FFFFFF',
   },
-  loadingWrapper: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  scroll: {
+  content: {
     flex: 1,
   },
   scrollContent: {
-    paddingHorizontal: 16,
-    paddingTop: 16,
-    paddingBottom: 24,
+    padding: 20,
+    paddingBottom: 40,
   },
-  cardContainer: {
-    gap: 16,
-  },
-  section: {
-    marginBottom: 16,
-  },
-  sectionLabel: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#6B7280',
-    marginBottom: 8,
-    textTransform: 'uppercase',
-  },
-  addressCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    shadowColor: '#000',
-    shadowOpacity: 0.03,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 2,
-  },
-  addressCardPrimary: {
-    borderColor: '#090966',
-  },
-  addressCardHeaderRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  addressCardTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  addressAvatar: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: '#EEF2FF',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 10,
-  },
-  addressAvatarText: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#090966',
-  },
-  addressLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#111827',
-  },
-  addressSubLabel: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: '#6B7280',
-    marginTop: 2,
-  },
-  addressCardActionsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  iconButton: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginLeft: 6,
-    backgroundColor: '#FFFFFF',
-  },
-  iconButtonDelete: {
-    backgroundColor: '#FEF2F2',
-    borderColor: '#FECACA',
-  },
-  iconButtonText: {
-    fontSize: 13,
-  },
-  addressContent: {
-    marginTop: 4,
-  },
-  addressName: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#111827',
-  },
-  addressLine: {
-    fontSize: 12,
-    color: '#4B5563',
-    marginTop: 2,
-  },
-  addressPhone: {
-    fontSize: 12,
-    color: '#6B7280',
-    marginTop: 4,
-  },
-  emptyWrapper: {
+  loadingContainer: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
+    paddingVertical: 60,
+  },
+  loadingText: {
+    fontSize: 14,
+    color: '#6B7280',
+    marginTop: 12,
+  },
+  emptyContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 60,
+  },
+  emptyIcon: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: '#F3F4F6',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
   },
   emptyTitle: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: '700',
     color: '#111827',
     marginBottom: 8,
   },
-  emptyText: {
+  emptySubtitle: {
     fontSize: 14,
-    color: '#6b7280',
+    color: '#6B7280',
     textAlign: 'center',
+    marginBottom: 24,
+    paddingHorizontal: 40,
   },
-  addAddressButton: {
-    marginTop: 16,
+  addFirstButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 14,
-    paddingHorizontal: 14,
-    borderRadius: 999,
-    backgroundColor: '#090966',
+    backgroundColor: BRAND_COLOR,
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    borderRadius: 12,
+    gap: 8,
+    shadowColor: BRAND_COLOR,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 4,
   },
-  addAddressPlus: {
-    fontSize: 18,
+  addFirstText: {
+    fontSize: 16,
+    fontWeight: '600',
     color: '#FFFFFF',
-    marginRight: 6,
+  },
+  addressesList: {
+    gap: 24,
+  },
+  section: {
+    marginBottom: 8,
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#374151',
+    marginBottom: 12,
+    marginLeft: 4,
+  },
+  addressCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 6,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    overflow: 'hidden',
+  },
+  primaryCard: {
+    borderColor: BRAND_COLOR,
+    borderWidth: 2,
+    shadowColor: BRAND_COLOR,
+    shadowOpacity: 0.15,
+    elevation: 8,
+  },
+  cardContent: {
+    overflow: 'hidden',
+  },
+  premiumHeader: {
+    backgroundColor: 'linear-gradient(135deg, #090966 0%, #1a1a7e 100%)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+  },
+  premiumBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  premiumText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    letterSpacing: 0.5,
+  },
+  cardMain: {
+    padding: 20,
+  },
+  addressHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+  },
+  avatarSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  avatar: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#F3F4F6',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  primaryAvatar: {
+    backgroundColor: BRAND_COLOR,
+  },
+  addressInfo: {
+    flex: 1,
+  },
+  addressName: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#111827',
+    marginBottom: 2,
+  },
+  addressLocation: {
+    fontSize: 14,
+    color: '#6B7280',
+  },
+  editButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#F3F4F6',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  divider: {
+    height: 1,
+    backgroundColor: '#F3F4F6',
+    marginVertical: 16,
+  },
+  addressDetails: {
+    marginBottom: 20,
+  },
+  detailRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: 12,
+  },
+  detailText: {
+    flex: 1,
+    fontSize: 14,
+    color: '#4B5563',
+    marginLeft: 12,
+    lineHeight: 20,
+  },
+  cardFooter: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  actionButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    borderRadius: 12,
+    gap: 6,
+  },
+  deleteAction: {
+    backgroundColor: '#FEF2F2',
+    borderWidth: 1,
+    borderColor: '#FECACA',
+  },
+  deleteText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#EF4444',
+  },
+  selectAction: {
+    backgroundColor: '#F3F4F6',
+    borderWidth: 1,
+    borderColor: BRAND_COLOR,
+  },
+  selectText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: BRAND_COLOR,
+  },
+  addAddressButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: BRAND_COLOR,
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    borderRadius: 12,
+    gap: 8,
+    marginTop: 8,
   },
   addAddressText: {
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: '600',
     color: '#FFFFFF',
   },
