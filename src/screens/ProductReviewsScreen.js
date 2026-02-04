@@ -76,19 +76,10 @@ const ProductReviewsScreen = () => {
 
   const hasPurchasedProduct = orders.some((order) => {
     if (!order || !Array.isArray(order.items)) return false;
-
-    const raw = (order.status || '').toString().toLowerCase();
-    const isSuccessfulOrder =
-      raw !== 'canceled' &&
-      raw !== 'cancelled' &&
-      raw !== 'failed' &&
-      raw !== 'refunded';
-
-    if (!isSuccessfulOrder) return false;
-
-    return order.items.some(
-      (item) => item && (item.id === productId || item.product_id === productId),
-    );
+    const status = (order.status || '').toLowerCase();
+    const isDeliveredLike = status === 'delivered' || status === 'customer_confirmed';
+    if (!isDeliveredLike) return false;
+    return order.items.some((item) => item && item.id === productId);
   });
 
   const [reviews, setReviews] = useState([]);

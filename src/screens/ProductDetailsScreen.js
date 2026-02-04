@@ -1030,215 +1030,24 @@ const ProductDetailsScreen = ({ route, navigation }) => {
                         </Text>
                       </View>
 
-                      <View style={styles.ratingDistribution}>
-                        {[5, 4, 3, 2, 1].map((rating) => {
-                          const totalForBars =
-                            reviewsTotal > 0
-                              ? reviewsTotal
-                              : Array.isArray(reviews)
-                              ? reviews.length
-                              : 0;
-
-                          const matchingCount = Array.isArray(reviews)
-                            ? reviews.filter(
-                                (r) => r && Math.floor(Number(r.rating) || 0) === rating,
-                              ).length
-                            : 0;
-
-                          const percentage =
-                            totalForBars > 0 ? (matchingCount / totalForBars) * 100 : 0;
-
-                          return (
-                            <View key={rating} style={styles.ratingBarRow}>
-                              <Text style={styles.ratingBarLabel}>{rating}</Text>
-                              <View style={styles.ratingBarTrack}>
-                                <Animated.View
-                                  style={[
-                                    styles.ratingBarFill,
-                                    { width: `${percentage}%` },
-                                  ]}
-                                />
-                              </View>
-                              <Text style={styles.ratingBarPercent}>
-                                {Math.round(percentage)}%
-                              </Text>
-                            </View>
-                          );
-                        })}
-                      </View>
-                    </View>
-
-                    <View style={styles.reviewsWriteSection}>
-                      <View style={styles.reviewsWriteCard}>
-                        <View style={styles.reviewsWriteHeader}>
-                          <View style={styles.reviewsWriteIconWrapper}>
-                            <MessageSquare size={18} color={ACCENT_COLOR} />
-                          </View>
-                          <View style={styles.reviewsWriteTitleWrapper}>
-                            <Text style={styles.reviewsWriteTitle}>Share your experience</Text>
-                            <Text style={styles.reviewsWriteSub}>
-                              {canReview
-                                ? 'Help others by reviewing this product'
-                                : 'Purchase required to leave a review'}
-                            </Text>
-                          </View>
-                        </View>
-                        <TouchableOpacity
-                          style={[
-                            styles.reviewsWriteButton,
-                            !canReview && styles.reviewsWriteButtonDisabled,
-                          ]}
-                          disabled={!canReview}
-                          onPress={() => {
-                            if (!canReview) {
-                              Alert.alert(
-                                'Purchase required',
-                                'You can only review products you have purchased.',
-                              );
-                              return;
-                            }
-                            navigation.navigate('ProductWriteReview', {
-                              productId: product.id,
-                              productName: product.name,
-                            });
-                          }}
-                          activeOpacity={canReview ? 0.85 : 1}
-                        >
-                          <Star
-                            size={14}
-                            color={canReview ? BRAND_COLOR : '#9CA3AF'}
-                            fill={canReview ? BRAND_COLOR : 'transparent'}
-                          />
-                          <Text
-                            style={[
-                              styles.reviewsWriteButtonText,
-                              !canReview && { color: '#9CA3AF' },
-                            ]}
-                          >
-                            {canReview ? 'Write a review' : 'Purchase required'}
-                          </Text>
-                        </TouchableOpacity>
-                      </View>
-                    </View>
-                  </View>
-
-                  <View style={styles.reviewsListSection}>
-                    {reviewsLoading && featuredReviews.length === 0 ? (
-                      <View style={styles.loadingContainer}>
-                        <ActivityIndicator size="small" color={BRAND_COLOR} />
-                        <Text style={styles.loadingText}>Loading reviews...</Text>
-                      </View>
-                    ) : (
-                      <>
-                        {featuredReviews.slice(0, 3).map((review) => (
-                          <Animated.View
-                            key={review.id}
-                            style={[
-                              styles.reviewCard,
-                              {
-                                opacity: 0,
-                                transform: [{ translateY: 20 }],
-                              },
-                            ]}
-                          >
-                            <View style={styles.reviewHeader}>
-                              <View style={styles.reviewAuthor}>
-                                <View style={styles.reviewAvatar}>
-                                  <Text style={styles.reviewAvatarText}>
-                                    {(review.user_display_name || 'C')
-                                      .charAt(0)
-                                      .toUpperCase()}
-                                  </Text>
-                                </View>
-                                <View style={styles.reviewAuthorInfo}>
-                                  <Text style={styles.reviewAuthorName}>
-                                    {review.user_display_name || 'Customer'}
-                                  </Text>
-                                  <Text style={styles.reviewDate}>
-                                    {formatTimeAgo(review.created_at)}
-                                  </Text>
-                                </View>
-                              </View>
-                              <View style={styles.reviewRatingContainer}>
-                                <Text style={styles.reviewRatingValue}>
-                                  {review.rating.toFixed(1)}
-                                </Text>
-                                <View style={styles.reviewStars}>
-                                  {[1, 2, 3, 4, 5].map((star) => (
-                                    <Star
-                                      key={star}
-                                      size={12}
-                                      color={
-                                        review.rating >= star
-                                          ? ACCENT_COLOR
-                                          : '#D1D5DB'
-                                      }
-                                      fill={
-                                        review.rating >= star
-                                          ? ACCENT_COLOR
-                                          : 'transparent'
-                                      }
-                                    />
-                                  ))}
-                                </View>
-                              </View>
-                            </View>
-
-                            <Text style={styles.reviewText} numberOfLines={3}>
-                              {review.text}
-                            </Text>
-
-                            {review.photos && review.photos.length > 0 ? (
-                              <ScrollView
-                                horizontal
-                                style={styles.reviewPhotos}
-                                showsHorizontalScrollIndicator={false}
-                              >
-                                {review.photos.map((photo, idx) => (
-                                  <TouchableOpacity
-                                    key={idx}
-                                    style={styles.reviewPhoto}
-                                    onPress={() => setPreviewImageUri(photo)}
-                                    activeOpacity={0.9}
-                                  >
-                                    <Image
-                                      source={{ uri: photo }}
-                                      style={styles.reviewPhotoImage}
-                                      contentFit="cover"
-                                    />
-                                  </TouchableOpacity>
-                                ))}
-                              </ScrollView>
-                            ) : null}
-                          </Animated.View>
-                        ))}
-                      </>
-                    )}
-                  </View>
-                </>
-              )}
-            </View>
-          </View>
-
-          {activeInfoTab !== 'reviews' && (
-            <>
-              {product.code ? (
                 <View style={styles.section}>
-                  <Text style={styles.sectionLabel}>Product code</Text>
-                  <View style={styles.codeRow}>
-                    <View style={styles.codePill}>
-                      <Text style={styles.codePillLabel}>CODE</Text>
-                      <Text style={styles.codePillValue} numberOfLines={1}>
-                        {product.code}
+                  <View style={styles.reviewsHeaderRow}>
+                    <View>
+                      <Text style={styles.sectionLabel}>Questions & Answers</Text>
+                      <Text style={styles.reviewsSummaryText}>
+                        {questions.length} Questions
                       </Text>
                     </View>
                     <TouchableOpacity
-                      style={styles.codeCopyButton}
-                      onPress={handleCopyCode}
-                      activeOpacity={0.85}
+                      style={styles.seeAllButton}
+                      onPress={() =>
+                        navigation.navigate('ProductQuestions', {
+                          productId: product.id,
+                          productName: product.name,
+                        })
+                      }
                     >
-                      <Copy size={16} color="#ffffff" />
-                      <Text style={styles.codeCopyButtonText}>Copy</Text>
+                      <Text style={styles.seeAllButtonText}>See all</Text>
                     </TouchableOpacity>
                   </View>
                 </View>
