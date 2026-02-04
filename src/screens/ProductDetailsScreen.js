@@ -335,6 +335,7 @@ const ProductDetailsScreen = ({ route, navigation }) => {
     initialTab === 'description' || initialTab === 'reviews' ? initialTab : 'description',
   );
   const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
+  const [showSeeMoreButton, setShowSeeMoreButton] = useState(false);
 
   // initialTab is intentionally ignored here: this screen now displays Reviews only.
 
@@ -368,17 +369,17 @@ const ProductDetailsScreen = ({ route, navigation }) => {
     reviewsAvgRating != null
       ? reviewsAvgRating
       : avgRating != null
-      ? avgRating
-      : 0;
+        ? avgRating
+        : 0;
 
   const displayRatingCount =
     reviewsTotal > 0
       ? reviewsTotal
       : reviewsRatingCount > 0
-      ? reviewsRatingCount
-      : ratingCount > 0
-      ? ratingCount
-      : 0;
+        ? reviewsRatingCount
+        : ratingCount > 0
+          ? ratingCount
+          : 0;
 
   const inCart = useMemo(
     () => Array.isArray(cart) && cart.some((item) => item.id === product.id),
@@ -430,7 +431,7 @@ const ProductDetailsScreen = ({ route, navigation }) => {
   // Per-product discount for the main product (used when not in flash sale)
   const mainProductDiscountPct =
     typeof product.product_discount_percentage === 'number' &&
-    !Number.isNaN(product.product_discount_percentage)
+      !Number.isNaN(product.product_discount_percentage)
       ? product.product_discount_percentage
       : null;
   const mainProductDiscountActive = !!product.product_discount_active;
@@ -471,7 +472,7 @@ const ProductDetailsScreen = ({ route, navigation }) => {
 
       const similarDiscountPct =
         typeof item.product_discount_percentage === 'number' &&
-        !Number.isNaN(item.product_discount_percentage)
+          !Number.isNaN(item.product_discount_percentage)
           ? item.product_discount_percentage
           : null;
       const similarDiscountActive = !!item.product_discount_active;
@@ -673,8 +674,8 @@ const ProductDetailsScreen = ({ route, navigation }) => {
         typeof total === 'number'
           ? total
           : resetPage
-          ? items.length
-          : (reviews || []).length + items.length;
+            ? items.length
+            : (reviews || []).length + items.length;
       setReviewsTotal(nextTotal);
 
       const ids = (resetPage ? items : [...reviews, ...items]).map((r) => r.id);
@@ -791,7 +792,7 @@ const ProductDetailsScreen = ({ route, navigation }) => {
                 </TouchableOpacity>
               ))}
             </ScrollView>
-            
+
             {/* Image indicators */}
             {images.length > 1 && (
               <View style={styles.imageIndicators}>
@@ -808,10 +809,10 @@ const ProductDetailsScreen = ({ route, navigation }) => {
             )}
           </View>
         )}
-        
+
         <View style={styles.headerOverlay}>
-          <TouchableOpacity 
-            onPress={() => navigation.goBack()} 
+          <TouchableOpacity
+            onPress={() => navigation.goBack()}
             style={styles.iconButton}
           >
             <ArrowLeft color={BRAND_COLOR} size={24} />
@@ -982,27 +983,330 @@ const ProductDetailsScreen = ({ route, navigation }) => {
 
             <View style={styles.infoTabBody}>
               {activeInfoTab === 'description' ? (
-                <View style={styles.descriptionContainer}>
-                  <View style={styles.descriptionTextWrapper}>
+                <>
+                  <View style={[styles.descriptionContainer, !showSeeMoreButton && { marginBottom: 6 }]}>
                     <Text
-                      style={styles.description}
-                      numberOfLines={isDescriptionExpanded ? undefined : 4}
+                      style={[styles.description, { position: 'absolute', opacity: 0 }]}
+                      onTextLayout={(e) => {
+                        setShowSeeMoreButton(e.nativeEvent.lines.length > 2);
+                      }}
                     >
                       {product.description || ''}
                     </Text>
-                  </View>
-                  {product.description ? (
-                    <TouchableOpacity
-                      style={styles.descriptionSeeMoreButton}
-                      activeOpacity={0.85}
-                      onPress={() => setIsDescriptionExpanded((prev) => !prev)}
-                    >
-                      <Text style={styles.descriptionSeeMoreText}>
-                        {isDescriptionExpanded ? 'See less' : 'See more'}
+                    <View style={styles.descriptionTextWrapper}>
+                      <Text
+                        style={styles.description}
+                        numberOfLines={isDescriptionExpanded ? undefined : 2}
+                      >
+                        {product.description || ''}
                       </Text>
-                    </TouchableOpacity>
-                  ) : null}
-                </View>
+                    </View>
+                    {product.description && showSeeMoreButton ? (
+                      <TouchableOpacity
+                        style={styles.descriptionSeeMoreButton}
+                        activeOpacity={0.85}
+                        onPress={() => setIsDescriptionExpanded((prev) => !prev)}
+                      >
+                        <Text style={styles.descriptionSeeMoreText}>
+                          {isDescriptionExpanded ? 'See less' : 'See more'}
+                        </Text>
+                      </TouchableOpacity>
+                    ) : null}
+                  </View>
+
+                  <View style={styles.section}>
+                    <Text style={styles.sectionLabel}>Availability</Text>
+                    <Text style={styles.availabilityText}>{availabilityLabel}</Text>
+                  </View>
+
+                  {/* Product Code Section */}
+                  <View style={styles.section}>
+                    <Text style={styles.sectionLabel}>Product Code</Text>
+                    <View style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      marginTop: 8,
+                      backgroundColor: '#F9FAFB',
+                      borderWidth: 1,
+                      borderColor: '#E5E7EB',
+                      borderRadius: 12,
+                      paddingHorizontal: 16,
+                      paddingVertical: 12,
+                      justifyContent: 'space-between'
+                    }}>
+                      <Text style={{ fontSize: 15, color: '#111827', fontWeight: '600', flex: 1 }}>
+                        {product.code || 'N/A'}
+                      </Text>
+                      <TouchableOpacity
+                        style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}
+                        onPress={async () => {
+                          if (product.code) {
+                            await Clipboard.setStringAsync(product.code);
+                            Alert.alert('Copied', 'Product code copied to clipboard.');
+                          }
+                        }}
+                      >
+                        <Copy size={18} color={BRAND_COLOR} />
+                        <Text style={{ fontSize: 14, color: BRAND_COLOR, fontWeight: '600' }}>Copy</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+
+                  <View style={styles.section}>
+                    <View style={styles.sellerRow}>
+                      <View>
+                        <Text style={styles.sectionLabel}>Seller</Text>
+                      </View>
+                      {product.brand ? (
+                        <TouchableOpacity
+                          style={styles.viewStoreButton}
+                          onPress={() =>
+                            navigation.navigate('Brand', {
+                              brand: {
+                                name: product.brand,
+                                user_id: product.brand_user_id || null,
+                              },
+                            })
+                          }
+                        >
+                          <Text style={styles.viewStoreButtonText}>View Store</Text>
+                        </TouchableOpacity>
+                      ) : null}
+                    </View>
+                  </View>
+
+                  <View style={styles.section}>
+                    <View style={styles.fulfillmentCard}>
+                      <Text style={styles.fulfillmentTitle}>Delivery & Pickup</Text>
+                      <Text style={styles.fulfillmentSubtitle}>
+                        Choose delivery to your address or pickup from the store.
+                      </Text>
+
+                      <View style={styles.fulfillmentRow}>
+                        <TouchableOpacity
+                          style={[
+                            styles.fulfillmentOption,
+                            fulfillmentMode === 'delivery' && styles.fulfillmentOptionActive,
+                          ]}
+                          onPress={() => setFulfillmentMode('delivery')}
+                          activeOpacity={0.85}
+                        >
+                          <Truck
+                            size={16}
+                            color={fulfillmentMode === 'delivery' ? '#ffffff' : BRAND_COLOR}
+                            style={styles.fulfillmentOptionIcon}
+                          />
+                          <Text
+                            style={[
+                              styles.fulfillmentOptionText,
+                              fulfillmentMode === 'delivery' && styles.fulfillmentOptionTextActive,
+                            ]}
+                            numberOfLines={1}
+                          >
+                            Delivery
+                          </Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                          style={[
+                            styles.fulfillmentOption,
+                            fulfillmentMode === 'store' && styles.fulfillmentOptionActive,
+                          ]}
+                          onPress={() => setFulfillmentMode('store')}
+                          activeOpacity={0.85}
+                        >
+                          <Package
+                            size={16}
+                            color={fulfillmentMode === 'store' ? '#ffffff' : BRAND_COLOR}
+                            style={styles.fulfillmentOptionIcon}
+                          />
+                          <Text
+                            style={[
+                              styles.fulfillmentOptionText,
+                              fulfillmentMode === 'store' && styles.fulfillmentOptionTextActive,
+                            ]}
+                            numberOfLines={1}
+                          >
+                            Pickup
+                          </Text>
+                        </TouchableOpacity>
+                      </View>
+
+                      {fulfillmentMode === 'store' ? (
+                        <View style={styles.pickupInfoBox}>
+                          <Text style={styles.pickupInfoTitle}>Pickup</Text>
+                          <Text style={styles.pickupInfoText}>
+                            You can pick up this item from the store.
+                          </Text>
+                        </View>
+                      ) : (
+                        <View style={styles.deliveryAddressBox}>
+                          <View style={styles.deliveryAddressHeaderRow}>
+                            <Text style={styles.deliveryAddressLabel}>Deliver to</Text>
+                            <TouchableOpacity
+                              onPress={() =>
+                                navigation.navigate('Addresses', {
+                                  selectMode: true,
+                                  returnTo: 'ProductDetails',
+                                })
+                              }
+                              activeOpacity={0.85}
+                            >
+                              <Text style={styles.deliveryAddressAction}>Change</Text>
+                            </TouchableOpacity>
+                          </View>
+
+                          {addressLoading ? (
+                            <View style={styles.deliveryAddressLoadingRow}>
+                              <ActivityIndicator size="small" color={BRAND_COLOR} />
+                              <Text style={styles.deliveryAddressLoadingText}>Loading address…</Text>
+                            </View>
+                          ) : selectedAddress ? (
+                            <>
+                              <Text style={styles.deliveryAddressLine} numberOfLines={2}>
+                                {selectedAddress.address_line}
+                              </Text>
+                              <Text style={styles.deliveryAddressMeta} numberOfLines={1}>
+                                {selectedAddress.city}
+                                {selectedAddress.city && selectedAddress.country ? ', ' : ''}
+                                {selectedAddress.country}
+                              </Text>
+                              {fulfillmentEtaLabel ? (
+                                <Text style={styles.deliveryEtaText}>{fulfillmentEtaLabel}</Text>
+                              ) : null}
+                            </>
+                          ) : (
+                            <>
+                              <Text style={styles.deliveryAddressEmptyText}>
+                                Add your delivery address to continue.
+                              </Text>
+                              <TouchableOpacity
+                                style={styles.addAddressInlineButton}
+                                onPress={() =>
+                                  navigation.navigate('AddAddress', {
+                                    returnTo: 'ProductDetails',
+                                  })
+                                }
+                                activeOpacity={0.85}
+                              >
+                                <Text style={styles.addAddressInlineButtonText}>Add Address</Text>
+                              </TouchableOpacity>
+                            </>
+                          )}
+                        </View>
+                      )}
+                    </View>
+                  </View>
+
+                  {colors.length > 0 && (
+                    <View style={styles.section}>
+                      <View style={styles.colorHeaderRow}>
+                        <Text style={styles.sectionLabel}>Color</Text>
+                        {selectedColor ? (() => {
+                          const selectedLabel = String(selectedColor);
+                          const selectedBg = resolveColorBackground(selectedLabel) || '#ffffff';
+                          const selectedBorder = selectedBg.toLowerCase() === '#ffffff' ? '#e5e7eb' : 'transparent';
+                          return (
+                            <View style={styles.colorSelectedPill}>
+                              <View
+                                style={[
+                                  styles.colorSelectedDot,
+                                  { backgroundColor: selectedBg, borderColor: selectedBorder },
+                                ]}
+                              />
+                              <Text style={styles.colorSelectedText} numberOfLines={1}>
+                                {selectedLabel}
+                              </Text>
+                            </View>
+                          );
+                        })() : null}
+                      </View>
+
+                      <View style={styles.colorGrid}>
+                        {colors.map((color) => {
+                          const value = String(color);
+                          const isActive = selectedColor === color;
+                          const bg = resolveColorBackground(value);
+                          const bgSafe = bg || '#ffffff';
+                          const borderColor = bgSafe.toLowerCase() === '#ffffff' ? '#e5e7eb' : 'transparent';
+                          return (
+                            <ScalePress
+                              key={value}
+                              onPress={() => setSelectedColor(color)}
+                            >
+                              <View style={[styles.colorTile, isActive && styles.colorTileActive]}>
+                                <View style={[styles.colorDotWrap, isActive && styles.colorDotWrapActive]}>
+                                  <View style={[styles.colorDot, { backgroundColor: bgSafe, borderColor }]}>
+                                    {isActive && (
+                                      <View style={styles.colorCheckBadge}>
+                                        <Check size={12} color={BRAND_COLOR} />
+                                      </View>
+                                    )}
+                                  </View>
+                                </View>
+                                <Text
+                                  style={[styles.colorTileLabel, isActive && styles.colorTileLabelActive]}
+                                  numberOfLines={1}
+                                >
+                                  {value}
+                                </Text>
+                              </View>
+                            </ScalePress>
+                          );
+                        })}
+                      </View>
+                    </View>
+                  )}
+
+                  {sizes.length > 0 && (
+                    <View style={styles.section}>
+                      <Text style={styles.sectionLabel}>Size</Text>
+                      <View style={styles.optionRow}>
+                        {sizes.map((size) => {
+                          const isActive = selectedSize === size;
+                          return (
+                            <ScalePress
+                              key={size}
+                              onPress={() => setSelectedSize(size)}
+                            >
+                              <View style={[styles.sizeOption, isActive && styles.sizeOptionActive]}>
+                                <Text
+                                  style={[styles.sizeOptionText, isActive && styles.sizeOptionTextActive]}
+                                  numberOfLines={1}
+                                >
+                                  {size}
+                                </Text>
+                              </View>
+                            </ScalePress>
+                          );
+                        })}
+                      </View>
+                    </View>
+                  )}
+
+                  {!isBrandUser && similarProducts.length > 0 && (
+                    <View style={styles.section}>
+                      <View style={styles.similarHeaderRow}>
+                        <Text style={styles.sectionLabel}>You might also like</Text>
+                        <TouchableOpacity onPress={handleSeeAllSimilar} activeOpacity={0.8}>
+                          <Text style={styles.similarSeeAllText}>See All</Text>
+                        </TouchableOpacity>
+                      </View>
+
+                      <FlatList
+                        data={visibleSimilarProducts}
+                        keyExtractor={(item, index) => `${item.id}-${index}`}
+                        renderItem={renderSimilarItem}
+                        numColumns={2}
+                        scrollEnabled={false}
+                        columnWrapperStyle={styles.similarRow}
+                        contentContainerStyle={styles.similarListContent}
+                        onEndReached={handleLoadMoreSimilar}
+                        onEndReachedThreshold={0.5}
+                      />
+                    </View>
+                  )}
+                </>
               ) : (
                 <>
                   <View style={styles.reviewsHeaderSection}>
@@ -1060,460 +1364,201 @@ const ProductDetailsScreen = ({ route, navigation }) => {
                           })}
                         </View>
                         <Text style={styles.ratingCountText}>
-                          {displayRatingCount}{' '}
-                          {displayRatingCount === 1 ? 'Review' : 'Reviews'}
+                          {displayRatingCount} {displayRatingCount === 1 ? 'Review' : 'Reviews'}
                         </Text>
                       </View>
-
-                <View style={styles.section}>
-                  <View style={styles.reviewsHeaderRow}>
-                    <View>
-                      <Text style={styles.sectionLabel}>Questions & Answers</Text>
-                      <Text style={styles.reviewsSummaryText}>
-                        {questions.length} Questions
-                      </Text>
                     </View>
-                    <TouchableOpacity
-                      style={styles.seeAllButton}
-                      onPress={() =>
-                        navigation.navigate('ProductQuestions', {
-                          productId: product.id,
-                          productName: product.name,
-                        })
-                      }
-                    >
-                      <Text style={styles.seeAllButtonText}>See all</Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              ) : null}
-
-              <View style={styles.section}>
-                <Text style={styles.sectionLabel}>Availability</Text>
-                <Text style={styles.availabilityText}>{availabilityLabel}</Text>
-              </View>
-
-              <View style={styles.section}>
-                <View style={styles.sellerRow}>
-                  <View>
-                    <Text style={styles.sectionLabel}>Seller</Text>
-                  </View>
-                  {product.brand ? (
-                    <TouchableOpacity
-                      style={styles.viewStoreButton}
-                      onPress={() =>
-                        navigation.navigate('Brand', {
-                          brand: {
-                            name: product.brand,
-                            user_id: product.brand_user_id || null,
-                          },
-                        })
-                      }
-                    >
-                      <Text style={styles.viewStoreButtonText}>View Store</Text>
-                    </TouchableOpacity>
-                  ) : null}
-                </View>
-              </View>
-
-              <View style={styles.section}>
-                <View style={styles.fulfillmentCard}>
-                  <Text style={styles.fulfillmentTitle}>Delivery & Pickup</Text>
-                  <Text style={styles.fulfillmentSubtitle}>
-                    Choose delivery to your address or pickup from the store.
-                  </Text>
-
-                  <View style={styles.fulfillmentRow}>
-                    <TouchableOpacity
-                      style={[
-                        styles.fulfillmentOption,
-                        fulfillmentMode === 'delivery' && styles.fulfillmentOptionActive,
-                      ]}
-                      onPress={() => setFulfillmentMode('delivery')}
-                      activeOpacity={0.85}
-                    >
-                      <Truck
-                        size={16}
-                        color={fulfillmentMode === 'delivery' ? '#ffffff' : BRAND_COLOR}
-                        style={styles.fulfillmentOptionIcon}
-                      />
-                      <Text
-                        style={[
-                          styles.fulfillmentOptionText,
-                          fulfillmentMode === 'delivery' && styles.fulfillmentOptionTextActive,
-                        ]}
-                        numberOfLines={1}
-                      >
-                        Delivery
-                      </Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                      style={[
-                        styles.fulfillmentOption,
-                        fulfillmentMode === 'store' && styles.fulfillmentOptionActive,
-                      ]}
-                      onPress={() => setFulfillmentMode('store')}
-                      activeOpacity={0.85}
-                    >
-                      <Package
-                        size={16}
-                        color={fulfillmentMode === 'store' ? '#ffffff' : BRAND_COLOR}
-                        style={styles.fulfillmentOptionIcon}
-                      />
-                      <Text
-                        style={[
-                          styles.fulfillmentOptionText,
-                          fulfillmentMode === 'store' && styles.fulfillmentOptionTextActive,
-                        ]}
-                        numberOfLines={1}
-                      >
-                        Pickup
-                      </Text>
-                    </TouchableOpacity>
                   </View>
 
-                  {fulfillmentMode === 'store' ? (
-                    <View style={styles.pickupInfoBox}>
-                      <Text style={styles.pickupInfoTitle}>Pickup</Text>
-                      <Text style={styles.pickupInfoText}>
-                        You can pick up this item from the store.
-                      </Text>
-                    </View>
-                  ) : (
-                    <View style={styles.deliveryAddressBox}>
-                      <View style={styles.deliveryAddressHeaderRow}>
-                        <Text style={styles.deliveryAddressLabel}>Deliver to</Text>
-                        <TouchableOpacity
-                          onPress={() =>
-                            navigation.navigate('Addresses', {
-                              selectMode: true,
-                              returnTo: 'ProductDetails',
-                            })
-                          }
-                          activeOpacity={0.85}
-                        >
-                          <Text style={styles.deliveryAddressAction}>Change</Text>
-                        </TouchableOpacity>
+                  <View style={styles.section}>
+                    <View style={styles.reviewsHeaderRow}>
+                      <View>
+                        <Text style={styles.sectionLabel}>Questions & Answers</Text>
+                        <Text style={styles.reviewsSummaryText}>
+                          {questions.length} Questions
+                        </Text>
                       </View>
-
-                      {addressLoading ? (
-                        <View style={styles.deliveryAddressLoadingRow}>
-                          <ActivityIndicator size="small" color={BRAND_COLOR} />
-                          <Text style={styles.deliveryAddressLoadingText}>Loading address…</Text>
-                        </View>
-                      ) : selectedAddress ? (
-                        <>
-                          <Text style={styles.deliveryAddressLine} numberOfLines={2}>
-                            {selectedAddress.address_line}
-                          </Text>
-                          <Text style={styles.deliveryAddressMeta} numberOfLines={1}>
-                            {selectedAddress.city}
-                            {selectedAddress.city && selectedAddress.country ? ', ' : ''}
-                            {selectedAddress.country}
-                          </Text>
-                          {fulfillmentEtaLabel ? (
-                            <Text style={styles.deliveryEtaText}>{fulfillmentEtaLabel}</Text>
-                          ) : null}
-                        </>
-                      ) : (
-                        <>
-                          <Text style={styles.deliveryAddressEmptyText}>
-                            Add your delivery address to continue.
-                          </Text>
-                          <TouchableOpacity
-                            style={styles.addAddressInlineButton}
-                            onPress={() =>
-                              navigation.navigate('AddAddress', {
-                                returnTo: 'ProductDetails',
-                              })
-                            }
-                            activeOpacity={0.85}
-                          >
-                            <Text style={styles.addAddressInlineButtonText}>Add Address</Text>
-                          </TouchableOpacity>
-                        </>
-                      )}
+                      <TouchableOpacity
+                        style={styles.seeAllButton}
+                        onPress={() =>
+                          navigation.navigate('ProductQuestions', {
+                            productId: product.id,
+                            productName: product.name,
+                          })
+                        }
+                      >
+                        <Text style={styles.seeAllButtonText}>See all</Text>
+                      </TouchableOpacity>
                     </View>
-                  )}
-                </View>
-              </View>
-
-              {colors.length > 0 && (
-                <View style={styles.section}>
-                  <View style={styles.colorHeaderRow}>
-                    <Text style={styles.sectionLabel}>Color</Text>
-                    {selectedColor ? (() => {
-                      const selectedLabel = String(selectedColor);
-                      const selectedBg = resolveColorBackground(selectedLabel) || '#ffffff';
-                      const selectedBorder = selectedBg.toLowerCase() === '#ffffff' ? '#e5e7eb' : 'transparent';
-                      return (
-                        <View style={styles.colorSelectedPill}>
-                          <View
-                            style={[
-                              styles.colorSelectedDot,
-                              { backgroundColor: selectedBg, borderColor: selectedBorder },
-                            ]}
-                          />
-                          <Text style={styles.colorSelectedText} numberOfLines={1}>
-                            {selectedLabel}
-                          </Text>
-                        </View>
-                      );
-                    })() : null}
                   </View>
-
-                  <View style={styles.colorGrid}>
-                    {colors.map((color) => {
-                      const value = String(color);
-                      const isActive = selectedColor === color;
-                      const bg = resolveColorBackground(value);
-                      const bgSafe = bg || '#ffffff';
-                      const borderColor = bgSafe.toLowerCase() === '#ffffff' ? '#e5e7eb' : 'transparent';
-                      return (
-                        <ScalePress
-                          key={value}
-                          onPress={() => setSelectedColor(color)}
-                        >
-                          <View style={[styles.colorTile, isActive && styles.colorTileActive]}>
-                            <View style={[styles.colorDotWrap, isActive && styles.colorDotWrapActive]}>
-                              <View style={[styles.colorDot, { backgroundColor: bgSafe, borderColor }]}>
-                                {isActive && (
-                                  <View style={styles.colorCheckBadge}>
-                                    <Check size={12} color={BRAND_COLOR} />
-                                  </View>
-                                )}
-                              </View>
-                            </View>
-                            <Text
-                              style={[styles.colorTileLabel, isActive && styles.colorTileLabelActive]}
-                              numberOfLines={1}
-                            >
-                              {value}
-                            </Text>
-                          </View>
-                        </ScalePress>
-                      );
-                    })}
-                  </View>
-                </View>
+                </>
               )}
-
-              {sizes.length > 0 && (
-                <View style={styles.section}>
-                  <Text style={styles.sectionLabel}>Size</Text>
-                  <View style={styles.optionRow}>
-                    {sizes.map((size) => {
-                      const isActive = selectedSize === size;
-                      return (
-                        <ScalePress
-                          key={size}
-                          onPress={() => setSelectedSize(size)}
-                        >
-                          <View style={[styles.sizeOption, isActive && styles.sizeOptionActive]}>
-                            <Text
-                              style={[styles.sizeOptionText, isActive && styles.sizeOptionTextActive]}
-                              numberOfLines={1}
-                            >
-                              {size}
-                            </Text>
-                          </View>
-                        </ScalePress>
-                      );
-                    })}
-                  </View>
-                </View>
-              )}
-
-          {!isBrandUser && similarProducts.length > 0 && (
-            <View style={styles.section}>
-              <View style={styles.similarHeaderRow}>
-                <Text style={styles.sectionLabel}>You might also like</Text>
-                <TouchableOpacity onPress={handleSeeAllSimilar} activeOpacity={0.8}>
-                  <Text style={styles.similarSeeAllText}>See All</Text>
-                </TouchableOpacity>
-              </View>
-
-              <FlatList
-                data={visibleSimilarProducts}
-                keyExtractor={(item, index) => `${item.id}-${index}`}
-                renderItem={renderSimilarItem}
-                numColumns={2}
-                scrollEnabled={false}
-                columnWrapperStyle={styles.similarRow}
-                contentContainerStyle={styles.similarListContent}
-                onEndReached={handleLoadMoreSimilar}
-                onEndReachedThreshold={0.5}
-              />
             </View>
-          )}
-
-            </>
-          )}
+          </View>
         </ScrollView>
       </View>
 
       <Modal
-          visible={previewVisible}
-          transparent
-          animationType="fade"
-          onRequestClose={() => setPreviewVisible(false)}
-        >
-          <View style={styles.previewOverlay}>
+        visible={previewVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setPreviewVisible(false)}
+      >
+        <View style={styles.previewOverlay}>
+          <TouchableOpacity
+            style={styles.previewBackdrop}
+            activeOpacity={1}
+            onPress={() => setPreviewVisible(false)}
+          />
+          <View style={styles.previewContent}>
             <TouchableOpacity
-              style={styles.previewBackdrop}
-              activeOpacity={1}
+              style={styles.previewCloseButton}
               onPress={() => setPreviewVisible(false)}
-            />
-            <View style={styles.previewContent}>
-              <TouchableOpacity
-                style={styles.previewCloseButton}
-                onPress={() => setPreviewVisible(false)}
-              >
-                <Text style={styles.previewCloseText}>×</Text>
-              </TouchableOpacity>
-              {previewImageUri ? (
-                <Image
-                  source={{ uri: previewImageUri }}
-                  style={styles.previewImage}
-                  contentFit="contain"
-                  cachePolicy="disk"
-                  transition={200}
-                />
-              ) : null}
-            </View>
-          </View>
-        </Modal>
-
-      {activeInfoTab !== 'reviews' && (
-      <View style={styles.bottomBar}>
-        <View style={styles.bottomPriceRow}>
-          <View>
-            <Text style={styles.bottomPriceLabel}>Total Price</Text>
-            <Text style={styles.bottomPriceMeta}>incl. VAT, SD</Text>
-          </View>
-          <View style={styles.bottomPriceValueCol}>
-            {isFlashActive && flashPrice != null ? (
-              <>
-                <Text style={styles.bottomPriceOld}>${currentPrice.toFixed(2)}</Text>
-                <Text style={styles.bottomPriceValue}>${flashPrice.toFixed(2)}</Text>
-              </>
-            ) : mainProductDiscountActive && mainEffectiveDiscountPct != null ? (
-              <>
-                <Text style={styles.bottomPriceOld}>${currentPrice.toFixed(2)}</Text>
-                <Text style={styles.bottomPriceValue}>
-                  ${Number((currentPrice * (1 - mainEffectiveDiscountPct / 100)).toFixed(2))}
-                </Text>
-              </>
-            ) : (
-              <Text style={styles.bottomPriceValue}>${currentPrice.toFixed(2)}</Text>
-            )}
+            >
+              <Text style={styles.previewCloseText}>×</Text>
+            </TouchableOpacity>
+            {previewImageUri ? (
+              <Image
+                source={{ uri: previewImageUri }}
+                style={styles.previewImage}
+                contentFit="contain"
+                cachePolicy="disk"
+                transition={200}
+              />
+            ) : null}
           </View>
         </View>
-        <View style={styles.bottomButtonsRow}>
-          <TouchableOpacity
-            style={[
-              styles.bottomSecondaryButton,
-              (quantity <= 0 || isAdminUser || isBrandUser) && styles.bottomButtonDisabled,
-            ]}
-            activeOpacity={0.9}
-            disabled={quantity <= 0 || isAdminUser || isBrandUser}
-            onPress={() => {
-              const chosenDelivery = deliveryOptions.find((opt) => opt.id === selectedDeliveryId) || null;
+      </Modal>
 
-              addToCart({
-                ...product,
-                selectedColor,
-                selectedSize,
-                selectedDeliveryId,
-                deliveryOptions: deliveryOptions.length > 0 ? deliveryOptions : product.delivery_options || [],
-                selectedDeliveryOption: chosenDelivery,
-              });
-              navigation.navigate('Billing');
-            }}
-          >
-            <View style={styles.bottomButtonContentRow}>
-              <ShoppingBag size={16} color={BRAND_COLOR} />
-              <Text style={styles.bottomSecondaryText}>Buy Now</Text>
+      {activeInfoTab !== 'reviews' && (
+        <View style={styles.bottomBar}>
+          <View style={styles.bottomPriceRow}>
+            <View>
+              <Text style={styles.bottomPriceLabel}>Total Price</Text>
+              <Text style={styles.bottomPriceMeta}>incl. VAT, SD</Text>
             </View>
-          </TouchableOpacity>
-          <Animated.View
-            style={{
-              transform: [{ scale: addToCartAnim }],
-              opacity: addToCartOpacity,
-              flex: 1,
-            }}
-          >
+            <View style={styles.bottomPriceValueCol}>
+              {isFlashActive && flashPrice != null ? (
+                <>
+                  <Text style={styles.bottomPriceOld}>${currentPrice.toFixed(2)}</Text>
+                  <Text style={styles.bottomPriceValue}>${flashPrice.toFixed(2)}</Text>
+                </>
+              ) : mainProductDiscountActive && mainEffectiveDiscountPct != null ? (
+                <>
+                  <Text style={styles.bottomPriceOld}>${currentPrice.toFixed(2)}</Text>
+                  <Text style={styles.bottomPriceValue}>
+                    ${Number((currentPrice * (1 - mainEffectiveDiscountPct / 100)).toFixed(2))}
+                  </Text>
+                </>
+              ) : (
+                <Text style={styles.bottomPriceValue}>${currentPrice.toFixed(2)}</Text>
+              )}
+            </View>
+          </View>
+          <View style={styles.bottomButtonsRow}>
             <TouchableOpacity
               style={[
-                styles.bottomPrimaryButton,
+                styles.bottomSecondaryButton,
                 (quantity <= 0 || isAdminUser || isBrandUser) && styles.bottomButtonDisabled,
               ]}
               activeOpacity={0.9}
               disabled={quantity <= 0 || isAdminUser || isBrandUser}
               onPress={() => {
-                const chosenDelivery =
-                  deliveryOptions.find((opt) => opt.id === selectedDeliveryId) || null;
+                const chosenDelivery = deliveryOptions.find((opt) => opt.id === selectedDeliveryId) || null;
 
-                if (inCart) {
-                  removeFromCart(product.id);
-                } else {
-                  addToCart({
-                    ...product,
-                    selectedColor,
-                    selectedSize,
-                    selectedDeliveryId,
-                    deliveryOptions:
-                      deliveryOptions.length > 0
-                        ? deliveryOptions
-                        : product.delivery_options || [],
-                    selectedDeliveryOption: chosenDelivery,
-                  });
-                }
-
-                Animated.parallel([
-                  Animated.sequence([
-                    Animated.timing(addToCartAnim, {
-                      toValue: 0.9,
-                      duration: 60,
-                      useNativeDriver: true,
-                    }),
-                    Animated.timing(addToCartAnim, {
-                      toValue: 1.05,
-                      duration: 100,
-                      useNativeDriver: true,
-                    }),
-                    Animated.timing(addToCartAnim, {
-                      toValue: 1,
-                      duration: 80,
-                      useNativeDriver: true,
-                    }),
-                  ]),
-                  Animated.sequence([
-                    Animated.timing(addToCartOpacity, {
-                      toValue: 0.85,
-                      duration: 60,
-                      useNativeDriver: true,
-                    }),
-                    Animated.timing(addToCartOpacity, {
-                      toValue: 1,
-                      duration: 140,
-                      useNativeDriver: true,
-                    }),
-                  ]),
-                ]).start();
+                addToCart({
+                  ...product,
+                  selectedColor,
+                  selectedSize,
+                  selectedDeliveryId,
+                  deliveryOptions: deliveryOptions.length > 0 ? deliveryOptions : product.delivery_options || [],
+                  selectedDeliveryOption: chosenDelivery,
+                });
+                navigation.navigate('Billing');
               }}
             >
               <View style={styles.bottomButtonContentRow}>
-                <ShoppingCart size={16} color="#ffffff" />
-                <Text style={styles.bottomPrimaryText}>
-                  {inCart ? 'Added ✔' : 'Add to Cart'}
-                </Text>
+                <ShoppingBag size={16} color={BRAND_COLOR} />
+                <Text style={styles.bottomSecondaryText}>Buy Now</Text>
               </View>
             </TouchableOpacity>
-          </Animated.View>
+            <Animated.View
+              style={{
+                transform: [{ scale: addToCartAnim }],
+                opacity: addToCartOpacity,
+                flex: 1,
+              }}
+            >
+              <TouchableOpacity
+                style={[
+                  styles.bottomPrimaryButton,
+                  (quantity <= 0 || isAdminUser || isBrandUser) && styles.bottomButtonDisabled,
+                ]}
+                activeOpacity={0.9}
+                disabled={quantity <= 0 || isAdminUser || isBrandUser}
+                onPress={() => {
+                  const chosenDelivery =
+                    deliveryOptions.find((opt) => opt.id === selectedDeliveryId) || null;
+
+                  if (inCart) {
+                    removeFromCart(product.id);
+                  } else {
+                    addToCart({
+                      ...product,
+                      selectedColor,
+                      selectedSize,
+                      selectedDeliveryId,
+                      deliveryOptions:
+                        deliveryOptions.length > 0
+                          ? deliveryOptions
+                          : product.delivery_options || [],
+                      selectedDeliveryOption: chosenDelivery,
+                    });
+                  }
+
+                  Animated.parallel([
+                    Animated.sequence([
+                      Animated.timing(addToCartAnim, {
+                        toValue: 0.9,
+                        duration: 60,
+                        useNativeDriver: true,
+                      }),
+                      Animated.timing(addToCartAnim, {
+                        toValue: 1.05,
+                        duration: 100,
+                        useNativeDriver: true,
+                      }),
+                      Animated.timing(addToCartAnim, {
+                        toValue: 1,
+                        duration: 80,
+                        useNativeDriver: true,
+                      }),
+                    ]),
+                    Animated.sequence([
+                      Animated.timing(addToCartOpacity, {
+                        toValue: 0.85,
+                        duration: 60,
+                        useNativeDriver: true,
+                      }),
+                      Animated.timing(addToCartOpacity, {
+                        toValue: 1,
+                        duration: 140,
+                        useNativeDriver: true,
+                      }),
+                    ]),
+                  ]).start();
+                }}
+              >
+                <View style={styles.bottomButtonContentRow}>
+                  <ShoppingCart size={16} color="#ffffff" />
+                  <Text style={styles.bottomPrimaryText}>
+                    {inCart ? 'Added ✔' : 'Add to Cart'}
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            </Animated.View>
+          </View>
         </View>
-      </View>
       )}
     </SafeAreaView>
   );
@@ -1526,7 +1571,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#ffffff',
   },
-  
+
   // Enhanced Image Styles
   imageHeader: {
     height: '48%',
@@ -1588,7 +1633,7 @@ const styles = StyleSheet.create({
     backgroundColor: BRAND_COLOR,
     width: 24,
   },
-  
+
   // Enhanced Header
   headerOverlay: {
     position: 'absolute',
@@ -1612,7 +1657,7 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     elevation: 4,
   },
-  
+
   // Enhanced Title Section
   titleRow: {
     marginBottom: 16,
@@ -1660,7 +1705,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 8,
   },
-  
+
   // Enhanced Tabs
   infoTabsSection: {
     marginTop: 20,
@@ -1710,7 +1755,7 @@ const styles = StyleSheet.create({
     backgroundColor: BRAND_COLOR,
     borderRadius: 12,
   },
-  
+
   // Enhanced Description
   descriptionContainer: {
     marginTop: 16,
@@ -1777,7 +1822,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: SUCCESS_COLOR,
   },
-  
+
   // Enhanced Reviews
   reviewsWriteSection: {
     paddingHorizontal: 20,
@@ -2012,7 +2057,7 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
   },
-  
+
   // Enhanced Thumbnails
   thumbRow: {
     marginTop: 16,
@@ -2047,7 +2092,7 @@ const styles = StyleSheet.create({
     height: 3,
     backgroundColor: BRAND_COLOR,
   },
-  
+
   // Enhanced Content Panel
   contentPanel: {
     flex: 1,
@@ -2066,12 +2111,12 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingBottom: 24,
   },
-  
+
   // Enhanced Info Tab Body
   infoTabBody: {
     paddingTop: 16,
   },
-  
+
   // Enhanced Button Styles
   seeAllButton: {
     paddingHorizontal: 16,
@@ -2089,7 +2134,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#ffffff',
   },
-  
+
   // Enhanced Badges
   flashBadgeDetail: {
     alignSelf: 'flex-start',

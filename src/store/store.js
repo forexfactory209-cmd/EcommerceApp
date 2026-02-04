@@ -1,4 +1,6 @@
 import { create } from 'zustand';
+import { persist, createJSONStorage } from 'zustand/middleware';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '../lib/supabase';
 
 // --- MOCK DATA ---
@@ -74,55 +76,18 @@ export const PRODUCTS = [
 
 // --- STORE (State Management) ---
 export const useStore = create(
-  (set, get) => ({
-  // Catalog and orders
-  products: PRODUCTS,
-  orders: [],
-  seenDeliveredOrdersCount: 0,
+  persist(
+    (set, get) => ({
+      // Catalog and orders
+      products: PRODUCTS,
+      orders: [],
+      seenDeliveredOrdersCount: 0,
 
-  // User type / role
-  userType: 'customer', // 'customer' | 'brand'
-  setUserType: (type) => set({ userType: type }),
+      // User type / role
+      userType: 'customer', // 'customer' | 'brand'
+      setUserType: (type) => set({ userType: type }),
 
-  // Basic user profile
-  userName: '',
-  userEmail: '',
-  userProfile: null,
-  setUserProfile: (profile) =>
-    set((state) => {
-      const safeProfile = profile || {};
-      return {
-        userName: safeProfile.name ?? state.userName ?? '',
-        userEmail: safeProfile.email ?? state.userEmail ?? '',
-        userProfile: {
-          ...(state.userProfile || {}),
-          ...safeProfile,
-        },
-      };
-    }),
-
-  // Auth state (Supabase)
-  authUserId: null,
-  authEmail: null,
-  authRole: null, // 'customer' | 'brand'
-  brandLogoUrl: '',
-  setAuthUser: ({ id, email, role, name, brandLogoUrl }) =>
-    set((state) => ({
-      authUserId: id,
-      authEmail: email,
-      authRole: role,
-      userType: role === 'brand' ? 'brand' : 'customer',
-      userName: name || state.userName,
-      userEmail: email || state.userEmail,
-      brandLogoUrl: brandLogoUrl || state.brandLogoUrl,
-    })),
-  setBrandLogoUrl: (url) => set({ brandLogoUrl: url || '' }),
-  clearAuthUser: () =>
-    set({
-      authUserId: null,
-      authEmail: null,
-      authRole: null,
-      userType: 'customer',
+      // Basic user profile
       userName: '',
       userEmail: '',
       userProfile: null,
@@ -144,114 +109,99 @@ export const useStore = create(
       authEmail: null,
       authRole: null, // 'customer' | 'brand'
       brandLogoUrl: '',
-    }),
+      setAuthUser: ({ id, email, role, name, brandLogoUrl }) =>
+        set((state) => ({
+          authUserId: id,
+          authEmail: email,
+          authRole: role,
+          userType: role === 'brand' ? 'brand' : 'customer',
+          userName: name || state.userName,
+          userEmail: email || state.userEmail,
+          brandLogoUrl: brandLogoUrl || state.brandLogoUrl,
+        })),
+      setBrandLogoUrl: (url) => set({ brandLogoUrl: url || '' }),
+      clearAuthUser: () =>
+        set({
+          authUserId: null,
+          authEmail: null,
+          authRole: null,
+          userType: 'customer',
+          userName: '',
+          userEmail: '',
+          userProfile: null,
+          setUserProfile: (profile) =>
+            set((state) => {
+              const safeProfile = profile || {};
+              return {
+                userName: safeProfile.name ?? state.userName ?? '',
+                userEmail: safeProfile.email ?? state.userEmail ?? '',
+                userProfile: {
+                  ...(state.userProfile || {}),
+                  ...safeProfile,
+                },
+              };
+            }),
 
-  // Global notifications count (used for bell badge)
-  unreadNotifications: 0,
-  setUnreadNotifications: (count) =>
-    set({ unreadNotifications: typeof count === 'number' ? Math.max(count, 0) : 0 }),
-  incrementUnreadNotifications: () =>
-    set((state) => ({ unreadNotifications: (state.unreadNotifications || 0) + 1 })),
-  loadUnreadNotifications: async () => {
-    try {
-      const authUserId = get().authUserId;
-      if (!authUserId) {
-        set({ unreadNotifications: 0 });
-        return;
-      }
+          // Auth state (Supabase)
+          authUserId: null,
+          authEmail: null,
+          authRole: null, // 'customer' | 'brand'
+          brandLogoUrl: '',
+        }),
 
-      const { count, error } = await supabase
-        .from('notifications')
-        .select('*', { count: 'exact', head: true })
-        .eq('user_id', authUserId)
-        .eq('is_read', false);
+      // Global notifications count (used for bell badge)
+      unreadNotifications: 0,
+      setUnreadNotifications: (count) =>
+        set({ unreadNotifications: typeof count === 'number' ? Math.max(count, 0) : 0 }),
+      incrementUnreadNotifications: () =>
+        set((state) => ({ unreadNotifications: (state.unreadNotifications || 0) + 1 })),
+      loadUnreadNotifications: async () => {
+        try {
+          const authUserId = get().authUserId;
+          if (!authUserId) {
+            set({ unreadNotifications: 0 });
+            return;
+          }
 
-      if (error) {
-        console.warn('Failed to load unread notifications count', error.message || error);
-        return;
-      }
+          const { count, error } = await supabase
+            .from('notifications')
+            .select('*', { count: 'exact', head: true })
+            .eq('user_id', authUserId)
+            .eq('is_read', false);
 
-      set({ unreadNotifications: count || 0 });
-    } catch (e) {
-      console.warn('Failed to load unread notifications count', e.message || e);
-    }
-  },
+          if (error) {
+            console.warn('Failed to load unread notifications count', error.message || error);
+            return;
+          }
 
-  // Customer onboarding flag (in-memory)
-  hasSeenCustomerOnboarding: false,
-  setHasSeenCustomerOnboarding: (value) =>
-    set({ hasSeenCustomerOnboarding: !!value }),
-
-  // Wishlist
-  wishlist: [],
-  // Followed brands (by brand id)
-  followedBrandIds: [],
-
-  // Product ratings (in-memory, per product id)
-  productRatings: {}, // { [productId]: number }
-  setProductRating: (productId, rating) => set((state) => {
-    const value = Math.max(1, Math.min(5, Number(rating) || 0));
-    if (!value) return state;
-    return {
-      productRatings: {
-        ...state.productRatings,
-        [productId]: value,
+          set({ unreadNotifications: count || 0 });
+        } catch (e) {
+          console.warn('Failed to load unread notifications count', e.message || e);
+        }
       },
-    };
-  }),
 
-  loadFollowedBrands: async () => {
-    try {
-      const authUserId = get().authUserId;
-      if (!authUserId) return;
+      // Customer onboarding flag (in-memory)
+      hasSeenCustomerOnboarding: false,
+      setHasSeenCustomerOnboarding: (value) =>
+        set({ hasSeenCustomerOnboarding: !!value }),
 
-      const { data, error } = await supabase
-        .from('brand_follows')
-        .select('brand_id')
-        .eq('user_id', authUserId);
+      // Wishlist
+      wishlist: [],
+      // Followed brands (by brand id)
+      followedBrandIds: [],
 
-      if (error) {
-        console.warn('Failed to load followed brands', error.message || error);
-        return;
-      }
-
-      const ids = (data || [])
-        .map((row) => row.brand_id) // Keep as UUID string
-        .filter((v) => v); // Filter out null/undefined
-
-      console.log('[Store] Loaded followed brand IDs:', ids);
-      set({ followedBrandIds: ids });
-    } catch (e) {
-      console.warn('Failed to load followed brands', e.message || e);
-    }
-  },
-
-  toggleFollowBrand: async (brandId) => {
-    console.log('[Store] toggleFollowBrand called with brandId:', brandId, typeof brandId);
-    if (!brandId) return;
-
-    // Don't convert to number - keep as string/UUID
-    const authUserId = get().authUserId;
-    console.log('[Store] authUserId:', authUserId);
-
-    // Update local state immediately for snappy UI
-    set((state) => {
-      const exists = state.followedBrandIds.includes(brandId);
-      console.log('[Store] Currently followed?', exists);
-      return {
-        followedBrandIds: exists
-          ? state.followedBrandIds.filter((id) => id !== brandId)
-          : [...state.followedBrandIds, brandId],
-      };
-    });
-
-    // Persist to Supabase if we have an authenticated user
-    if (!authUserId) return;
-
-    try {
-      const state = get();
-      const isNowFollowed = state.followedBrandIds.includes(brandId);
-      console.log('[Store] isNowFollowed:', isNowFollowed);
+      // Product ratings (in-memory, per product id)
+      productRatings: {}, // { [productId]: number }
+      setProductRating: (productId, rating) => set((state) => {
+        const value = Math.max(1, Math.min(5, Number(rating) || 0));
+        if (!value) return state;
+        return {
+          productRatings: {
+            ...state.productRatings,
+            [productId]: value,
+          },
+        };
+      }),
 
       loadFollowedBrands: async () => {
         try {
@@ -404,157 +354,178 @@ export const useStore = create(
       setSeenDeliveredOrdersCount: (count) =>
         set({ seenDeliveredOrdersCount: typeof count === 'number' ? count : 0 }),
 
-  // Flags for brand realtime data refresh (e.g., disputes)
-  brandDisputesDirty: false,
-  markBrandDisputesDirty: () => set({ brandDisputesDirty: true }),
-  clearBrandDisputesDirty: () => set({ brandDisputesDirty: false }),
+      // Flags for brand realtime data refresh (e.g., disputes)
+      brandDisputesDirty: false,
+      markBrandDisputesDirty: () => set({ brandDisputesDirty: true }),
+      clearBrandDisputesDirty: () => set({ brandDisputesDirty: false }),
 
-  // Vendor actions
-  addProduct: (product) => set((state) => ({
-    products: [product, ...state.products],
-  })),
-  updateProduct: (product) => set((state) => ({
-    products: state.products.map((p) =>
-      p.id === product.id ? { ...p, ...product } : p,
-    ),
-  })),
-  setProducts: (products) => set(() => ({
-    products: Array.isArray(products) ? products : [],
-  })),
-  deleteProduct: (id) => set((state) => ({
-    products: state.products.filter((p) => p.id !== id),
-    cart: state.cart.filter((item) => item.id !== id),
-    wishlist: state.wishlist.filter((item) => item.id !== id),
-    deletedProductIds: [...(state.deletedProductIds || []), id],
-  })),
-  updateOrderStatus: (orderId, status) => set((state) => ({
-    orders: state.orders.map((o) =>
-      o.id === orderId ? { ...o, status } : o
-    ),
-  })),
-  // Generic addOrder action (used by Billing flow)
-  addOrder: (order) => set((state) => ({
-    orders: [order, ...state.orders],
-  })),
-  // Replace orders list (used when loading from Supabase)
-  setOrders: (orders) => set({ orders }),
+      // Vendor actions
+      addProduct: (product) => set((state) => ({
+        products: [product, ...state.products],
+      })),
+      updateProduct: (product) => set((state) => ({
+        products: state.products.map((p) =>
+          p.id === product.id ? { ...p, ...product } : p,
+        ),
+      })),
+      setProducts: (products) => set(() => ({
+        products: Array.isArray(products) ? products : [],
+      })),
+      deleteProduct: (id) => set((state) => ({
+        products: state.products.filter((p) => p.id !== id),
+        cart: state.cart.filter((item) => item.id !== id),
+        wishlist: state.wishlist.filter((item) => item.id !== id),
+        deletedProductIds: [...(state.deletedProductIds || []), id],
+      })),
+      updateOrderStatus: (orderId, status) => set((state) => ({
+        orders: state.orders.map((o) =>
+          o.id === orderId ? { ...o, status } : o
+        ),
+      })),
+      // Generic addOrder action (used by Billing flow)
+      addOrder: (order) => set((state) => ({
+        orders: [order, ...state.orders],
+      })),
+      // Replace orders list (used when loading from Supabase)
+      setOrders: (orders) => set({ orders }),
 
-  // Wishlist actions
-  addToWishlist: (product) => set((state) => {
-    const exists = state.wishlist.find((item) => item.id === product.id);
-    if (exists) return state;
-    return { wishlist: [product, ...state.wishlist] };
-  }),
-  removeFromWishlist: (id) => set((state) => ({
-    wishlist: state.wishlist.filter((item) => item.id !== id),
-  })),
-  clearWishlistByProductIds: (ids) => set((state) => ({
-    wishlist: state.wishlist.filter((item) => !ids.includes(item.id)),
-  })),
+      // Wishlist actions
+      addToWishlist: (product) => set((state) => {
+        const exists = state.wishlist.find((item) => item.id === product.id);
+        if (exists) return state;
+        return { wishlist: [product, ...state.wishlist] };
+      }),
+      removeFromWishlist: (id) => set((state) => ({
+        wishlist: state.wishlist.filter((item) => item.id !== id),
+      })),
+      clearWishlistByProductIds: (ids) => set((state) => ({
+        wishlist: state.wishlist.filter((item) => !ids.includes(item.id)),
+      })),
 
-  // Payout methods for brand wallet (Zaad / Edahab), backed by Supabase
-  payoutMethods: [],
-  setPayoutMethods: (methods) =>
-    set({ payoutMethods: Array.isArray(methods) ? methods : [] }),
-  loadPayoutMethods: async () => {
-    try {
-      const authUserId = get().authUserId;
-      if (!authUserId) return;
+      // Payout methods for brand wallet (Zaad / Edahab), backed by Supabase
+      payoutMethods: [],
+      setPayoutMethods: (methods) =>
+        set({ payoutMethods: Array.isArray(methods) ? methods : [] }),
+      loadPayoutMethods: async () => {
+        try {
+          const authUserId = get().authUserId;
+          if (!authUserId) return;
 
-      const { data, error } = await supabase
-        .from('wallet_payout_methods')
-        .select('id, provider, label, phone_number')
-        .eq('brand_user_id', authUserId);
+          const { data, error } = await supabase
+            .from('wallet_payout_methods')
+            .select('id, provider, label, phone_number')
+            .eq('brand_user_id', authUserId);
 
-      if (error) {
-        console.warn('Failed to load payout methods', error.message || error);
-        return;
-      }
-      const normalized = (data || []).map((row) => ({
-        ...row,
-        phoneNumber: row.phone_number,
-      }));
-
-      set({ payoutMethods: normalized });
-    } catch (e) {
-      console.warn('Exception loading payout methods', e.message || e);
-    }
-  },
-  addOrUpdatePayoutMethod: async (method) => {
-    try {
-      const authUserId = get().authUserId;
-      if (!authUserId || !method || !method.provider || !method.phoneNumber) return;
-
-      const base = {
-        brand_user_id: authUserId,
-        provider: method.provider,
-        label: method.label,
-        phone_number: method.phoneNumber,
-      };
-
-      if (method.id) {
-        const { data, error } = await supabase
-          .from('wallet_payout_methods')
-          .update(base)
-          .eq('id', method.id)
-          .select('id, provider, label, phone_number')
-          .single();
-
-        if (error) {
-          console.warn('Failed to update payout method', error.message || error);
-          return;
-        }
-
-        if (data) {
-          const normalized = { ...data, phoneNumber: data.phone_number };
-          set((state) => ({
-            payoutMethods: (state.payoutMethods || []).map((m) =>
-              m.id === normalized.id ? normalized : m,
-            ),
+          if (error) {
+            console.warn('Failed to load payout methods', error.message || error);
+            return;
+          }
+          const normalized = (data || []).map((row) => ({
+            ...row,
+            phoneNumber: row.phone_number,
           }));
-        }
-      } else {
-        const { data, error } = await supabase
-          .from('wallet_payout_methods')
-          .insert(base)
-          .select('id, provider, label, phone_number')
-          .single();
 
-        if (error) {
-          console.warn('Failed to insert payout method', error.message || error);
-          return;
+          set({ payoutMethods: normalized });
+        } catch (e) {
+          console.warn('Exception loading payout methods', e.message || e);
         }
+      },
+      addOrUpdatePayoutMethod: async (method) => {
+        try {
+          const authUserId = get().authUserId;
+          if (!authUserId || !method || !method.provider || !method.phoneNumber) return;
 
-        if (data) {
-          const normalized = { ...data, phoneNumber: data.phone_number };
+          const base = {
+            brand_user_id: authUserId,
+            provider: method.provider,
+            label: method.label,
+            phone_number: method.phoneNumber,
+          };
+
+          if (method.id) {
+            const { data, error } = await supabase
+              .from('wallet_payout_methods')
+              .update(base)
+              .eq('id', method.id)
+              .select('id, provider, label, phone_number')
+              .single();
+
+            if (error) {
+              console.warn('Failed to update payout method', error.message || error);
+              return;
+            }
+
+            if (data) {
+              const normalized = { ...data, phoneNumber: data.phone_number };
+              set((state) => ({
+                payoutMethods: (state.payoutMethods || []).map((m) =>
+                  m.id === normalized.id ? normalized : m,
+                ),
+              }));
+            }
+          } else {
+            const { data, error } = await supabase
+              .from('wallet_payout_methods')
+              .insert(base)
+              .select('id, provider, label, phone_number')
+              .single();
+
+            if (error) {
+              console.warn('Failed to insert payout method', error.message || error);
+              return;
+            }
+
+            if (data) {
+              const normalized = { ...data, phoneNumber: data.phone_number };
+              set((state) => ({
+                payoutMethods: [...(state.payoutMethods || []), normalized],
+              }));
+            }
+          }
+        } catch (e) {
+          console.warn('Exception saving payout method', e.message || e);
+        }
+      },
+      removePayoutMethod: async (id) => {
+        try {
+          if (!id) return;
+
+          const { error } = await supabase
+            .from('wallet_payout_methods')
+            .delete()
+            .eq('id', id);
+
+          if (error) {
+            console.warn('Failed to delete payout method', error.message || error);
+            return;
+          }
+
           set((state) => ({
-            payoutMethods: [...(state.payoutMethods || []), normalized],
+            payoutMethods: (state.payoutMethods || []).filter((m) => m.id !== id),
           }));
+        } catch (e) {
+          console.warn('Exception deleting payout method', e.message || e);
         }
-      }
-    } catch (e) {
-      console.warn('Exception saving payout method', e.message || e);
+      },
+    }),
+    {
+      name: 'ecommerce-storage',
+      storage: createJSONStorage(() => AsyncStorage),
+      partialize: (state) => ({
+        cart: state.cart,
+        wishlist: state.wishlist,
+        authUserId: state.authUserId,
+        authEmail: state.authEmail,
+        authRole: state.authRole,
+        userType: state.userType,
+        userName: state.userName,
+        userEmail: state.userEmail,
+        userProfile: state.userProfile,
+        brandLogoUrl: state.brandLogoUrl,
+        hasSeenCustomerOnboarding: state.hasSeenCustomerOnboarding,
+        followedBrandIds: state.followedBrandIds,
+        seenDeliveredOrdersCount: state.seenDeliveredOrdersCount,
+        deletedProductIds: state.deletedProductIds,
+      }),
     }
-  },
-  removePayoutMethod: async (id) => {
-    try {
-      if (!id) return;
-
-      const { error } = await supabase
-        .from('wallet_payout_methods')
-        .delete()
-        .eq('id', id);
-
-      if (error) {
-        console.warn('Failed to delete payout method', error.message || error);
-        return;
-      }
-
-      set((state) => ({
-        payoutMethods: (state.payoutMethods || []).filter((m) => m.id !== id),
-      }));
-    } catch (e) {
-      console.warn('Exception deleting payout method', e.message || e);
-    }
-  },
-}));
+  ));

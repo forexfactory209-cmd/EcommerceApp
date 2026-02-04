@@ -4,6 +4,7 @@ import { Image } from 'expo-image';
 import { FlashList } from '@shopify/flash-list';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Search, ShoppingBag, Heart, Bell, Star, Mic, Menu, Package, Truck, CheckCircle, Clock, Flame, Sparkles, LayoutGrid, Shirt, Footprints, ThermometerSnowflake, Smartphone, Laptop, ArrowRight, QrCode } from 'lucide-react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useStore } from '../store/store';
 import { fetchManyProductRatingSummaries } from '../services/ratings';
 import { fetchApprovedBrandsFromSupabase } from '../services/brands';
@@ -54,7 +55,6 @@ const HomeScreen = ({ navigation }) => {
   const loadUnreadNotifications = useStore((state) => state.loadUnreadNotifications);
   const brandDisputesDirty = useStore((state) => state.brandDisputesDirty);
   const clearBrandDisputesDirty = useStore((state) => state.clearBrandDisputesDirty);
-  const [searchCode, setSearchCode] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [remoteProducts, setRemoteProducts] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -65,9 +65,10 @@ const HomeScreen = ({ navigation }) => {
   const [brands, setBrands] = useState([]);
   const [brandsLoading, setBrandsLoading] = useState(false);
   const [ratingStats, setRatingStats] = useState({});
+  const [recentSearches, setRecentSearches] = useState([]);
+  const [showRecentSearches, setShowRecentSearches] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [selectedAudience, setSelectedAudience] = useState('all');
-  const [searchMode, setSearchMode] = useState('text');
   const [trendingIndex, setTrendingIndex] = useState(0);
   const [categorySheetVisible, setCategorySheetVisible] = useState(false);
   const [pendingCategory, setPendingCategory] = useState('all');
@@ -271,12 +272,24 @@ const HomeScreen = ({ navigation }) => {
 
   useFocusEffect(
     useCallback(() => {
-      // Run initial loads once when Home gains focus
-      loadProducts({ reset: true });
+      const now = Date.now();
+      const loadedAt = productsLoadedAtRef.current || 0;
+      const isStale = now - loadedAt > PRODUCTS_TTL_MS;
+
+      // Only fetch if empty or stale
+      if (products.length === 0 || isStale) {
+        loadProducts({ reset: true });
+      }
+
+      // Brands has its own TTL check inside loadBrands
       loadBrands();
-      loadUnreadNotifications();
-      loadBrandRecentActivity();
-    }, []),
+
+      // Load notifications and activity only if logged in
+      if (authUserId) {
+        loadUnreadNotifications();
+        loadBrandRecentActivity();
+      }
+    }, [products.length, loadProducts, loadBrands, loadUnreadNotifications, loadBrandRecentActivity, authUserId]),
   );
 
   const handleRefresh = useCallback(() => {
@@ -735,37 +748,71 @@ const HomeScreen = ({ navigation }) => {
     return () => clearInterval(interval);
   }, [trendingProducts]);
 
-  const handleFindByCode = useCallback(async () => {
-    const trimmed = searchCode.trim();
-    if (!trimmed) return;
+  useEffect(() => {
+    loadSearchHistory();
+  }, []);
 
-    const target = trimmed.toUpperCase();
-
-    // Ensure we have a fresh list of products at least once so that
-    // a single tap on the search icon can immediately find the code.
-    if (!remoteProducts.length && !products.length) {
-      try {
-        await loadProducts({ reset: false });
-      } catch (e) {
-        // If loading fails, we'll still fall back to whatever is in store.
+  const loadSearchHistory = async () => {
+    try {
+      const history = await AsyncStorage.getItem('customer_search_history');
+      if (history) {
+        setRecentSearches(JSON.parse(history));
       }
+    } catch (e) {
+      console.warn('Failed to load search history', e);
     }
+  };
 
-    const list = remoteProducts.length > 0 ? remoteProducts : products;
-    const product = list.find(
-      (p) => (p.code || '').toString().toUpperCase() === target,
+  const saveSearchToHistory = async (term) => {
+    try {
+      // Don't save empty or very short terms
+      if (!term || term.length < 2) return;
+
+      const newHistory = [term, ...recentSearches.filter((t) => t !== term)].slice(0, 4);
+      setRecentSearches(newHistory);
+      await AsyncStorage.setItem('customer_search_history', JSON.stringify(newHistory));
+    } catch (e) {
+      console.warn('Failed to save search history', e);
+    }
+  };
+
+  const searchByProductCode = (query, allProducts) => {
+    const target = query.toUpperCase();
+    return allProducts.find((p) => (p.code || '').toString().toUpperCase() === target);
+  };
+
+  const searchByProductName = (query, allProducts) => {
+    const target = query.toLowerCase();
+    // Strict-ish match: name contains the query, but we prioritize exact or startsWith
+    return allProducts.find((p) => (p.name || '').toLowerCase().includes(target));
+  };
+
+  const searchByCategory = (query) => {
+    const target = query.toLowerCase();
+
+    // Check predefined categories
+    const categoryMatch = categories.find(cat =>
+      cat.id !== 'all' &&
+      cat.id !== 'hot' &&
+      cat.id !== 'new' &&
+      cat.label.toLowerCase().includes(target)
     );
 
-    if (product) {
-      navigation.navigate('ProductDetails', { product });
-      setSearchCode('');
-    } else {
-      Alert.alert('Not found', 'No product found for this code.');
-    }
-  }, [searchCode, remoteProducts, products, loadProducts, navigation]);
+    if (categoryMatch) return categoryMatch.id;
 
-  const handleSearch = useCallback(async () => {
-    const query = searchQuery.trim();
+    // Fuzzy category mapping
+    if (target.includes('wear') || target.includes('clothing') || target.includes('apparel') || target.includes('pant') || target.includes('shirt')) return 'clothes';
+    if (target.includes('foot') || target.includes('boot') || target.includes('sneaker') || target.includes('sandal')) return 'shoes';
+    if (target.includes('mobile') || target.includes('cell') || target.includes('android')) return 'phones';
+    if (target.includes('computer') || target.includes('pc') || target.includes('mac')) return 'laptops';
+    if (target.includes('purse') || target.includes('wallet') || target.includes('backpack')) return 'bags';
+    if (target.includes('winter') || target.includes('jacket') || target.includes('parka')) return 'coats';
+
+    return null;
+  };
+
+  const handleMasterSearch = useCallback(async (manualQuery) => {
+    const query = (typeof manualQuery === 'string' ? manualQuery : searchQuery).trim();
     if (!query) return;
 
     // Ensure we have products loaded
@@ -773,31 +820,53 @@ const HomeScreen = ({ navigation }) => {
       try {
         await loadProducts({ reset: false });
       } catch (e) {
-        // If loading fails, we'll still fall back to whatever is in store.
+        // Fallback
       }
     }
 
-    // Search in both remote and local products
-    const allProducts = [...remoteProducts, ...products];
-    const filtered = allProducts.filter((product) => {
-      const searchStr = query.toLowerCase();
-      return (
-        product.name?.toLowerCase().includes(searchStr) ||
-        product.code?.toLowerCase().includes(searchStr) ||
-        product.brand?.toLowerCase().includes(searchStr)
-      );
-    });
+    const allProducts = remoteProducts.length > 0 ? remoteProducts : products;
 
-    if (filtered.length > 0) {
-      // Navigate to filtered results or update state
-      navigation.navigate('AllProducts', {
-        searchQuery: query,
-        filteredProducts: filtered
-      });
-    } else {
-      Alert.alert('No results', 'No products found matching your search.');
+    // 1. Try Product Code Search (Exact)
+    // We don't save codes to history as per requirement "not the product code only the product search"
+    const codeMatch = searchByProductCode(query, allProducts);
+    if (codeMatch) {
+      setSearchQuery('');
+      setShowRecentSearches(false);
+      navigation.navigate('ProductDetails', { product: codeMatch });
+      return;
     }
-  }, [searchQuery, remoteProducts, products, loadProducts, navigation]);
+
+    // 2. Try Product Name Search (Partial/Exact)
+    // User wants to see the product if it exists
+    const nameMatch = searchByProductName(query, allProducts);
+    if (nameMatch) {
+      // Save valid name search to history
+      saveSearchToHistory(query);
+      setSearchQuery('');
+      setShowRecentSearches(false);
+      navigation.navigate('ProductDetails', { product: nameMatch });
+      return;
+    }
+
+    // 3. Try Category Search
+    const categoryId = searchByCategory(query);
+    if (categoryId) {
+      // Save category search? User said "hold the product names... like the last 4 matches". 
+      // Maybe yes, maybe no. I'll stick to saving it if it led to a result, treating it as a successful "search".
+      saveSearchToHistory(query);
+
+      setSelectedCategory(categoryId);
+      setSearchQuery('');
+      setShowRecentSearches(false);
+      // Scroll to categories or just let the filter apply?
+      // The list updates automatically because 'selectedCategory' changes.
+      // We might want to give visual feedback or scroll to top.
+      return;
+    }
+
+    // 4. Not Found Fallback
+    Alert.alert('Not found', 'The product you are looking for does not exist.');
+  }, [searchQuery, remoteProducts, products, loadProducts, navigation, categories]);
 
   const getProductThumbUri = (item) => {
     const toThumbCdn = (url) => {
@@ -955,33 +1024,70 @@ const HomeScreen = ({ navigation }) => {
         </View>
 
 
-        <View style={styles.searchCard}>
-          <View style={styles.searchContainer}>
-            <View style={styles.searchInputWrapper}>
-              <Search color="#FFFFFF" size={18} style={styles.searchIcon} />
-              <TextInput
-                placeholder="Search products or enter code"
-                placeholderTextColor="#E5E7EB"
-                style={styles.searchInput}
-                value={searchQuery}
-                onChangeText={setSearchQuery}
-                returnKeyType="search"
-                onSubmitEditing={() => {
-                  if (searchQuery.trim()) {
-                    handleSearch();
-                  }
-                }}
-              />
-            </View>
+        <View style={{ zIndex: 10 }}>
+          <View style={styles.searchCard}>
+            <View style={styles.searchContainer}>
+              <View style={styles.searchInputWrapper}>
+                <Search color="#FFFFFF" size={18} style={styles.searchIcon} />
+                <TextInput
+                  placeholder="Search products, brands, or enter code..."
+                  placeholderTextColor="#E5E7EB"
+                  style={styles.searchInput}
+                  value={searchQuery}
+                  onChangeText={(text) => {
+                    setSearchQuery(text);
+                    if (text.length === 0) setShowRecentSearches(true);
+                  }}
+                  onFocus={() => setShowRecentSearches(true)}
+                  onBlur={() => {
+                    // small delay to allow clicking on the list items
+                    setTimeout(() => setShowRecentSearches(false), 200);
+                  }}
+                  returnKeyType="search"
+                  onSubmitEditing={handleMasterSearch}
+                />
+              </View>
 
-            <TouchableOpacity
-              style={styles.searchButtonPrimary}
-              onPress={handleSearch}
-              activeOpacity={0.9}
-            >
-              <Search color="#090966" size={18} />
-            </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.searchButtonPrimary}
+                onPress={handleMasterSearch}
+                activeOpacity={0.9}
+              >
+                <Search color="#090966" size={18} />
+              </TouchableOpacity>
+            </View>
           </View>
+          {showRecentSearches && recentSearches.length > 0 && (
+            <View style={{
+              position: 'absolute',
+              top: 70,
+              left: 16,
+              right: 16,
+              backgroundColor: 'white',
+              borderRadius: 12,
+              padding: 8,
+              shadowColor: '#000',
+              shadowOffset: { width: 0, height: 4 },
+              shadowOpacity: 0.1,
+              shadowRadius: 12,
+              elevation: 5,
+            }}>
+              <Text style={{ fontSize: 12, color: '#666', marginBottom: 4, paddingHorizontal: 8 }}>Recent Searches</Text>
+              {recentSearches.map((term, idx) => (
+                <TouchableOpacity
+                  key={idx}
+                  style={{ padding: 10, borderBottomWidth: idx === recentSearches.length - 1 ? 0 : 1, borderBottomColor: '#f3f4f6', flexDirection: 'row', alignItems: 'center' }}
+                  onPress={() => {
+                    setSearchQuery(term);
+                    handleMasterSearch(term);
+                  }}
+                >
+                  <Clock size={14} color="#9ca3af" style={{ marginRight: 8 }} />
+                  <Text style={{ color: '#1f2937' }}>{term}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
         </View>
 
         {authRole !== 'brand' && userType !== 'brand' && trendingProducts.length > 0 && (
@@ -1237,8 +1343,7 @@ const HomeScreen = ({ navigation }) => {
     pendingCategory,
     selectedCategory,
     // selectedAudience,
-    searchMode,
-    searchCode,
+    // selectedAudience,
     searchQuery,
     trendingProducts,
     trendingIndex,

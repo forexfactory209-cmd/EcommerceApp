@@ -104,7 +104,7 @@ const TabNavigator = () => {
   const userType = useStore((state) => state.userType);
   const authRole = useStore((state) => state.authRole);
 
-  const tabWidth = Dimensions.get('window').width / (userType === 'brand' && authRole !== 'admin' ? 4 : 5);
+  const tabWidth = Dimensions.get('window').width / (userType === 'brand' && authRole !== 'admin' ? 4 : 6);
 
   const TabIndicator = ({ focused }) => (
     <View
@@ -231,28 +231,24 @@ const TabNavigator = () => {
           }}
         />
       )}
-      {/* Removed extra brand-only bottom tabs (Vendor, PromoCodes) so brand users
-          only see Home, BrandOrders, BrandProducts, and Profile in the main bar.
-          The underlying screens remain available via the stack navigator. */}
       {userType !== 'brand' && authRole !== 'admin' && (
         <Tab.Screen
-          name="Cart"
-          component={CartScreen}
+          name="FlashSaleTab"
+          component={FlashSaleScreen}
           options={{
             tabBarIcon: ({ focused }) => (
               <View style={styles.iconContainer}>
-                <ShoppingBag color="#FFFFFF" size={24} />
+                <Zap color="#FFFFFF" size={24} fill={focused ? "#ffd60a" : "transparent"} />
                 <TabIndicator focused={focused} />
-                {cartItems > 0 && (
-                  <View style={styles.cartBadge}>
-                    <Text style={styles.cartBadgeText}>{cartItems}</Text>
-                  </View>
-                )}
               </View>
             ),
           }}
         />
       )}
+      {/* Removed extra brand-only bottom tabs (Vendor, PromoCodes) so brand users
+          only see Home, BrandOrders, BrandProducts, and Profile in the main bar.
+          The underlying screens remain available via the stack navigator. */}
+
       <Tab.Screen
         name="Profile"
         component={ProfileScreen}

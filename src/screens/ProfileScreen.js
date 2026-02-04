@@ -24,6 +24,9 @@ import {
   BarChart3,
   Bell,
   Lock,
+  ArrowLeft,
+  Edit,
+  ChevronRight,
 } from 'lucide-react-native';
 
 const ProfileScreen = ({ navigation }) => {
@@ -285,7 +288,7 @@ const ProfileScreen = ({ navigation }) => {
   const unseenDeliveredCount = Math.max(deliveredCount - (seenDeliveredOrdersCount || 0), 0);
 
   const displayName =
-    userProfile?.name?.trim() || userProfile?.username?.trim() || 'Guest User';
+    (userProfile?.name || '').trim() || (userProfile?.username || '').trim() || 'Guest User';
   const displayEmail = userProfile?.email || authEmail || 'No email';
 
   const ADMIN_EMAIL = 'caliaxmed488@gmail.com'; // Change to your admin email
@@ -354,23 +357,21 @@ const ProfileScreen = ({ navigation }) => {
         {/* Top section with image and dark blue overlay like signup */}
         <View style={styles.topSection}>
           {/* Background image */}
-          <Image 
+          <Image
             source={require('../../assets/photo1.jpg')} // Using existing image
             style={styles.backgroundImage}
             resizeMode="cover"
           />
-          
+
           {/* Dark blue overlay */}
           <View style={styles.blueOverlay} />
 
           {/* Profile content in top section */}
           <View style={styles.topContent}>
             <View style={styles.profileHeader}>
-              <TouchableOpacity onPress={() => navigation.goBack()}>
-                <BackIcon size={24} color="#ffffff" />
-              </TouchableOpacity>
+              <View style={{ flex: 1 }} />
               <TouchableOpacity onPress={() => navigation.navigate('EditProfile')}>
-                <EditIcon size={20} color="#FBBF24" />
+                <Edit size={20} color="#FBBF24" />
               </TouchableOpacity>
             </View>
 
@@ -385,7 +386,7 @@ const ProfileScreen = ({ navigation }) => {
                     )}
                   </View>
                   <TouchableOpacity style={styles.editBadge} onPress={() => navigation.navigate('EditProfile')}>
-                    <EditIcon size={12} color="#ffffff" />
+                    <Edit size={12} color="#ffffff" />
                   </TouchableOpacity>
                 </View>
                 <View style={styles.userInfoContainer}>
@@ -1031,7 +1032,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#ffffff',
   },
-  
+
   // Top section with image and dark blue overlay like signup
   topSection: {
     height: '45%',
@@ -1055,7 +1056,7 @@ const styles = StyleSheet.create({
     bottom: 0,
     backgroundColor: 'rgba(9, 9, 102, 0.85)',
   },
-  
+
   // Content in top section
   topContent: {
     position: 'absolute',
@@ -1079,7 +1080,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255, 255, 255, 0.12)',
     borderRadius: 16,
     padding: 16,
-    backdropFilter: 'blur(15px)',
+    // backdropFilter: 'blur(15px)', // Not supported in RN
     borderWidth: 1,
     borderColor: '#e5e7eb',
     backgroundColor: '#ffffff',
@@ -1305,7 +1306,7 @@ const styles = StyleSheet.create({
     width: 65,
     height: 65,
     borderRadius: 32.5,
-    backgroundColor: 'linear-gradient(135deg, #EFF6FF, #DBEAFE)',
+    backgroundColor: '#EFF6FF', // Light blue background
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 3,
@@ -1325,7 +1326,6 @@ const styles = StyleSheet.create({
     fontSize: 22,
     fontWeight: '800',
     color: '#090966',
-    textShadow: '0 1px 2px rgba(0,0,0,0.1)',
   },
   editBadge: {
     position: 'absolute',
@@ -1351,18 +1351,17 @@ const styles = StyleSheet.create({
   userName: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#ffffff',
+    color: '#090966', // Dark blue for visibility on white background
     marginBottom: 6,
-    textShadow: '0 2px 4px rgba(0,0,0,0.3)',
     letterSpacing: 0.6,
   },
   userEmail: {
     fontSize: 15,
-    color: 'rgba(255, 255, 255, 0.9)',
+    color: '#6B7280', // Gray for visibility on white background
     fontWeight: '600',
     letterSpacing: 0.3,
   },
-  
+
   // Bottom white section with curved top like signup
   bottomSection: {
     flex: 1,
@@ -1376,7 +1375,7 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: 20, // Same as home screen
   },
-  
+
   // Sections
   section: {
     marginBottom: 30,
@@ -1453,7 +1452,7 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '600',
   },
-  
+
   // Logout button with brand colors
   logoutButton: {
     flexDirection: 'row',

@@ -33,7 +33,7 @@ const InputField = React.memo(({ label, icon: Icon, value, onChangeText, placeho
         activeOpacity={onPress ? 0.7 : 1}
       >
         {Icon && <Icon size={20} color={BRAND_COLOR} style={styles.inputIcon} />}
-        
+
         {editable && !pickerField ? (
           <TextInput
             style={styles.input}
@@ -402,6 +402,28 @@ const AddAddressScreen = () => {
         return;
       }
 
+      // If this is a primary address, also update the profiles table
+      if (isPrimary) {
+        const { error: profileError } = await supabase
+          .from('profiles')
+          .upsert(
+            {
+              user_id: authUserId,
+              name: name.trim(),
+              country: country.trim(),
+              city: city.trim(),
+              district: district.trim(),
+              address: addressLine.trim(),
+              address_descr: addressDescr.trim() || null,
+            },
+            { onConflict: 'user_id' }
+          );
+
+        if (profileError) {
+          console.warn('[AddAddress] Failed to sync profile:', profileError);
+        }
+      }
+
       if (returnTo === 'Addresses') {
         navigation.replace('Addresses');
       } else if (returnTo) {
@@ -420,7 +442,7 @@ const AddAddressScreen = () => {
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor={BRAND_COLOR} />
-      
+
       <Animated.View style={[styles.header, { opacity: fadeAnim }]}>
         <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
           <ChevronLeft size={24} color="#FFFFFF" />
