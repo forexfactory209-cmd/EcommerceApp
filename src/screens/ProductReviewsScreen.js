@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -26,6 +26,9 @@ import {
   deleteReviewReply,
 } from '../services/reviews';
 import { supabase } from '../lib/supabase';
+
+const BRAND_COLOR = '#090966';
+const ACCENT_COLOR = '#FBBF24';
 
 const formatTimeAgo = (dateString) => {
   if (!dateString) return '';
@@ -80,15 +83,22 @@ const ProductReviewsScreen = () => {
   });
 
   const [reviews, setReviews] = useState([]);
+  const reviewsRef = useRef([]);
   const [reviewsPage, setReviewsPage] = useState(1);
   const [reviewsHasMore, setReviewsHasMore] = useState(false);
   const [reviewsLoading, setReviewsLoading] = useState(false);
+  const [reviewsTotal, setReviewsTotal] = useState(0);
   const [reviewRepliesMap, setReviewRepliesMap] = useState({});
 
   const [reviewsSortBy, setReviewsSortBy] = useState('recent');
   const [ratingFilter, setRatingFilter] = useState(null);
   const [withPhotosFilter, setWithPhotosFilter] = useState(false);
   const [withSizeInfoFilter, setWithSizeInfoFilter] = useState(false);
+
+  const ratingFilterRef = useRef(ratingFilter);
+  const withPhotosFilterRef = useRef(withPhotosFilter);
+  const withSizeInfoFilterRef = useRef(withSizeInfoFilter);
+  const reviewsSortByRef = useRef(reviewsSortBy);
 
   const [reviewRating, setReviewRating] = useState(0);
   const [reviewText, setReviewText] = useState('');
@@ -117,20 +127,24 @@ const ProductReviewsScreen = () => {
     setReviewsLoading(true);
     try {
       const page = resetPage ? 1 : reviewsPage + 1;
-      const { items, hasMore } = await fetchProductReviews({
+      const { items, hasMore, total } = await fetchProductReviews({
         productId,
         page,
-        ratingFilter,
-        withPhotos: withPhotosFilter,
-        withSizeInfo: withSizeInfoFilter,
-        sortBy: reviewsSortBy,
+        ratingFilter: ratingFilterRef.current,
+        withPhotos: withPhotosFilterRef.current,
+        withSizeInfo: withSizeInfoFilterRef.current,
+        sortBy: reviewsSortByRef.current,
       });
 
-      setReviews((prev) => (resetPage ? items : [...prev, ...items]));
+      const base = resetPage ? [] : reviewsRef.current;
+      const nextReviews = resetPage ? items : [...base, ...items];
+      reviewsRef.current = nextReviews;
+      setReviews(nextReviews);
       setReviewsPage(page);
-      setReviewsHasMore(hasMore);
+      setReviewsHasMore(!!hasMore);
+      setReviewsTotal(typeof total === 'number' ? total : 0);
 
-      const ids = (resetPage ? items : [...reviews, ...items]).map((r) => r.id);
+      const ids = nextReviews.map((r) => r.id);
       if (ids.length > 0) {
         const map = await fetchReviewReplies(ids);
         setReviewRepliesMap(map);
@@ -260,9 +274,12 @@ const ProductReviewsScreen = () => {
     <SafeAreaView style={styles.container} edges={['top', 'right', 'bottom', 'left']}>
       <View style={styles.headerRow}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-          <ArrowLeft size={22} color="#111827" />
+          <ArrowLeft size={22} color="#ffffff" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Reviews</Text>
+        <View style={{ flex: 1, alignItems: 'center' }}>
+          <Text style={styles.headerTitle}>Reviews</Text>
+          {productName ? <Text style={styles.headerSubtitle}>{productName}</Text> : null}
+        </View>
         <View style={{ width: 32 }} />
       </View>
 
@@ -271,56 +288,49 @@ const ProductReviewsScreen = () => {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.summaryRow}>
-          <View>
-            <Text style={styles.summaryCount}>{reviews.length} Reviews</Text>
-            <View style={styles.summaryRatingRow}>
-              <Text style={styles.summaryRatingValue}>
-                {reviews.length > 0
-                  ? (
-                      reviews.reduce((acc, r) => acc + (r.rating || 0), 0) / reviews.length
-                    ).toFixed(1)
-                  : '0.0'}
-              </Text>
-              <View style={styles.summaryStarsRow}>
-                {[1, 2, 3, 4, 5].map((star) => (
-                  <Star
-                    key={star}
-                    size={16}
-                    color="#FBBF24"
-                    fill="#FBBF24"
-                    style={{ marginLeft: star === 1 ? 8 : 2 }}
-                  />
-                ))}
+        <View style={styles.summaryCard}>
+          <View style={styles.summaryRow}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.summaryCount}>{reviewsTotal || reviews.length} Reviews</Text>
+              <View style={styles.summaryRatingRow}>
+                <Text style={styles.summaryRatingValue}>
+                  {reviews.length > 0
+                    ? (
+                        reviews.reduce((acc, r) => acc + (r.rating || 0), 0) / reviews.length
+                      ).toFixed(1)
+                    : '0.0'}
+                </Text>
+                <View style={styles.summaryStarsRow}>
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <Star
+                      key={star}
+                      size={16}
+                      color={ACCENT_COLOR}
+                      fill={ACCENT_COLOR}
+                      style={{ marginLeft: star === 1 ? 8 : 2 }}
+                    />
+                  ))}
+                </View>
               </View>
             </View>
-          </View>
-          {!isBrandRole && (
-            <View style={{ alignItems: 'flex-end' }}>
-              <TouchableOpacity
-                style={styles.addReviewButton}
-                onPress={() => {
-                  if (!hasPurchasedProduct) {
-                    Alert.alert(
-                      'Order required',
-                      'You can only review products you have purchased. Please place an order for this product first.',
-                    );
-                    return;
-                  }
 
-                  navigation.navigate('ProductWriteReview', {
-                    productId,
-                    productName,
-                  });
-                }}
-              >
-                <Text style={styles.addReviewButtonText}>Add Review</Text>
-              </TouchableOpacity>
-              {!hasPurchasedProduct && (
-                <Text style={styles.addReviewHelperText}>Available after delivery</Text>
-              )}
-            </View>
-          )}
+            {!isBrandRole && hasPurchasedProduct && (
+              <View style={{ alignItems: 'flex-end' }}>
+                <TouchableOpacity
+                  style={styles.addReviewButton}
+                  onPress={() => {
+                    navigation.navigate('ProductWriteReview', {
+                      productId,
+                      productName,
+                    });
+                  }}
+                  activeOpacity={0.85}
+                >
+                  <Text style={styles.addReviewButtonText}>Write Review</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
         </View>
 
         <View style={styles.filtersRow}>
@@ -333,6 +343,7 @@ const ProductReviewsScreen = () => {
                   ratingFilter === val && styles.filterChipActive,
                 ]}
                 onPress={() => {
+                  ratingFilterRef.current = val;
                   setRatingFilter(val);
                   loadReviews(true);
                 }}
@@ -353,7 +364,9 @@ const ProductReviewsScreen = () => {
                 withPhotosFilter && styles.filterChipActive,
               ]}
               onPress={() => {
-                setWithPhotosFilter(!withPhotosFilter);
+                const next = !withPhotosFilterRef.current;
+                withPhotosFilterRef.current = next;
+                setWithPhotosFilter(next);
                 loadReviews(true);
               }}
             >
@@ -372,7 +385,9 @@ const ProductReviewsScreen = () => {
                 withSizeInfoFilter && styles.filterChipActive,
               ]}
               onPress={() => {
-                setWithSizeInfoFilter(!withSizeInfoFilter);
+                const next = !withSizeInfoFilterRef.current;
+                withSizeInfoFilterRef.current = next;
+                setWithSizeInfoFilter(next);
                 loadReviews(true);
               }}
             >
@@ -395,6 +410,7 @@ const ProductReviewsScreen = () => {
               reviewsSortBy === 'recent' && styles.sortOptionActive,
             ]}
             onPress={() => {
+              reviewsSortByRef.current = 'recent';
               setReviewsSortBy('recent');
               loadReviews(true);
             }}
@@ -414,6 +430,7 @@ const ProductReviewsScreen = () => {
               reviewsSortBy === 'helpful' && styles.sortOptionActive,
             ]}
             onPress={() => {
+              reviewsSortByRef.current = 'helpful';
               setReviewsSortBy('helpful');
               loadReviews(true);
             }}
@@ -832,14 +849,14 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 20,
     paddingVertical: 12,
-    backgroundColor: '#090966',
+    backgroundColor: BRAND_COLOR,
   },
   backButton: {
     width: 32,
     height: 32,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#e5e7eb',
+    borderColor: 'rgba(255,255,255,0.25)',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -848,6 +865,12 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#FFFFFF',
   },
+  headerSubtitle: {
+    marginTop: 2,
+    fontSize: 12,
+    fontWeight: '600',
+    color: 'rgba(255,255,255,0.75)',
+  },
   scroll: {
     flex: 1,
   },
@@ -855,12 +878,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingBottom: 32,
   },
+  summaryCard: {
+    marginTop: 12,
+    marginBottom: 12,
+    padding: 14,
+    borderRadius: 16,
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+  },
   summaryRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginTop: 12,
-    marginBottom: 12,
   },
   summaryCount: {
     fontSize: 16,
@@ -885,17 +915,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 999,
-    backgroundColor: '#f97316',
+    backgroundColor: ACCENT_COLOR,
   },
   addReviewButtonText: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#ffffff',
-  },
-  addReviewHelperText: {
-    marginTop: 4,
-    fontSize: 11,
-    color: '#9CA3AF',
+    color: BRAND_COLOR,
   },
   filtersRow: {
     marginTop: 4,
@@ -909,7 +934,7 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
   filterChipActive: {
-    backgroundColor: '#111827',
+    backgroundColor: BRAND_COLOR,
   },
   filterChipText: {
     fontSize: 13,
@@ -931,7 +956,7 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
   sortOptionActive: {
-    backgroundColor: '#111827',
+    backgroundColor: BRAND_COLOR,
   },
   sortOptionText: {
     fontSize: 13,

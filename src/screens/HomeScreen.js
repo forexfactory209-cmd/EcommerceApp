@@ -10,7 +10,7 @@ import { fetchApprovedBrandsFromSupabase } from '../services/brands';
 import { fetchProductsFromSupabase } from '../services/products';
 import { useFocusEffect } from '@react-navigation/native';
 import { supabase } from '../lib/supabase';
-import { getFlashSaleState } from '../utils/flashSale';
+import { getFlashSaleState } from '../utils/productHelpers';
 
 const windowWidth = Dimensions.get('window').width;
 
@@ -761,9 +761,6 @@ const HomeScreen = ({ navigation }) => {
           >
             <Menu color="#111827" size={22} />
           </TouchableOpacity>
-
-          <Text style={styles.exploreTitleTop}>Beegso</Text>
-
           <View style={styles.topBarActions}>
             <TouchableOpacity
               style={styles.roundIconButton}
@@ -791,12 +788,14 @@ const HomeScreen = ({ navigation }) => {
         <View style={styles.searchCard}>
           <View style={styles.searchContainer}>
             <View style={styles.searchInputWrapper}>
-              <Search color="#9ca3af" size={18} style={styles.searchIcon} />
+              <Search color="#FFFFFF" size={18} style={styles.searchIcon} />
               <TextInput
                 placeholder="Search products or enter code"
+                placeholderTextColor="#E5E7EB"
                 style={styles.searchInput}
                 value={searchQuery}
                 onChangeText={setSearchQuery}
+                returnKeyType="search"
                 onSubmitEditing={() => {
                   if (searchQuery.trim()) {
                     handleSearch();
@@ -804,12 +803,13 @@ const HomeScreen = ({ navigation }) => {
                 }}
               />
             </View>
+
             <TouchableOpacity
-              style={styles.searchButton}
+              style={styles.searchButtonPrimary}
               onPress={handleSearch}
-              activeOpacity={0.8}
+              activeOpacity={0.9}
             >
-              <Search color="#ffffff" size={16} />
+              <Search color="#090966" size={18} />
             </TouchableOpacity>
           </View>
         </View>
@@ -1532,8 +1532,8 @@ const styles = StyleSheet.create({
     shadowRadius: 6,
     shadowOffset: { width: 0, height: 2 },
     elevation: 2,
-    marginLeft: 2,
-    marginRight: 8,
+    marginLeft: 0,
+    marginRight: 0,
   },
   menuLines: {
     width: 18,
@@ -1736,8 +1736,9 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   productWrapper: {
-    width: '95%',
+    flex: 1,
     marginBottom: 18,
+    marginHorizontal: 4,
   },
   productCard: {
     width: '100%',
@@ -1995,43 +1996,54 @@ const styles = StyleSheet.create({
   searchCard: {
     backgroundColor: '#ffffff',
     borderRadius: 16,
-    padding: 16,
-    marginHorizontal: 16,
+    padding: 14,
+    marginHorizontal: 0,
     marginBottom: 16,
-    shadowColor: '#000',
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 2,
+    shadowColor: '#090966',
+    shadowOpacity: 0.06,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 3,
   },
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#f8fafc',
-    borderRadius: 12,
-    paddingHorizontal: 4,
-    paddingVertical: 4,
+    backgroundColor: '#090966',
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
     borderWidth: 1,
-    borderColor: '#e2e8f0',
+    borderColor: '#090966',
   },
   searchInputWrapper: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
   },
   searchIcon: {
     marginRight: 8,
   },
-  searchButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 8,
-    backgroundColor: '#090966',
+  searchInput: {
+    flex: 1,
+    fontSize: 14,
+    color: '#FFFFFF',
+    paddingVertical: 4,
+  },
+  searchButtonPrimary: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
-    marginLeft: 4,
+    marginLeft: 8,
+    shadowColor: '#FFFFFF',
+    shadowOpacity: 0.25,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 4,
   },
   searchModeRow: {
     flexDirection: 'row',

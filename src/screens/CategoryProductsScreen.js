@@ -5,7 +5,7 @@ import { ArrowLeft } from 'lucide-react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useStore } from '../store/store';
 import { fetchProductsFromSupabase } from '../services/products';
-import { getFlashSaleState } from '../utils/flashSale';
+import { getFlashSaleState } from '../utils/productHelpers';
 import { Image } from 'expo-image';
 import { FlashList } from '@shopify/flash-list';
 
