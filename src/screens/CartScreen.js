@@ -32,21 +32,11 @@ const CartScreen = ({ navigation }) => {
   }, 0);
 
   const discount = appliedPromo ? subtotal * (appliedPromo.discount / 100) : 0;
-  const taxes = (subtotal - discount) * taxRate;
-  const shipping = cart.reduce((sum, item) => {
-    const options = Array.isArray(item.deliveryOptions)
-      ? item.deliveryOptions
-      : Array.isArray(item.delivery_options)
-        ? item.delivery_options
-        : [];
+  // Taxes and Shipping removed as per request
+  const taxes = 0;
+  const shipping = 0;
 
-    const chosen = options.find((opt) => opt.id === item.selectedDeliveryId);
-    const price = typeof chosen?.price === 'number' ? chosen.price : 0;
-
-    return sum + price;
-  }, 0);
-
-  const total = subtotal - discount + taxes + shipping;
+  const total = subtotal - discount;
 
   // Helper functions
   const handleRemoveItem = (itemId, itemName) => {
@@ -189,12 +179,7 @@ const CartScreen = ({ navigation }) => {
 
         {/* Header content */}
         <View style={styles.headerContent}>
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={() => navigation.goBack()}
-          >
-            <ArrowLeft size={20} color="#ffffff" />
-          </TouchableOpacity>
+          <View />
 
           <View style={styles.titleContainer}>
             <Text style={styles.screenTitle}>My Cart</Text>
@@ -280,14 +265,7 @@ const CartScreen = ({ navigation }) => {
                 <Text style={styles.discountValue}>-${discount.toFixed(2)}</Text>
               </View>
             )}
-            <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Shipping</Text>
-              <Text style={styles.summaryValue}>${shipping.toFixed(2)}</Text>
-            </View>
-            <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Taxes</Text>
-              <Text style={styles.summaryValue}>${taxes.toFixed(2)}</Text>
-            </View>
+
             <View style={styles.summaryDivider} />
             <View style={styles.summaryRow}>
               <Text style={styles.summaryTotalLabel}>Total</Text>

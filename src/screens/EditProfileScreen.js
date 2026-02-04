@@ -18,6 +18,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
+import { useFocusEffect } from '@react-navigation/native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useStore } from '../store/store';
 import { supabase } from '../lib/supabase';
@@ -62,7 +63,7 @@ const InputField = React.memo(({ label, icon: Icon, value, onChangeText, placeho
                         editable={editable}
                     />
                 ) : (
-                    <Text style={[styles.input, { textAlignVertical: 'center' }]}>
+                    <Text style={[styles.input, { color: value ? '#090966' : '#9CA3AF' }]}>
                         {value || placeholder}
                     </Text>
                 )}
@@ -176,9 +177,11 @@ const EditProfileScreen = ({ navigation }) => {
         ]).start();
     }, []);
 
-    useEffect(() => {
-        loadUserProfile();
-    }, []);
+    useFocusEffect(
+        React.useCallback(() => {
+            loadUserProfile();
+        }, [authUserId, authEmail])
+    );
 
     const loadUserProfile = async () => {
         if (!authUserId) return;
@@ -457,7 +460,8 @@ const EditProfileScreen = ({ navigation }) => {
 
         try {
             if (authUserId) {
-                const { error } = await supabase
+                // Update profiles table
+                const { error: profileError } = await supabase
                     .from('profiles')
                     .upsert(
                         {
@@ -476,43 +480,51 @@ const EditProfileScreen = ({ navigation }) => {
                         { onConflict: 'user_id' }
                     );
 
-                if (error) {
-                    console.log('[ProfileSave] error', error);
-                    Alert.alert('Error', error.message || 'Failed to update profile');
+                if (profileError) {
+                    console.log('[ProfileSave] error', profileError);
+                    Alert.alert('Error', profileError.message || 'Failed to update profile');
                     setLoading(false);
                     return;
                 }
 
-                // Update address information
-                if (phone || address || village) {
-                    const { data: existingAddress } = await supabase
+                // Update or create primary address in parallel
+                const { data: existingAddress } = await supabase
+                    .from('customer_addresses')
+                    .select('id')
+                    .eq('user_id', authUserId)
+                    .eq('is_primary', true)
+                    .maybeSingle();
+
+                const addressPayload = {
+                    user_id: authUserId,
+                    name: name.trim() || null,
+                    country: country.trim() || null,
+                    city: city.trim() || null,
+                    district: district.trim() || null,
+                    phone: normalizePhone(phone),
+                    secondary_phone: secondaryPhone ? normalizePhone(secondaryPhone) : null,
+                    address_line: address.trim() || null,
+                    village: village.trim() || null,
+                    address_descr: addressDescr.trim() || null,
+                    is_primary: true,
+                };
+
+                if (existingAddress) {
+                    const { error: addressError } = await supabase
                         .from('customer_addresses')
-                        .select('id')
-                        .eq('user_id', authUserId)
-                        .eq('is_primary', true)
-                        .maybeSingle();
+                        .update(addressPayload)
+                        .eq('id', existingAddress.id);
 
-                    const addressPayload = {
-                        user_id: authUserId,
-                        name: name.trim() || null,
-                        country: country.trim() || null,
-                        city: city.trim() || null,
-                        phone: normalizePhone(phone),
-                        secondary_phone: normalizePhone(secondaryPhone),
-                        address_line: address.trim() || null,
-                        village: village.trim() || null,
-                        is_primary: true,
-                    };
+                    if (addressError) {
+                        console.warn('[ProfileSave] Failed to update primary address:', addressError);
+                    }
+                } else {
+                    const { error: addressError } = await supabase
+                        .from('customer_addresses')
+                        .insert([addressPayload]);
 
-                    if (existingAddress) {
-                        await supabase
-                            .from('customer_addresses')
-                            .update(addressPayload)
-                            .eq('id', existingAddress.id);
-                    } else {
-                        await supabase
-                            .from('customer_addresses')
-                            .insert([addressPayload]);
+                    if (addressError) {
+                        console.warn('[ProfileSave] Failed to create primary address:', addressError);
                     }
                 }
             }
@@ -588,316 +600,316 @@ const EditProfileScreen = ({ navigation }) => {
                     enableResetScrollToCoords={false}
                     keyboardShouldPersistTaps="handled"
                 >
-                        <Animated.View
-                            style={{
-                                opacity: fadeAnim,
-                                transform: [
-                                    { translateX: slideAnim },
-                                    { translateY: slideAnim.interpolate({ inputRange: [0, 50], outputRange: [0, 10] }) }
-                                ]
-                            }}
-                        >
-                            <View style={styles.section}>
-                                {/* Avatar Section */}
-                                <View style={styles.avatarSection}>
-                                    <View style={styles.avatarWrapper}>
-                                        {avatarUrl || localAvatarUri ? (
-                                            <Image
-                                                source={{ uri: localAvatarUri || avatarUrl }}
-                                                style={styles.avatarImage}
-                                            />
-                                        ) : (
-                                            <View style={styles.avatarPlaceholder}>
-                                                <Text style={styles.avatarPlaceholderText}>
-                                                    {name ? name[0].toUpperCase() : 'A'}
+                    <Animated.View
+                        style={{
+                            opacity: fadeAnim,
+                            transform: [
+                                { translateX: slideAnim },
+                                { translateY: slideAnim.interpolate({ inputRange: [0, 50], outputRange: [0, 10] }) }
+                            ]
+                        }}
+                    >
+                        <View style={styles.section}>
+                            {/* Avatar Section */}
+                            <View style={styles.avatarSection}>
+                                <View style={styles.avatarWrapper}>
+                                    {avatarUrl || localAvatarUri ? (
+                                        <Image
+                                            source={{ uri: localAvatarUri || avatarUrl }}
+                                            style={styles.avatarImage}
+                                        />
+                                    ) : (
+                                        <View style={styles.avatarPlaceholder}>
+                                            <Text style={styles.avatarPlaceholderText}>
+                                                {name ? name[0].toUpperCase() : 'A'}
+                                            </Text>
+                                        </View>
+                                    )}
+                                </View>
+                                <TouchableOpacity
+                                    style={styles.changePhotoButton}
+                                    onPress={handlePickAvatar}
+                                    disabled={uploadingAvatar}
+                                >
+                                    <Camera size={16} color="#090966" style={{ marginRight: 6 }} />
+                                    <Text style={styles.changePhotoText}>
+                                        {uploadingAvatar ? 'Uploading...' : 'Change Photo'}
+                                    </Text>
+                                </TouchableOpacity>
+                            </View>
+
+                            <InputField
+                                label="Full Name"
+                                icon={User}
+                                value={name}
+                                onChangeText={setName}
+                                placeholder="Full Name"
+                                focusedInput={focusedInput}
+                                setFocusedInput={setFocusedInput}
+                            />
+
+                            <InputField
+                                label="Username"
+                                icon={User}
+                                value={username}
+                                onChangeText={setUsername}
+                                placeholder="Username"
+                                focusedInput={focusedInput}
+                                setFocusedInput={setFocusedInput}
+                            />
+
+                            <InputField
+                                label="Email"
+                                icon={Mail}
+                                value={email}
+                                onChangeText={setEmail}
+                                placeholder="Email Address"
+                                type="email-address"
+                                focusedInput={focusedInput}
+                                setFocusedInput={setFocusedInput}
+                                editable={false}
+                            />
+
+                            <View style={styles.fieldGroup}>
+                                <Text style={styles.label}>Gender</Text>
+                                <View style={styles.genderRow}>
+                                    {[
+                                        { label: 'Male', val: 'Male' },
+                                        { label: 'Female', val: 'Female' }
+                                    ].map((g) => (
+                                        <TouchableOpacity
+                                            key={g.val}
+                                            style={[
+                                                styles.genderOption,
+                                                gender === g.val && styles.genderOptionActive,
+                                            ]}
+                                            onPress={() => setGender(g.val)}
+                                        >
+                                            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                                                <User
+                                                    size={18}
+                                                    color={gender === g.val ? '#FFF' : '#4B5563'}
+                                                    style={{ marginRight: 8 }}
+                                                />
+                                                <Text style={gender === g.val ? styles.genderTextActive : styles.genderText}>
+                                                    {g.label}
                                                 </Text>
                                             </View>
-                                        )}
-                                    </View>
-                                    <TouchableOpacity
-                                        style={styles.changePhotoButton}
-                                        onPress={handlePickAvatar}
-                                        disabled={uploadingAvatar}
-                                    >
-                                        <Camera size={16} color="#090966" style={{ marginRight: 6 }} />
-                                        <Text style={styles.changePhotoText}>
-                                            {uploadingAvatar ? 'Uploading...' : 'Change Photo'}
-                                        </Text>
-                                    </TouchableOpacity>
+                                        </TouchableOpacity>
+                                    ))}
                                 </View>
+                            </View>
 
-                                <InputField
-                                    label="Full Name"
-                                    icon={User}
-                                    value={name}
-                                    onChangeText={setName}
-                                    placeholder="Full Name"
-                                    focusedInput={focusedInput}
-                                    setFocusedInput={setFocusedInput}
+                            <InputField
+                                label="DOB"
+                                icon={Calendar}
+                                value={dob}
+                                placeholder="Date of Birth (YYYY-MM-DD)"
+                                editable={false}
+                                onPress={() => setShowDatePicker(true)}
+                                focusedInput={focusedInput}
+                                setFocusedInput={setFocusedInput}
+                            />
+
+                            {showDatePicker && (
+                                <DateTimePicker
+                                    testID="dateTimePicker"
+                                    value={dobDate}
+                                    mode="date"
+                                    is24Hour={true}
+                                    display="default"
+                                    onChange={onDateChange}
                                 />
+                            )}
 
-                                <InputField
-                                    label="Username"
-                                    icon={User}
-                                    value={username}
-                                    onChangeText={setUsername}
-                                    placeholder="Username"
-                                    focusedInput={focusedInput}
-                                    setFocusedInput={setFocusedInput}
-                                />
+                            <InputField
+                                label="Primary Phone"
+                                icon={Phone}
+                                value={phone}
+                                onChangeText={handlePhoneChange}
+                                placeholder="Primary Phone (e.g. 063...)"
+                                type="phone-pad"
+                                focusedInput={focusedInput}
+                                setFocusedInput={setFocusedInput}
+                                error={phoneError}
+                            />
 
-                                <InputField
-                                    label="Email"
-                                    icon={Mail}
-                                    value={email}
-                                    onChangeText={setEmail}
-                                    placeholder="Email Address"
-                                    type="email-address"
-                                    focusedInput={focusedInput}
-                                    setFocusedInput={setFocusedInput}
-                                    editable={false}
-                                />
+                            <InputField
+                                label="Secondary Phone (Optional)"
+                                icon={Phone}
+                                value={secondaryPhone}
+                                onChangeText={handleSecondaryPhoneChange}
+                                placeholder="Secondary Phone"
+                                type="phone-pad"
+                                focusedInput={focusedInput}
+                                setFocusedInput={setFocusedInput}
+                                error={secondaryPhoneError}
+                            />
 
-                                <View style={styles.fieldGroup}>
-                                    <Text style={styles.label}>Gender</Text>
-                                    <View style={styles.genderRow}>
-                                        {[
-                                            { label: 'Male', val: 'Male' },
-                                            { label: 'Female', val: 'Female' }
-                                        ].map((g) => (
+                            {/* Country Dropdown */}
+                            <View style={styles.fieldGroup}>
+                                <Text style={styles.label}>Country</Text>
+                                <TouchableOpacity
+                                    style={[styles.inputContainer, countryDropdownOpen && styles.inputFocused]}
+                                    onPress={() => {
+                                        setCountryDropdownOpen(!countryDropdownOpen);
+                                        setCityDropdownOpen(false);
+                                    }}
+                                >
+                                    <View style={{ marginRight: 12 }}>
+                                        <MapPin size={20} color='#090966' />
+                                    </View>
+                                    <Text style={styles.dropdownValue}>
+                                        {COUNTRY_OPTIONS.find(c => c.value === country)?.label || country || 'Select Country'}
+                                    </Text>
+                                    <ChevronDown size={20} color='#090966' />
+                                </TouchableOpacity>
+                                {countryDropdownOpen && (
+                                    <View style={styles.dropdownMenu}>
+                                        {COUNTRY_OPTIONS.map((option) => (
                                             <TouchableOpacity
-                                                key={g.val}
-                                                style={[
-                                                    styles.genderOption,
-                                                    gender === g.val && styles.genderOptionActive,
-                                                ]}
-                                                onPress={() => setGender(g.val)}
+                                                key={option.value}
+                                                style={styles.dropdownItem}
+                                                onPress={() => handleCountrySelect(option)}
                                             >
-                                                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                                                    <User
-                                                        size={18}
-                                                        color={gender === g.val ? '#FFF' : '#4B5563'}
-                                                        style={{ marginRight: 8 }}
-                                                    />
-                                                    <Text style={gender === g.val ? styles.genderTextActive : styles.genderText}>
-                                                        {g.label}
-                                                    </Text>
-                                                </View>
+                                                <Text style={styles.dropdownItemText}>{option.label}</Text>
                                             </TouchableOpacity>
                                         ))}
                                     </View>
-                                </View>
-
-                                <InputField
-                                    label="DOB"
-                                    icon={Calendar}
-                                    value={dob}
-                                    placeholder="Date of Birth (YYYY-MM-DD)"
-                                    editable={false}
-                                    onPress={() => setShowDatePicker(true)}
-                                    focusedInput={focusedInput}
-                                    setFocusedInput={setFocusedInput}
-                                />
-
-                                {showDatePicker && (
-                                    <DateTimePicker
-                                        testID="dateTimePicker"
-                                        value={dobDate}
-                                        mode="date"
-                                        is24Hour={true}
-                                        display="default"
-                                        onChange={onDateChange}
-                                    />
                                 )}
+                            </View>
 
-                                <InputField
-                                    label="Primary Phone"
-                                    icon={Phone}
-                                    value={phone}
-                                    onChangeText={handlePhoneChange}
-                                    placeholder="Primary Phone (e.g. 063...)"
-                                    type="phone-pad"
-                                    focusedInput={focusedInput}
-                                    setFocusedInput={setFocusedInput}
-                                    error={phoneError}
-                                />
-
-                                <InputField
-                                    label="Secondary Phone (Optional)"
-                                    icon={Phone}
-                                    value={secondaryPhone}
-                                    onChangeText={handleSecondaryPhoneChange}
-                                    placeholder="Secondary Phone"
-                                    type="phone-pad"
-                                    focusedInput={focusedInput}
-                                    setFocusedInput={setFocusedInput}
-                                    error={secondaryPhoneError}
-                                />
-
-                                {/* Country Dropdown */}
-                                <View style={styles.fieldGroup}>
-                                    <Text style={styles.label}>Country</Text>
-                                    <TouchableOpacity
-                                        style={[styles.inputContainer, countryDropdownOpen && styles.inputFocused]}
-                                        onPress={() => {
-                                            setCountryDropdownOpen(!countryDropdownOpen);
-                                            setCityDropdownOpen(false);
-                                        }}
-                                    >
-                                        <View style={{ marginRight: 12 }}>
-                                            <MapPin size={20} color='#090966' />
-                                        </View>
-                                        <Text style={styles.dropdownValue}>
-                                            {COUNTRY_OPTIONS.find(c => c.value === country)?.label || country || 'Select Country'}
-                                        </Text>
-                                        <ChevronDown size={20} color='#090966' />
-                                    </TouchableOpacity>
-                                    {countryDropdownOpen && (
-                                        <View style={styles.dropdownMenu}>
-                                            {COUNTRY_OPTIONS.map((option) => (
+                            {/* City Dropdown */}
+                            <View style={styles.fieldGroup}>
+                                <Text style={styles.label}>City</Text>
+                                <TouchableOpacity
+                                    style={[styles.inputContainer, cityDropdownOpen && styles.inputFocused]}
+                                    onPress={() => {
+                                        setCityDropdownOpen(!cityDropdownOpen);
+                                        setCountryDropdownOpen(false);
+                                    }}
+                                >
+                                    <MapPin size={20} color='#090966' style={styles.inputIcon} />
+                                    <Text style={[styles.dropdownValue, !city && styles.dropdownPlaceholder]}>
+                                        {city || 'Select City'}
+                                    </Text>
+                                    <ChevronDown size={20} color='#090966' />
+                                </TouchableOpacity>
+                                {cityDropdownOpen && (
+                                    <View style={styles.dropdownMenu}>
+                                        <ScrollView style={{ maxHeight: 200 }} nestedScrollEnabled={true}>
+                                            {CITY_OPTIONS.map((option) => (
                                                 <TouchableOpacity
-                                                    key={option.value}
+                                                    key={option}
                                                     style={styles.dropdownItem}
-                                                    onPress={() => handleCountrySelect(option)}
+                                                    onPress={() => {
+                                                        setCity(option);
+                                                        setCityDropdownOpen(false);
+                                                    }}
                                                 >
-                                                    <Text style={styles.dropdownItemText}>{option.label}</Text>
+                                                    <Text style={styles.dropdownItemText}>{option}</Text>
                                                 </TouchableOpacity>
                                             ))}
-                                        </View>
-                                    )}
-                                </View>
-
-                                {/* City Dropdown */}
-                                <View style={styles.fieldGroup}>
-                                    <Text style={styles.label}>City</Text>
-                                    <TouchableOpacity
-                                        style={[styles.inputContainer, cityDropdownOpen && styles.inputFocused]}
-                                        onPress={() => {
-                                            setCityDropdownOpen(!cityDropdownOpen);
-                                            setCountryDropdownOpen(false);
-                                        }}
-                                    >
-                                        <MapPin size={20} color='#090966' style={styles.inputIcon} />
-                                        <Text style={[styles.dropdownValue, !city && styles.dropdownPlaceholder]}>
-                                            {city || 'Select City'}
-                                        </Text>
-                                        <ChevronDown size={20} color='#090966' />
-                                    </TouchableOpacity>
-                                    {cityDropdownOpen && (
-                                        <View style={styles.dropdownMenu}>
-                                            <ScrollView style={{ maxHeight: 200 }} nestedScrollEnabled={true}>
-                                                {CITY_OPTIONS.map((option) => (
-                                                    <TouchableOpacity
-                                                        key={option}
-                                                        style={styles.dropdownItem}
-                                                        onPress={() => {
-                                                            setCity(option);
-                                                            setCityDropdownOpen(false);
-                                                        }}
-                                                    >
-                                                        <Text style={styles.dropdownItemText}>{option}</Text>
-                                                    </TouchableOpacity>
-                                                ))}
-                                            </ScrollView>
-                                        </View>
-                                    )}
-                                </View>
-
-                                {/* District Dropdown */}
-                                <View style={styles.fieldGroup}>
-                                    <Text style={styles.label}>District</Text>
-                                    <TouchableOpacity
-                                        style={[styles.inputContainer, districtDropdownOpen && styles.inputFocused]}
-                                        onPress={() => {
-                                            setDistrictDropdownOpen(!districtDropdownOpen);
-                                            setCityDropdownOpen(false);
-                                            setCountryDropdownOpen(false);
-                                        }}
-                                    >
-                                        <MapPin size={20} color='#090966' style={styles.inputIcon} />
-                                        <Text style={[styles.dropdownValue, !district && styles.dropdownPlaceholder]}>
-                                            {district || 'Select District'}
-                                        </Text>
-                                        <ChevronDown size={20} color='#090966' />
-                                    </TouchableOpacity>
-                                    {districtDropdownOpen && (
-                                        <View style={styles.dropdownMenu}>
-                                            <ScrollView style={{ maxHeight: 200 }} nestedScrollEnabled={true}>
-                                                {DISTRICT_OPTIONS.map((option) => (
-                                                    <TouchableOpacity
-                                                        key={option}
-                                                        style={styles.dropdownItem}
-                                                        onPress={() => {
-                                                            setDistrict(option);
-                                                            setDistrictDropdownOpen(false);
-                                                        }}
-                                                    >
-                                                        <Text style={styles.dropdownItemText}>{option}</Text>
-                                                    </TouchableOpacity>
-                                                ))}
-                                            </ScrollView>
-                                        </View>
-                                    )}
-                                </View>
-
-                                <InputField
-                                    label="Village"
-                                    icon={Home}
-                                    value={village}
-                                    onChangeText={setVillage}
-                                    placeholder="Enter your village"
-                                    focusedInput={focusedInput}
-                                    setFocusedInput={setFocusedInput}
-                                />
-
-                                <View style={styles.fieldGroup}>
-                                    <View style={[styles.inputContainerMultiline, focusedInput === 'Address' && styles.inputFocused]}>
-                                        <View style={{ paddingTop: 4 }}>
-                                            <FileText size={20} color='#090966' style={styles.inputIcon} />
-                                        </View>
-                                        <TextInput
-                                            style={styles.inputMultiline}
-                                            placeholder="Address Details"
-                                            value={address}
-                                            onChangeText={setAddress}
-                                            placeholderTextColor="#9CA3AF"
-                                            multiline
-                                            onFocus={() => setFocusedInput('Address')}
-                                            onBlur={() => setFocusedInput(null)}
-                                        />
+                                        </ScrollView>
                                     </View>
-                                </View>
+                                )}
+                            </View>
 
-                                <View style={styles.fieldGroup}>
-                                    <View style={[styles.inputContainerMultiline, focusedInput === 'AddressDescr' && styles.inputFocused]}>
-                                        <View style={{ paddingTop: 4 }}>
-                                            <FileText size={20} color='#090966' style={styles.inputIcon} />
-                                        </View>
-                                        <TextInput
-                                            style={styles.inputMultiline}
-                                            placeholder="Address Description (Optional)"
-                                            value={addressDescr}
-                                            onChangeText={setAddressDescr}
-                                            placeholderTextColor="#9CA3AF"
-                                            multiline
-                                            onFocus={() => setFocusedInput('AddressDescr')}
-                                            onBlur={() => setFocusedInput(null)}
-                                        />
+                            {/* District Dropdown */}
+                            <View style={styles.fieldGroup}>
+                                <Text style={styles.label}>District</Text>
+                                <TouchableOpacity
+                                    style={[styles.inputContainer, districtDropdownOpen && styles.inputFocused]}
+                                    onPress={() => {
+                                        setDistrictDropdownOpen(!districtDropdownOpen);
+                                        setCityDropdownOpen(false);
+                                        setCountryDropdownOpen(false);
+                                    }}
+                                >
+                                    <MapPin size={20} color='#090966' style={styles.inputIcon} />
+                                    <Text style={[styles.dropdownValue, !district && styles.dropdownPlaceholder]}>
+                                        {district || 'Select District'}
+                                    </Text>
+                                    <ChevronDown size={20} color='#090966' />
+                                </TouchableOpacity>
+                                {districtDropdownOpen && (
+                                    <View style={styles.dropdownMenu}>
+                                        <ScrollView style={{ maxHeight: 200 }} nestedScrollEnabled={true}>
+                                            {DISTRICT_OPTIONS.map((option) => (
+                                                <TouchableOpacity
+                                                    key={option}
+                                                    style={styles.dropdownItem}
+                                                    onPress={() => {
+                                                        setDistrict(option);
+                                                        setDistrictDropdownOpen(false);
+                                                    }}
+                                                >
+                                                    <Text style={styles.dropdownItemText}>{option}</Text>
+                                                </TouchableOpacity>
+                                            ))}
+                                        </ScrollView>
                                     </View>
-                                </View>
+                                )}
+                            </View>
 
-                                {/* Footer */}
-                                <View style={styles.footer}>
-                                    <BeegsoButton
-                                        label="Save Changes"
-                                        onPress={handleSave}
-                                        loading={loading}
-                                        icon={Check}
+                            <InputField
+                                label="Village"
+                                icon={Home}
+                                value={village}
+                                onChangeText={setVillage}
+                                placeholder="Enter your village"
+                                focusedInput={focusedInput}
+                                setFocusedInput={setFocusedInput}
+                            />
+
+                            <View style={styles.fieldGroup}>
+                                <View style={[styles.inputContainerMultiline, focusedInput === 'Address' && styles.inputFocused]}>
+                                    <View style={{ paddingTop: 4 }}>
+                                        <FileText size={20} color='#090966' style={styles.inputIcon} />
+                                    </View>
+                                    <TextInput
+                                        style={styles.inputMultiline}
+                                        placeholder="Address Details"
+                                        value={address}
+                                        onChangeText={setAddress}
+                                        placeholderTextColor="#9CA3AF"
+                                        multiline
+                                        onFocus={() => setFocusedInput('Address')}
+                                        onBlur={() => setFocusedInput(null)}
                                     />
                                 </View>
                             </View>
-                        </Animated.View>
-            </KeyboardAwareScrollView>
+
+                            <View style={styles.fieldGroup}>
+                                <View style={[styles.inputContainerMultiline, focusedInput === 'AddressDescr' && styles.inputFocused]}>
+                                    <View style={{ paddingTop: 4 }}>
+                                        <FileText size={20} color='#090966' style={styles.inputIcon} />
+                                    </View>
+                                    <TextInput
+                                        style={styles.inputMultiline}
+                                        placeholder="Address Description (Optional)"
+                                        value={addressDescr}
+                                        onChangeText={setAddressDescr}
+                                        placeholderTextColor="#9CA3AF"
+                                        multiline
+                                        onFocus={() => setFocusedInput('AddressDescr')}
+                                        onBlur={() => setFocusedInput(null)}
+                                    />
+                                </View>
+                            </View>
+
+                            {/* Footer */}
+                            <View style={styles.footer}>
+                                <BeegsoButton
+                                    label="Save Changes"
+                                    onPress={handleSave}
+                                    loading={loading}
+                                    icon={Check}
+                                />
+                            </View>
+                        </View>
+                    </Animated.View>
+                </KeyboardAwareScrollView>
             </View>
         </SafeAreaView>
     );
@@ -1096,10 +1108,11 @@ const styles = StyleSheet.create({
     },
     input: {
         flex: 1,
-        height: '100%',
         fontSize: 15,
         color: '#090966',
         fontWeight: '500',
+        paddingVertical: 0, // Remove default padding
+        includeFontPadding: false, // Android-specific: remove extra padding
     },
     inputMultiline: {
         flex: 1,

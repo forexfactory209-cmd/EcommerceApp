@@ -35,10 +35,6 @@ const FlashSaleScreen = ({ navigation }) => {
     }
   }, []);
 
-  useEffect(() => {
-    loadFlashProducts();
-  }, [loadFlashProducts]);
-
   useFocusEffect(
     useCallback(() => {
       loadFlashProducts();
