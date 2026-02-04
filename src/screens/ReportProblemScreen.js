@@ -20,6 +20,15 @@ const TICKET_TYPES = [
   { id: 'vendor_dispute', label: 'Vendor Dispute' },
 ];
 
+const ORDER_ISSUE_REASONS = [
+  'Wrong item received',
+  'Size mismatch',
+  'Late delivery',
+  'Damaged or defective item',
+  'Bad service / attitude',
+  'Other',
+];
+
 const MAX_DESCRIPTION = 500;
 
 const ReportProblemScreen = ({ navigation, route }) => {
@@ -29,6 +38,8 @@ const ReportProblemScreen = ({ navigation, route }) => {
   const [description, setDescription] = useState('');
   const [uploading, setUploading] = useState(false);
   const [image, setImage] = useState(null); // { uri, name, type }
+  const [orderIssueReason, setOrderIssueReason] = useState('');
+  const [showReasonOptions, setShowReasonOptions] = useState(false);
 
   const handlePickImage = async () => {
     try {
@@ -62,6 +73,11 @@ const ReportProblemScreen = ({ navigation, route }) => {
       return;
     }
 
+    if (type === 'order_issue' && !orderIssueReason) {
+      Alert.alert('Missing info', 'Please select the type of order issue.');
+      return;
+    }
+
     if (!authUserId) {
       Alert.alert('Not logged in', 'Please log in again and try submitting your report.');
       return;
@@ -76,26 +92,42 @@ const ReportProblemScreen = ({ navigation, route }) => {
         const fileExt = image.name.split('.').pop() || 'jpg';
         const path = `${authUserId}/${Date.now()}.${fileExt}`;
 
-        const response = await fetch(image.uri);
-        const blob = await response.blob();
+        try {
+          const response = await fetch(image.uri);
+          const buffer = await response.arrayBuffer();
 
-        const { error: uploadError } = await supabase.storage
-          .from('support_screenshots')
-          .upload(path, blob, {
-            upsert: true,
-            contentType: image.type || 'image/jpeg',
-          });
+          if (!buffer || buffer.byteLength === 0) {
+            console.warn('ReportProblem: picked image buffer is empty');
+            Alert.alert('Upload error', 'Could not read the selected image. Please try again.');
+          } else {
+            const { error: uploadError } = await supabase.storage
+              .from('support_screenshots')
+              .upload(path, buffer, {
+                upsert: true,
+                contentType: image.type || 'image/jpeg',
+              });
 
-        if (uploadError) {
-          console.warn('ReportProblem: upload error', uploadError);
-        } else {
-          const { data: publicData } = supabase.storage
-            .from('support_screenshots')
-            .getPublicUrl(path);
+            if (uploadError) {
+              console.warn('ReportProblem: upload error', uploadError);
+              Alert.alert('Upload error', uploadError.message || 'Could not upload screenshot.');
+            } else {
+              const { data: publicData } = supabase.storage
+                .from('support_screenshots')
+                .getPublicUrl(path);
 
-          screenshotUrl = publicData?.publicUrl || null;
+              screenshotUrl = publicData?.publicUrl || null;
+            }
+          }
+        } catch (uploadException) {
+          console.warn('ReportProblem: upload exception', uploadException);
+          Alert.alert('Upload error', 'Unexpected error while uploading screenshot.');
         }
       }
+
+      const finalDescription =
+        type === 'order_issue' && orderIssueReason
+          ? `[Reason: ${orderIssueReason}] ${description.trim()}`
+          : description.trim();
 
       const { error: insertError } = await supabase
         .from('support_tickets')
@@ -103,7 +135,8 @@ const ReportProblemScreen = ({ navigation, route }) => {
           user_id: authUserId,
           ticket_type: type,
           order_id_text: orderId || null,
-          description: description.trim(),
+          description: finalDescription,
+          order_issue_reason: type === 'order_issue' ? orderIssueReason || null : null,
           screenshot_url: screenshotUrl,
           status: 'open',
         });
@@ -178,19 +211,53 @@ const ReportProblemScreen = ({ navigation, route }) => {
           })}
         </View>
 
-        <View style={styles.fieldGroup}>
-          <Text style={styles.fieldLabel}>Order ID (Optional)</Text>
-          <View style={styles.inputWrapper}>
-            <ImageIcon size={16} color="#9CA3AF" />
-            <TextInput
-              style={styles.input}
-              placeholder="# ORD-12345-XYZ"
-              placeholderTextColor="#9CA3AF"
-              value={orderId}
-              onChangeText={setOrderId}
-            />
-          </View>
-        </View>
+        {type === 'order_issue' && (
+          <>
+            <View style={styles.fieldGroup}>
+              <Text style={styles.fieldLabel}>Order ID</Text>
+              <View style={styles.inputWrapper}>
+                <ImageIcon size={16} color="#9CA3AF" />
+                <TextInput
+                  style={styles.input}
+                  placeholder="# ORD-12345-XYZ"
+                  placeholderTextColor="#9CA3AF"
+                  value={orderId}
+                  onChangeText={setOrderId}
+                />
+              </View>
+            </View>
+
+            <View style={styles.fieldGroup}>
+              <Text style={styles.fieldLabel}>Order issue type</Text>
+              <TouchableOpacity
+                style={styles.dropdownTrigger}
+                activeOpacity={0.9}
+                onPress={() => setShowReasonOptions((prev) => !prev)}
+              >
+                <Text style={orderIssueReason ? styles.dropdownValue : styles.dropdownPlaceholder}>
+                  {orderIssueReason || 'Select an issue type'}
+                </Text>
+              </TouchableOpacity>
+              {showReasonOptions && (
+                <View style={styles.dropdownList}>
+                  {ORDER_ISSUE_REASONS.map((reason) => (
+                    <TouchableOpacity
+                      key={reason}
+                      style={styles.dropdownItem}
+                      activeOpacity={0.9}
+                      onPress={() => {
+                        setOrderIssueReason(reason);
+                        setShowReasonOptions(false);
+                      }}
+                    >
+                      <Text style={styles.dropdownItemText}>{reason}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
+            </View>
+          </>
+        )}
 
         <View style={styles.fieldGroup}>
           <Text style={styles.fieldLabel}>Description</Text>
@@ -353,6 +420,46 @@ const styles = StyleSheet.create({
     color: '#111827',
     minHeight: 110,
     textAlignVertical: 'top',
+  },
+  dropdownTrigger: {
+    marginTop: 4,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    justifyContent: 'center',
+  },
+  dropdownPlaceholder: {
+    fontSize: 14,
+    color: '#9CA3AF',
+  },
+  dropdownValue: {
+    fontSize: 14,
+    color: '#111827',
+    fontWeight: '500',
+  },
+  dropdownList: {
+    marginTop: 6,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    backgroundColor: '#FFFFFF',
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 3,
+  },
+  dropdownItem: {
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  dropdownItemText: {
+    fontSize: 14,
+    color: '#111827',
   },
   charCounter: {
     alignSelf: 'flex-end',

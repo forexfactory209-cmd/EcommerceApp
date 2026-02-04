@@ -14,3 +14,22 @@ export async function fetchApprovedBrandsFromSupabase() {
 
   return data || [];
 }
+
+export async function fetchApprovedBrandsPageFromSupabase({ page = 1, pageSize = 20 } = {}) {
+  const from = (page - 1) * pageSize;
+  const to = from + pageSize - 1;
+
+  const { data, error } = await supabase
+    .from('brands')
+    .select('*')
+    .eq('status', 'approved')
+    .order('name', { ascending: true })
+    .range(from, to);
+
+  if (error) {
+    console.warn('Error fetching paged brands from Supabase:', error.message);
+    throw error;
+  }
+
+  return data || [];
+}

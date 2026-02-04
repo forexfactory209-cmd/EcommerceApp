@@ -427,7 +427,14 @@ const ProductDetailsScreen = ({ route, navigation }) => {
     return sold >= product.flash_quantity;
   })();
 
-  const canReview = !!authUserId && hasPurchasedProduct;
+  // Per-product discount for the main product (used when not in flash sale)
+  const mainProductDiscountPct =
+    typeof product.product_discount_percentage === 'number' &&
+    !Number.isNaN(product.product_discount_percentage)
+      ? product.product_discount_percentage
+      : null;
+  const mainProductDiscountActive = !!product.product_discount_active;
+  const mainEffectiveDiscountPct = mainProductDiscountActive ? mainProductDiscountPct : null;
 
   const MAX_SIMILAR_ITEMS = 4;
   const visibleSimilarProducts = useMemo(
@@ -461,6 +468,18 @@ const ProductDetailsScreen = ({ route, navigation }) => {
         (Array.isArray(item.images) && item.images[0]) || item.image || null;
       const priceValue =
         typeof item.price === 'number' ? item.price : Number(item.price) || 0;
+
+      const similarDiscountPct =
+        typeof item.product_discount_percentage === 'number' &&
+        !Number.isNaN(item.product_discount_percentage)
+          ? item.product_discount_percentage
+          : null;
+      const similarDiscountActive = !!item.product_discount_active;
+      const similarEffectiveDiscountPct = similarDiscountActive ? similarDiscountPct : null;
+      const similarDiscountedPrice =
+        similarEffectiveDiscountPct != null
+          ? Number((priceValue * (1 - similarEffectiveDiscountPct / 100)).toFixed(2))
+          : null;
 
       const inSimilarWishlist = wishlist.some((w) => w.id === item.id);
 
@@ -516,9 +535,25 @@ const ProductDetailsScreen = ({ route, navigation }) => {
           </Text>
 
           <View style={styles.similarPriceRow}>
-            <Text style={styles.similarPrice}>
-              {priceValue > 0 ? `$${priceValue.toFixed(2)}` : ''}
-            </Text>
+            {similarDiscountActive && similarDiscountedPrice != null ? (
+              <View>
+                <Text
+                  style={[
+                    styles.similarPrice,
+                    { textDecorationLine: 'line-through', color: '#9ca3af', fontSize: 12 },
+                  ]}
+                >
+                  {priceValue > 0 ? `$${priceValue.toFixed(2)}` : ''}
+                </Text>
+                <Text style={[styles.similarPrice, { marginTop: 2 }]}>
+                  {`$${similarDiscountedPrice.toFixed(2)}`}
+                </Text>
+              </View>
+            ) : (
+              <Text style={styles.similarPrice}>
+                {priceValue > 0 ? `$${priceValue.toFixed(2)}` : ''}
+              </Text>
+            )}
             <TouchableOpacity
               style={styles.similarAddButton}
               onPress={(e) => {
@@ -1362,6 +1397,13 @@ const ProductDetailsScreen = ({ route, navigation }) => {
               <>
                 <Text style={styles.bottomPriceOld}>${currentPrice.toFixed(2)}</Text>
                 <Text style={styles.bottomPriceValue}>${flashPrice.toFixed(2)}</Text>
+              </>
+            ) : mainProductDiscountActive && mainEffectiveDiscountPct != null ? (
+              <>
+                <Text style={styles.bottomPriceOld}>${currentPrice.toFixed(2)}</Text>
+                <Text style={styles.bottomPriceValue}>
+                  ${Number((currentPrice * (1 - mainEffectiveDiscountPct / 100)).toFixed(2))}
+                </Text>
               </>
             ) : (
               <Text style={styles.bottomPriceValue}>${currentPrice.toFixed(2)}</Text>

@@ -1,10 +1,10 @@
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, ScrollView, ActivityIndicator } from 'react-native';
 import { Image } from 'expo-image';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { ArrowLeft, Star } from 'lucide-react-native';
-import { fetchApprovedBrandsFromSupabase } from '../services/brands';
+import { fetchApprovedBrandsPageFromSupabase } from '../services/brands';
 import { useStore } from '../store/store';
 
 const AllBrandsScreen = ({ navigation, route }) => {
@@ -19,8 +19,9 @@ const AllBrandsScreen = ({ navigation, route }) => {
   const loadBrands = useCallback(async () => {
     try {
       setLoading(true);
-      const data = await fetchApprovedBrandsFromSupabase();
-      setBrands(Array.isArray(data) ? data : []);
+      const data = await fetchApprovedBrandsPageFromSupabase({ page: 1, pageSize: 100 });
+      const rows = Array.isArray(data) ? data : [];
+      setBrands(rows);
     } catch (e) {
       console.warn('AllBrands: failed to load brands', e.message || e);
       setBrands([]);
@@ -248,6 +249,8 @@ const AllBrandsScreen = ({ navigation, route }) => {
     }
   }, [selectedAudience]);
 
+  // No pull-to-refresh or load-more; list is static after each load
+
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.headerRow}>
@@ -302,8 +305,6 @@ const AllBrandsScreen = ({ navigation, route }) => {
             keyExtractor={(item) => item.id.toString()}
             renderItem={renderItem}
             contentContainerStyle={{ paddingBottom: 24 }}
-            onRefresh={loadBrands}
-            refreshing={loading}
             showsVerticalScrollIndicator={false}
           />
         </>

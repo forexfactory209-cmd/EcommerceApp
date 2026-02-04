@@ -1,5 +1,5 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, Alert } from 'react-native';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
 import { Image } from 'expo-image';
 import { FlashList } from '@shopify/flash-list';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -17,32 +17,31 @@ const BrandScreen = ({ route, navigation }) => {
   const toggleFollowBrand = useStore((state) => state.toggleFollowBrand);
   const deletedProductIds = useStore((state) => state.deletedProductIds || []);
   const [remoteProducts, setRemoteProducts] = useState([]);
+  const [loading, setLoading] = useState(false);
   const [ratingStats, setRatingStats] = useState({});
   const [fetchedBrand, setFetchedBrand] = useState(null);
   const [brandRatingAvg, setBrandRatingAvg] = useState(null);
   const [brandRatingCount, setBrandRatingCount] = useState(0);
   const [followersCount, setFollowersCount] = useState(0);
 
-  useEffect(() => {
-    let isMounted = true;
-
-    const loadProducts = async () => {
-      try {
-        const data = await fetchProductsFromSupabase();
-        if (isMounted && Array.isArray(data) && data.length > 0) {
-          setRemoteProducts(data);
-        }
-      } catch (e) {
-        Alert.alert('Supabase error', e.message || 'Failed to load products from Supabase');
-      }
-    };
-
-    loadProducts();
-
-    return () => {
-      isMounted = false;
-    };
+  // Simple one-time loader for brand products (no pagination or pull-to-refresh)
+  const loadProducts = useCallback(async () => {
+    try {
+      setLoading(true);
+      const data = await fetchProductsFromSupabase({ page: 1, pageSize: 100 });
+      const rows = Array.isArray(data) ? data : [];
+      setRemoteProducts(rows);
+    } catch (e) {
+      Alert.alert('Supabase error', e.message || 'Failed to load products from Supabase');
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  // Initial load once on mount
+  useEffect(() => {
+    loadProducts();
+  }, [loadProducts]);
 
   const brand = fetchedBrand || routeBrand || null;
 
@@ -126,6 +125,8 @@ const BrandScreen = ({ route, navigation }) => {
       }),
     [baseData, brandUserId, brandName],
   );
+
+  // No pull-to-refresh or load-more; list is static after initial load
 
   useEffect(() => {
     const logVisit = async () => {
@@ -313,13 +314,22 @@ const BrandScreen = ({ route, navigation }) => {
               );
             }
 
-            const discount = brandDiscount;
+            const productLevelDiscount =
+              typeof item.product_discount_percentage === 'number' &&
+              !Number.isNaN(item.product_discount_percentage)
+                ? item.product_discount_percentage
+                : null;
 
-            if (!discount || currentPrice <= 0) {
+            const isProductDiscounted = !!item.product_discount_active;
+            const effectiveDiscountPct = isProductDiscounted && productLevelDiscount != null
+              ? productLevelDiscount
+              : brandDiscount;
+
+            if (!effectiveDiscountPct || currentPrice <= 0) {
               return <Text style={styles.productPrice}>${currentPrice.toFixed(2)}</Text>;
             }
 
-            const factor = 1 - discount / 100;
+            const factor = 1 - effectiveDiscountPct / 100;
             if (factor <= 0) {
               return <Text style={styles.productPrice}>${currentPrice.toFixed(2)}</Text>;
             }
@@ -460,7 +470,7 @@ const BrandScreen = ({ route, navigation }) => {
         </View>
       </View>
 
-      {brandProducts.length === 0 ? (
+      {brandProducts.length === 0 && !loading ? (
         <Text style={styles.emptyText}>No products for this brand yet.</Text>
       ) : (
         <FlashList

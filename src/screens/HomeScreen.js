@@ -1,9 +1,9 @@
 import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, TextInput, FlatList, StyleSheet, Alert, Dimensions, Modal, Animated } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, TextInput, FlatList, StyleSheet, Alert, Dimensions, Modal, Animated, ActivityIndicator } from 'react-native';
 import { Image } from 'expo-image';
 import { FlashList } from '@shopify/flash-list';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Search, ShoppingBag, Heart, Bell, Star, Mic, Menu, Package, Truck, CheckCircle, Clock, Flame, Sparkles, LayoutGrid, Shirt, Footprints, ThermometerSnowflake, Smartphone, Laptop, ArrowRight } from 'lucide-react-native';
+import { Search, ShoppingBag, Heart, Bell, Star, Mic, Menu, Package, Truck, CheckCircle, Clock, Flame, Sparkles, LayoutGrid, Shirt, Footprints, ThermometerSnowflake, Smartphone, Laptop, ArrowRight, QrCode } from 'lucide-react-native';
 import { useStore } from '../store/store';
 import { fetchManyProductRatingSummaries } from '../services/ratings';
 import { fetchApprovedBrandsFromSupabase } from '../services/brands';
@@ -13,6 +13,22 @@ import { supabase } from '../lib/supabase';
 import { getFlashSaleState } from '../utils/productHelpers';
 
 const windowWidth = Dimensions.get('window').width;
+
+const formatTimeAgo = (date) => {
+  if (!date) return '';
+  try {
+    const diffMs = Date.now() - date.getTime();
+    const diffMin = Math.round(diffMs / 60000);
+    if (diffMin < 1) return 'Just now';
+    if (diffMin < 60) return `${diffMin}m ago`;
+    const diffH = Math.round(diffMin / 60);
+    if (diffH < 24) return `${diffH}h ago`;
+    const diffD = Math.round(diffH / 24);
+    return `${diffD}d ago`;
+  } catch (e) {
+    return '';
+  }
+};
 
 const PRODUCTS_TTL_MS = 60000; // 60 seconds
 const BRANDS_TTL_MS = 60000;
@@ -33,14 +49,22 @@ const HomeScreen = ({ navigation }) => {
   const setBrandLogoUrl = useStore((state) => state.setBrandLogoUrl);
   const loadFollowedBrands = useStore((state) => state.loadFollowedBrands);
   const setProducts = useStore((state) => state.setProducts);
+  const unreadNotifications = useStore((state) => state.unreadNotifications || 0);
+  const setUnreadNotifications = useStore((state) => state.setUnreadNotifications);
+  const loadUnreadNotifications = useStore((state) => state.loadUnreadNotifications);
+  const brandDisputesDirty = useStore((state) => state.brandDisputesDirty);
+  const clearBrandDisputesDirty = useStore((state) => state.clearBrandDisputesDirty);
   const [searchCode, setSearchCode] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [remoteProducts, setRemoteProducts] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
   const [brands, setBrands] = useState([]);
   const [brandsLoading, setBrandsLoading] = useState(false);
   const [ratingStats, setRatingStats] = useState({});
-  const [unreadNotifications, setUnreadNotifications] = useState(0);
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [selectedAudience, setSelectedAudience] = useState('all');
   const [searchMode, setSearchMode] = useState('text');
@@ -55,26 +79,49 @@ const HomeScreen = ({ navigation }) => {
   const trendingScrollRef = useRef(null);
   const [brandOrderStats, setBrandOrderStats] = useState({
     todaysOrders: 0,
+    yesterdayOrders: 0,
+    todaysVsYesterdayPct: null,
     pending: 0,
     newOrders: 0,
     packing: 0,
     shipped: 0,
     completed: 0,
   });
+  const [brandRecentActivity, setBrandRecentActivity] = useState([]);
+  const [brandRecentLoading, setBrandRecentLoading] = useState(false);
 
-  const loadProducts = useCallback(async ({ reset = false } = {}) => {
+  const loadProducts = useCallback(async ({ reset = false, page: pageOverride } = {}) => {
     try {
-      const now = Date.now();
-      if (!reset && productsLoadedAtRef.current && now - productsLoadedAtRef.current < PRODUCTS_TTL_MS) {
-        return;
+      const targetPage = reset ? 1 : (pageOverride || page);
+
+      if (!reset && targetPage > 1) {
+        if (!hasMore || isLoadingMore) {
+          return;
+        }
+        setIsLoadingMore(true);
+      } else if (reset) {
+        setRefreshing(true);
+        setHasMore(true);
+      } else {
+        setLoading(true);
       }
 
-      setLoading(true);
-      const data = await fetchProductsFromSupabase();
+      const data = await fetchProductsFromSupabase({ page: targetPage, pageSize: 20 });
       if (Array.isArray(data) && data.length > 0) {
-        setRemoteProducts(data);
-        setProducts(data);
-        productsLoadedAtRef.current = now;
+        if (reset || targetPage === 1) {
+          setRemoteProducts(data);
+          setProducts(data);
+        } else {
+          const current = remoteProducts || [];
+          const merged = [
+            ...current,
+            ...data.filter((p) => !current.some((existing) => existing.id === p.id)),
+          ];
+          setRemoteProducts(merged);
+          setProducts(merged);
+        }
+
+        productsLoadedAtRef.current = Date.now();
 
         const urls = data
           .map((item) => getProductCardUri(item))
@@ -84,34 +131,113 @@ const HomeScreen = ({ navigation }) => {
           Image.prefetch(uri);
         });
       }
+
+      if (!data || data.length < 20) {
+        setHasMore(false);
+      }
     } catch (e) {
       Alert.alert('Supabase error', e.message || 'Failed to load products from Supabase');
     } finally {
       setLoading(false);
+      setRefreshing(false);
+      setIsLoadingMore(false);
+      setPage((prev) => (reset ? 2 : prev + 1));
     }
-  }, [setProducts]);
+  }, [page, hasMore, isLoadingMore, remoteProducts, setProducts]);
 
-  const loadUnreadNotifications = useCallback(async () => {
+  const loadBrandRecentActivity = useCallback(async () => {
     try {
       if (!authUserId) {
-        setUnreadNotifications(0);
+        setBrandRecentActivity([]);
         return;
       }
 
-      const { count, error } = await supabase
-        .from('notifications')
-        .select('*', { count: 'exact', head: true })
-        .eq('user_id', authUserId)
-        .eq('is_read', false);
+      setBrandRecentLoading(true);
 
-      if (error) {
-        console.warn('Failed to load unread notifications count', error.message || error);
-        return;
+      // Recent orders for this brand
+      const { data: ordersData, error: ordersError } = await supabase
+        .from('orders')
+        .select('id, status, placed_at, customer_name')
+        .eq('brand_user_id', authUserId)
+        .order('placed_at', { ascending: false })
+        .limit(5);
+
+      let orderActivities = [];
+      if (!ordersError && Array.isArray(ordersData)) {
+        orderActivities = ordersData.map((row) => {
+          const placedAt = row.placed_at ? new Date(row.placed_at) : null;
+          return {
+            id: `order-${row.id}`,
+            type: 'order',
+            timestamp: placedAt || new Date(),
+            title: `New order #${row.id} ${row.status === 'pending' ? 'received' : 'updated'}`,
+            body:
+              row.customer_name && typeof row.customer_name === 'string'
+                ? `Order from ${row.customer_name}`
+                : undefined,
+          };
+        });
       }
 
-      setUnreadNotifications(count || 0);
+      // Recent disputes / support tickets for this brand's orders
+      const { data: ticketsData, error: ticketsError } = await supabase
+        .from('support_tickets')
+        .select('id, ticket_type, order_id_text, status, created_at')
+        .order('created_at', { ascending: false })
+        .limit(20);
+
+      let disputeActivities = [];
+      if (!ticketsError && Array.isArray(ticketsData) && ticketsData.length > 0) {
+        const orderIds = Array.from(
+          new Set(
+            ticketsData
+              .map((t) => (t.order_id_text ? Number(t.order_id_text) : null))
+              .filter((id) => Number.isFinite(id)),
+          ),
+        );
+
+        if (orderIds.length > 0) {
+          const { data: itemsData, error: itemsError } = await supabase
+            .from('order_items')
+            .select('order_id, brand_user_id')
+            .in('order_id', orderIds)
+            .eq('brand_user_id', authUserId);
+
+          if (!itemsError && Array.isArray(itemsData) && itemsData.length > 0) {
+            const allowedOrderIds = new Set(itemsData.map((row) => row.order_id));
+
+            const filteredTickets = ticketsData.filter((t) => {
+              const orderId = t.order_id_text ? Number(t.order_id_text) : null;
+              if (!Number.isFinite(orderId)) return false;
+              return allowedOrderIds.has(orderId);
+            });
+
+            disputeActivities = filteredTickets.slice(0, 5).map((t) => {
+              const createdAt = t.created_at ? new Date(t.created_at) : null;
+              const isOrderIssue = t.ticket_type === 'order_issue';
+              const statusLabel = t.status || 'open';
+              const orderLabel = t.order_id_text ? ` for order #${t.order_id_text}` : '';
+              return {
+                id: `ticket-${t.id}`,
+                type: 'dispute',
+                timestamp: createdAt || new Date(),
+                title: isOrderIssue ? `New order issue${orderLabel}` : `New support ticket${orderLabel}`,
+                body: `Status: ${statusLabel}`,
+              };
+            });
+          }
+        }
+      }
+
+      const merged = [...orderActivities, ...disputeActivities]
+        .sort((a, b) => b.timestamp - a.timestamp)
+        .slice(0, 4);
+
+      setBrandRecentActivity(merged);
     } catch (e) {
-      console.warn('Failed to load unread notifications count', e.message || e);
+      console.warn('HomeScreen: error loading brand recent activity', e.message || e);
+    } finally {
+      setBrandRecentLoading(false);
     }
   }, [authUserId]);
 
@@ -149,8 +275,19 @@ const HomeScreen = ({ navigation }) => {
       loadProducts({ reset: true });
       loadBrands();
       loadUnreadNotifications();
+      loadBrandRecentActivity();
     }, []),
   );
+
+  const handleRefresh = useCallback(() => {
+    if (loading) return;
+    loadProducts({ reset: true });
+  }, [loading, loadProducts]);
+
+  const handleLoadMore = useCallback(() => {
+    if (loading || refreshing || isLoadingMore || !hasMore) return;
+    loadProducts({ reset: false });
+  }, [loading, refreshing, isLoadingMore, hasMore, loadProducts]);
 
   useEffect(() => {
     // Hot Animation: Pulse Scale
@@ -233,6 +370,13 @@ const HomeScreen = ({ navigation }) => {
   }, [authUserId, loadUnreadNotifications]);
 
   useEffect(() => {
+    // When disputes change in realtime, refresh brand recent activity
+    if (!brandDisputesDirty) return;
+    loadBrandRecentActivity();
+    clearBrandDisputesDirty();
+  }, [brandDisputesDirty, loadBrandRecentActivity, clearBrandDisputesDirty]);
+
+  useEffect(() => {
     const isBrand = userType === 'brand' || authRole === 'brand';
     if (!isBrand || !authUserId) return;
 
@@ -270,7 +414,11 @@ const HomeScreen = ({ navigation }) => {
         if (rows.length === 0) {
           console.warn('[BrandDashboard] No orders found for brand_user_id', authUserId);
         }
-        const todayStr = new Date().toDateString();
+        const now = new Date();
+        const todayStr = now.toDateString();
+        const yesterday = new Date(now);
+        yesterday.setDate(now.getDate() - 1);
+        const yesterdayStr = yesterday.toDateString();
 
         // Collapse potential duplicate rows per order id coming from order_items
         const byOrderId = rows.reduce((acc, row) => {
@@ -286,6 +434,7 @@ const HomeScreen = ({ navigation }) => {
         const uniqueOrders = Object.values(byOrderId);
 
         let todaysOrders = 0;
+        let yesterdayOrders = 0;
         let newOrders = 0;
         let pending = 0;
         let packing = 0;
@@ -298,8 +447,13 @@ const HomeScreen = ({ navigation }) => {
           const onTheWayAt = o.on_the_way_at ? new Date(o.on_the_way_at) : null;
           const deliveredAt = o.delivered_at ? new Date(o.delivered_at) : null;
 
-          if (placedAt && placedAt.toDateString() === todayStr) {
-            todaysOrders += 1;
+          if (placedAt) {
+            const dStr = placedAt.toDateString();
+            if (dStr === todayStr) {
+              todaysOrders += 1;
+            } else if (dStr === yesterdayStr) {
+              yesterdayOrders += 1;
+            }
           }
 
           if (!brandAcceptedAt && !onTheWayAt && !deliveredAt) {
@@ -327,8 +481,16 @@ const HomeScreen = ({ navigation }) => {
         });
 
         if (!cancelled) {
+          let todaysVsYesterdayPct = null;
+          if (yesterdayOrders > 0) {
+            const diff = todaysOrders - yesterdayOrders;
+            todaysVsYesterdayPct = Math.round((diff / yesterdayOrders) * 100);
+          }
+
           setBrandOrderStats({
             todaysOrders,
+            yesterdayOrders,
+            todaysVsYesterdayPct,
             pending,
             newOrders,
             packing,
@@ -628,9 +790,9 @@ const HomeScreen = ({ navigation }) => {
 
     if (filtered.length > 0) {
       // Navigate to filtered results or update state
-      navigation.navigate('AllProducts', { 
+      navigation.navigate('AllProducts', {
         searchQuery: query,
-        filteredProducts: filtered 
+        filteredProducts: filtered
       });
     } else {
       Alert.alert('No results', 'No products found matching your search.');
@@ -762,6 +924,14 @@ const HomeScreen = ({ navigation }) => {
             <Menu color="#111827" size={22} />
           </TouchableOpacity>
           <View style={styles.topBarActions}>
+            {(userType === 'brand' || authRole === 'brand') && (
+              <TouchableOpacity
+                style={[styles.roundIconButton, { backgroundColor: '#090966', marginRight: 8 }]}
+                onPress={() => navigation.navigate('PhysicalSaleScanner')}
+              >
+                <QrCode size={20} color="#ffd60a" />
+              </TouchableOpacity>
+            )}
             <TouchableOpacity
               style={styles.roundIconButton}
               onPress={() => {
@@ -1123,6 +1293,8 @@ const HomeScreen = ({ navigation }) => {
     const brand = (brands || []).find((b) => b.user_id === authUserId) || null;
     const {
       todaysOrders,
+      yesterdayOrders,
+      todaysVsYesterdayPct,
       pending: pendingOrdersCount,
       newOrders: newOrdersCount,
       packing: packingOrdersCount,
@@ -1167,6 +1339,13 @@ const HomeScreen = ({ navigation }) => {
               </View>
 
               <TouchableOpacity
+                onPress={() => navigation.navigate('PhysicalSaleScanner')}
+                style={[styles.brandHeaderBell, { marginRight: 8, backgroundColor: '#EFF6FF' }]}
+              >
+                <QrCode color="#090966" size={20} />
+              </TouchableOpacity>
+
+              <TouchableOpacity
                 onPress={() => {
                   setUnreadNotifications(0);
                   navigation.navigate('Notifications');
@@ -1195,7 +1374,13 @@ const HomeScreen = ({ navigation }) => {
               </View>
               <Text style={styles.brandStatLabel}>Today's Orders</Text>
               <Text style={styles.brandStatValue}>{todaysOrders}</Text>
-              <Text style={styles.brandStatChange}>+24% vs yesterday</Text>
+              <Text style={styles.brandStatChange}>
+                {typeof todaysVsYesterdayPct === 'number'
+                  ? `${todaysVsYesterdayPct >= 0 ? '+' : ''}${todaysVsYesterdayPct}% vs yesterday`
+                  : yesterdayOrders > 0
+                    ? '0% vs yesterday'
+                    : 'No data for yesterday'}
+              </Text>
             </View>
 
             <View style={styles.brandStatCardSecondary}>
@@ -1287,6 +1472,32 @@ const HomeScreen = ({ navigation }) => {
           </View>
 
           {/* Primary / secondary CTAs */}
+          <View style={{ paddingHorizontal: 16, marginBottom: 16 }}>
+            <TouchableOpacity
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'center',
+                backgroundColor: '#090966',
+                paddingVertical: 16,
+                borderRadius: 16,
+                marginBottom: 12,
+                shadowColor: '#090966',
+                shadowOffset: { width: 0, height: 4 },
+                shadowOpacity: 0.2,
+                shadowRadius: 8,
+                elevation: 4,
+              }}
+              activeOpacity={0.9}
+              onPress={() => navigation.navigate('PhysicalSaleScanner')}
+            >
+              <QrCode color="#ffd60a" size={20} style={{ marginRight: 8 }} />
+              <Text style={{ color: '#ffffff', fontSize: 16, fontWeight: '700' }}>
+                Scan Physical Sale
+              </Text>
+            </TouchableOpacity>
+          </View>
+
           <View style={styles.brandPrimaryCtasRow}>
             <TouchableOpacity
               style={styles.brandPrimaryCta}
@@ -1308,47 +1519,36 @@ const HomeScreen = ({ navigation }) => {
           {/* Recent Activity */}
           <View style={styles.brandRecentHeaderRow}>
             <Text style={styles.brandSectionTitle}>Recent Activity</Text>
+            {brandRecentLoading ? (
+              <ActivityIndicator size="small" color="#2563EB" />
+            ) : null}
           </View>
 
           <View style={styles.brandRecentList}>
-            <View style={styles.brandRecentItem}>
-              <View style={styles.brandRecentDotNew} />
-              <View style={styles.brandRecentTextCol}>
-                <View style={styles.brandRecentTitleRow}>
-                  <Text style={styles.brandRecentTitle}>New Order #1023 Received</Text>
-                  <Text style={styles.brandRecentTime}>10m ago</Text>
+            {brandRecentActivity.length === 0 && !brandRecentLoading ? (
+              <Text style={styles.brandRecentBody}>No recent activity yet.</Text>
+            ) : (
+              brandRecentActivity.map((item) => (
+                <View key={item.id} style={styles.brandRecentItem}>
+                  <View
+                    style={
+                      item.type === 'order'
+                        ? styles.brandRecentDotNew
+                        : styles.brandRecentDotEscrow
+                    }
+                  />
+                  <View style={styles.brandRecentTextCol}>
+                    <View style={styles.brandRecentTitleRow}>
+                      <Text style={styles.brandRecentTitle}>{item.title}</Text>
+                      <Text style={styles.brandRecentTime}>{formatTimeAgo(item.timestamp)}</Text>
+                    </View>
+                    {item.body ? (
+                      <Text style={styles.brandRecentBody}>{item.body}</Text>
+                    ) : null}
+                  </View>
                 </View>
-                <Text style={styles.brandRecentBody}>
-                  Order for "Vintage Leather Jacket" is pending confirmation.
-                </Text>
-              </View>
-            </View>
-
-            <View style={styles.brandRecentItem}>
-              <View style={styles.brandRecentDotEscrow} />
-              <View style={styles.brandRecentTextCol}>
-                <View style={styles.brandRecentTitleRow}>
-                  <Text style={styles.brandRecentTitle}>Escrow Released</Text>
-                  <Text style={styles.brandRecentTime}>2h ago</Text>
-                </View>
-                <Text style={styles.brandRecentBody}>
-                  Funds for Order #1010 have been added to your available balance.
-                </Text>
-              </View>
-            </View>
-
-            <View style={styles.brandRecentItem}>
-              <View style={styles.brandRecentDotAdmin} />
-              <View style={styles.brandRecentTextCol}>
-                <View style={styles.brandRecentTitleRow}>
-                  <Text style={styles.brandRecentTitle}>Admin Announcement</Text>
-                  <Text style={styles.brandRecentTime}>1d ago</Text>
-                </View>
-                <Text style={styles.brandRecentBody}>
-                  Platform maintenance scheduled for Sunday at 2:00 AM UTC.
-                </Text>
-              </View>
-            </View>
+              ))
+            )}
           </View>
         </ScrollView>
       </SafeAreaView>
@@ -1367,6 +1567,15 @@ const HomeScreen = ({ navigation }) => {
         showsVerticalScrollIndicator={false}
         ListHeaderComponent={renderListHeader}
         estimatedItemSize={260}
+        onEndReached={handleLoadMore}
+        onEndReachedThreshold={0.5}
+        refreshing={refreshing}
+        onRefresh={handleRefresh}
+        ListFooterComponent={isLoadingMore ? (
+          <View style={{ paddingVertical: 16 }}>
+            <ActivityIndicator size="small" color="#2563EB" />
+          </View>
+        ) : null}
       />
     </SafeAreaView>
   );
@@ -1396,6 +1605,19 @@ const ProductCard = React.memo(
     const byName = !byUser && item.brand ? brandDiscountLookup[`name:${item.brand}`] : null;
     const brandDiscount = byUser != null ? byUser : byName;
 
+    // Per-product discount: prefer product-specific discount over brand-wide discount
+    const productLevelDiscount =
+      typeof item.product_discount_percentage === 'number' &&
+        !Number.isNaN(item.product_discount_percentage)
+        ? item.product_discount_percentage
+        : null;
+
+    const isProductDiscounted = !!item.product_discount_active;
+    const effectiveDiscountPct =
+      isProductDiscounted && productLevelDiscount != null
+        ? productLevelDiscount
+        : brandDiscount;
+
     return (
       <TouchableOpacity
         style={styles.productCard}
@@ -1415,9 +1637,9 @@ const ProductCard = React.memo(
               <Text style={styles.flashBadgeText}>Flash Sale</Text>
             </View>
           )}
-          {!isFlashActive && brandDiscount && (
+          {!isFlashActive && effectiveDiscountPct && (
             <View style={styles.discountBadge}>
-              <Text style={styles.discountBadgeText}>-{Math.round(brandDiscount)}%</Text>
+              <Text style={styles.discountBadgeText}>-{Math.round(effectiveDiscountPct)}%</Text>
             </View>
           )}
           {isOutOfStock && !isFlashActive && (
@@ -1473,13 +1695,11 @@ const ProductCard = React.memo(
               );
             }
 
-            const discount = brandDiscount;
-
-            if (!discount || currentPrice <= 0) {
+            if (!effectiveDiscountPct || currentPrice <= 0) {
               return <Text style={styles.productPrice}>${currentPrice.toFixed(2)}</Text>;
             }
 
-            const factor = 1 - discount / 100;
+            const factor = 1 - effectiveDiscountPct / 100;
             if (factor <= 0) {
               return <Text style={styles.productPrice}>${currentPrice.toFixed(2)}</Text>;
             }

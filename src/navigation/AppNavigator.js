@@ -4,7 +4,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { NavigationContainer, createNavigationContainerRef } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Home, ShoppingBag, User, Store, Heart, Zap, Tag, Wallet } from 'lucide-react-native';
-import { View, Text, StyleSheet, Linking } from 'react-native';
+import { View, Text, StyleSheet, Linking, Dimensions } from 'react-native';
 
 // Import Screens
 import HomeScreen from '../screens/HomeScreen';
@@ -14,6 +14,7 @@ import BillingScreen from '../screens/BillingScreen';
 import SuccessScreen from '../screens/SuccessScreen';
 import VendorScreen from '../screens/VendorScreen';
 import BrandAnalyticsScreen from '../screens/BrandAnalyticsScreen';
+import BrandTopProductsScreen from '../screens/BrandTopProductsScreen';
 import BrandOrdersScreen from '../screens/BrandOrdersScreen';
 import BrandProductsScreen from '../screens/BrandProductsScreen';
 import BrandOrderDetailsScreen from '../screens/BrandOrderDetailsScreen';
@@ -46,6 +47,7 @@ import AllBrandCategoriesScreen from '../screens/AllBrandCategoriesScreen';
 import FollowedStoresScreen from '../screens/FollowedStoresScreen';
 import HelpFAQScreen from '../screens/HelpFAQScreen';
 import ReportProblemScreen from '../screens/ReportProblemScreen';
+import BrandDisputesScreen from '../screens/BrandDisputesScreen';
 import OutOfStockProductsScreen from '../screens/OutOfStockProductsScreen';
 import ContactSupportScreen from '../screens/ContactSupportScreen';
 import SupportCallScreen from '../screens/SupportCallScreen';
@@ -73,7 +75,9 @@ import BrandQAScreen from '../screens/BrandQAScreen';
 import BrandWalletScreen from '../screens/BrandWalletScreen';
 import BrandTransactionsScreen from '../screens/BrandTransactionsScreen';
 import ManagePayoutsScreen from '../screens/ManagePayoutsScreen';
+import PhysicalSaleScannerScreen from '../screens/PhysicalSaleScannerScreen';
 import { useStore } from '../store/store';
+import useBrandRealtime from '../hooks/useBrandRealtime';
 
 export const navigationRef = createNavigationContainerRef();
 
@@ -155,21 +159,36 @@ const TabNavigator = () => {
             name="BrandOrders"
             component={BrandOrdersScreen}
             options={{
-              tabBarIcon: ({ color }) => <ShoppingBag color={color} size={24} />,
+              tabBarIcon: ({ focused }) => (
+                <View style={styles.iconContainer}>
+                  <ShoppingBag color="#FFFFFF" size={24} />
+                  <TabIndicator focused={focused} />
+                </View>
+              ),
             }}
           />
           <Tab.Screen
             name="BrandProducts"
             component={BrandProductsScreen}
             options={{
-              tabBarIcon: ({ color }) => <Store color={color} size={24} />,
+              tabBarIcon: ({ focused }) => (
+                <View style={styles.iconContainer}>
+                  <Store color="#FFFFFF" size={24} />
+                  <TabIndicator focused={focused} />
+                </View>
+              ),
             }}
           />
           <Tab.Screen
             name="BrandWallet"
             component={BrandWalletScreen}
             options={{
-              tabBarIcon: ({ color }) => <Wallet color={color} size={24} />,
+              tabBarIcon: ({ focused }) => (
+                <View style={styles.iconContainer}>
+                  <Wallet color="#FFFFFF" size={24} />
+                  <TabIndicator focused={focused} />
+                </View>
+              ),
             }}
           />
         </>
@@ -252,6 +271,10 @@ const TabNavigator = () => {
 
 const RootStackNavigator = () => {
   const [initialRoute, setInitialRoute] = useState(null);
+  const authUserId = useStore((state) => state.authUserId);
+
+  // Activate brand realtime subscriptions for the lifetime of the main app stack
+  useBrandRealtime();
 
   useEffect(() => {
     const determineInitialRoute = async () => {
@@ -259,91 +282,100 @@ const RootStackNavigator = () => {
         const url = await Linking.getInitialURL();
         if (url && url.startsWith('ecommerceapp://reset-password')) {
           setInitialRoute('ResetPassword');
+        } else if (authUserId) {
+          setInitialRoute('Main');
         } else {
           setInitialRoute('CustomerOnboarding');
         }
       } catch (e) {
-        setInitialRoute('CustomerOnboarding');
+        if (authUserId) {
+          setInitialRoute('Main');
+        } else {
+          setInitialRoute('CustomerOnboarding');
+        }
       }
     };
 
     determineInitialRoute();
-  }, []);
+  }, [authUserId]);
 
   if (!initialRoute) {
     return null;
   }
 
   return (
-      <Stack.Navigator initialRouteName={initialRoute} screenOptions={{ 
-        headerShown: false,
-        // Enable slide animation for stack navigation (not tabs)
-        gestureEnabled: true,
-        animationTypeForReplace: 'push',
-        animation: 'slide_from_right',
-      }}>
-        <Stack.Screen name="CustomerOnboarding" component={CustomerOnboardingScreen} />
-        <Stack.Screen name="Welcome" component={WelcomeScreen} />
-        <Stack.Screen name="Signup" component={SignupScreen} />
-        <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
-        <Stack.Screen name="ResetPassword" component={ResetPasswordScreen} />
-        <Stack.Screen name="Main" component={TabNavigator} />
-        <Stack.Screen name="Notifications" component={NotificationsScreen} />
-        <Stack.Screen name="EditProfile" component={EditProfileScreen} />
-        <Stack.Screen name="Addresses" component={AddressesScreen} />
-        <Stack.Screen name="AddAddress" component={AddAddressScreen} />
-        <Stack.Screen name="ProductDetails" component={ProductDetailsScreen} />
-        <Stack.Screen name="Home" component={HomeScreen} />
-        <Stack.Screen name="Vendor" component={VendorScreen} />
-        <Stack.Screen name="BrandAnalytics" component={BrandAnalyticsScreen} />
-        <Stack.Screen name="VendorOrders" component={VendorOrdersScreen} />
-        <Stack.Screen name="FlashSale" component={FlashSaleScreen} />
-        <Stack.Screen name="EditFlashSale" component={EditFlashSaleScreen} />
-        <Stack.Screen name="Billing" component={BillingScreen} />
-        <Stack.Screen name="Success" component={SuccessScreen} />
-        <Stack.Screen name="AddProduct" component={AddProductScreen} />
-        <Stack.Screen name="EditProduct" component={EditProductScreen} />
-        <Stack.Screen name="AllProducts" component={AllProductsScreen} />
-        <Stack.Screen name="CategoryProducts" component={CategoryProductsScreen} />
-        <Stack.Screen name="Brand" component={BrandScreen} />
-        <Stack.Screen name="BrandOnboarding" component={BrandOnboardingScreen} />
-        <Stack.Screen name="CreateAnnouncement" component={CreateAnnouncementScreen} />
-        <Stack.Screen name="AdminBrands" component={AdminBrandsScreen} />
-        <Stack.Screen name="AdminVendor" component={AdminVendorScreen} />
-        <Stack.Screen name="AdminProducts" component={AdminProductsScreen} />
-        <Stack.Screen name="AdminDashboard" component={AdminDashboardScreen} />
-        <Stack.Screen name="AllBrands" component={AllBrandsScreen} />
-        <Stack.Screen name="AllBrandCategories" component={AllBrandCategoriesScreen} />
-        <Stack.Screen name="AdminCustomers" component={AdminCustomersScreen} />
-        <Stack.Screen name="AdminCustomerDetails" component={AdminCustomerDetailsScreen} />
-        <Stack.Screen name="AdminSupportTickets" component={AdminSupportTicketsScreen} />
-        <Stack.Screen name="AdminSupportTicketDetails" component={AdminSupportTicketDetailsScreen} />
-        <Stack.Screen name="AdminOrders" component={AdminOrdersScreen} />
-        <Stack.Screen name="TrackOrder" component={TrackOrderScreen} />
-        <Stack.Screen name="TrackOrderDetails" component={TrackOrderDetailsScreen} />
-        <Stack.Screen name="SimpleOrderTracking" component={SimpleOrderTrackingScreen} />
-        <Stack.Screen name="OrderDeliveredSuccess" component={OrderDeliveredSuccessScreen} />
-        <Stack.Screen name="BrandOrderDetails" component={BrandOrderDetailsScreen} />
-        <Stack.Screen name="BrandDiscount" component={BrandDiscountScreen} />
-        <Stack.Screen name="BrandWallet" component={BrandWalletScreen} />
-        <Stack.Screen name="BrandTransactions" component={BrandTransactionsScreen} />
-        <Stack.Screen name="ManagePayouts" component={ManagePayoutsScreen} />
-        <Stack.Screen name="ProductReviews" component={ProductReviewsScreen} />
-        <Stack.Screen name="BrandReviews" component={BrandReviewsScreen} />
-        <Stack.Screen name="BrandQA" component={BrandQAScreen} />
-        <Stack.Screen name="ProductQuestions" component={ProductQuestionsScreen} />
-        <Stack.Screen name="ProductAskQuestion" component={ProductAskQuestionScreen} />
-        <Stack.Screen name="ProductWriteReview" component={ProductWriteReviewScreen} />
-        <Stack.Screen name="FollowedStores" component={FollowedStoresScreen} />
-        <Stack.Screen name="HelpFAQ" component={HelpFAQScreen} />
-        <Stack.Screen name="ReportProblem" component={ReportProblemScreen} />
-        <Stack.Screen name="ContactSupport" component={ContactSupportScreen} />
-        <Stack.Screen name="SupportCall" component={SupportCallScreen} />
-        <Stack.Screen name="SupportEmail" component={SupportEmailScreen} />
-        <Stack.Screen name="TermsConditions" component={TermsConditionsScreen} />
-        <Stack.Screen name="PrivacyPolicy" component={PrivacyPolicyScreen} />
-        <Stack.Screen name="OutOfStockProducts" component={OutOfStockProductsScreen} />
-      </Stack.Navigator>
+    <Stack.Navigator initialRouteName={initialRoute} screenOptions={{
+      headerShown: false,
+      // Enable slide animation for stack navigation (not tabs)
+      gestureEnabled: true,
+      animationTypeForReplace: 'push',
+      animation: 'slide_from_right',
+    }}>
+      <Stack.Screen name="CustomerOnboarding" component={CustomerOnboardingScreen} />
+      <Stack.Screen name="Welcome" component={WelcomeScreen} />
+      <Stack.Screen name="Signup" component={SignupScreen} />
+      <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
+      <Stack.Screen name="ResetPassword" component={ResetPasswordScreen} />
+      <Stack.Screen name="Main" component={TabNavigator} />
+      <Stack.Screen name="Notifications" component={NotificationsScreen} />
+      <Stack.Screen name="EditProfile" component={EditProfileScreen} />
+      <Stack.Screen name="Addresses" component={AddressesScreen} />
+      <Stack.Screen name="AddAddress" component={AddAddressScreen} />
+      <Stack.Screen name="ProductDetails" component={ProductDetailsScreen} />
+      <Stack.Screen name="Home" component={HomeScreen} />
+      <Stack.Screen name="Vendor" component={VendorScreen} />
+      <Stack.Screen name="BrandAnalytics" component={BrandAnalyticsScreen} />
+      <Stack.Screen name="BrandTopProducts" component={BrandTopProductsScreen} />
+      <Stack.Screen name="VendorOrders" component={VendorOrdersScreen} />
+      <Stack.Screen name="FlashSale" component={FlashSaleScreen} />
+      <Stack.Screen name="EditFlashSale" component={EditFlashSaleScreen} />
+      <Stack.Screen name="Billing" component={BillingScreen} />
+      <Stack.Screen name="Success" component={SuccessScreen} />
+      <Stack.Screen name="AddProduct" component={AddProductScreen} />
+      <Stack.Screen name="EditProduct" component={EditProductScreen} />
+      <Stack.Screen name="AllProducts" component={AllProductsScreen} />
+      <Stack.Screen name="CategoryProducts" component={CategoryProductsScreen} />
+      <Stack.Screen name="Brand" component={BrandScreen} />
+      <Stack.Screen name="BrandOnboarding" component={BrandOnboardingScreen} />
+      <Stack.Screen name="CreateAnnouncement" component={CreateAnnouncementScreen} />
+      <Stack.Screen name="AdminBrands" component={AdminBrandsScreen} />
+      <Stack.Screen name="AdminVendor" component={AdminVendorScreen} />
+      <Stack.Screen name="AdminProducts" component={AdminProductsScreen} />
+      <Stack.Screen name="AdminDashboard" component={AdminDashboardScreen} />
+      <Stack.Screen name="AllBrands" component={AllBrandsScreen} />
+      <Stack.Screen name="AllBrandCategories" component={AllBrandCategoriesScreen} />
+      <Stack.Screen name="AdminCustomers" component={AdminCustomersScreen} />
+      <Stack.Screen name="AdminCustomerDetails" component={AdminCustomerDetailsScreen} />
+      <Stack.Screen name="AdminSupportTickets" component={AdminSupportTicketsScreen} />
+      <Stack.Screen name="AdminSupportTicketDetails" component={AdminSupportTicketDetailsScreen} />
+      <Stack.Screen name="AdminOrders" component={AdminOrdersScreen} />
+      <Stack.Screen name="TrackOrder" component={TrackOrderScreen} />
+      <Stack.Screen name="TrackOrderDetails" component={TrackOrderDetailsScreen} />
+      <Stack.Screen name="SimpleOrderTracking" component={SimpleOrderTrackingScreen} />
+      <Stack.Screen name="OrderDeliveredSuccess" component={OrderDeliveredSuccessScreen} />
+      <Stack.Screen name="BrandOrderDetails" component={BrandOrderDetailsScreen} />
+      <Stack.Screen name="BrandDiscount" component={BrandDiscountScreen} />
+      <Stack.Screen name="BrandWallet" component={BrandWalletScreen} />
+      <Stack.Screen name="BrandTransactions" component={BrandTransactionsScreen} />
+      <Stack.Screen name="ManagePayouts" component={ManagePayoutsScreen} />
+      <Stack.Screen name="ProductReviews" component={ProductReviewsScreen} />
+      <Stack.Screen name="BrandReviews" component={BrandReviewsScreen} />
+      <Stack.Screen name="BrandQA" component={BrandQAScreen} />
+      <Stack.Screen name="ProductQuestions" component={ProductQuestionsScreen} />
+      <Stack.Screen name="ProductAskQuestion" component={ProductAskQuestionScreen} />
+      <Stack.Screen name="ProductWriteReview" component={ProductWriteReviewScreen} />
+      <Stack.Screen name="FollowedStores" component={FollowedStoresScreen} />
+      <Stack.Screen name="HelpFAQ" component={HelpFAQScreen} />
+      <Stack.Screen name="ReportProblem" component={ReportProblemScreen} />
+      <Stack.Screen name="BrandDisputes" component={BrandDisputesScreen} />
+      <Stack.Screen name="ContactSupport" component={ContactSupportScreen} />
+      <Stack.Screen name="SupportCall" component={SupportCallScreen} />
+      <Stack.Screen name="SupportEmail" component={SupportEmailScreen} />
+      <Stack.Screen name="TermsConditions" component={TermsConditionsScreen} />
+      <Stack.Screen name="PrivacyPolicy" component={PrivacyPolicyScreen} />
+      <Stack.Screen name="OutOfStockProducts" component={OutOfStockProductsScreen} />
+      <Stack.Screen name="PhysicalSaleScanner" component={PhysicalSaleScannerScreen} />
+    </Stack.Navigator>
   );
 };
 

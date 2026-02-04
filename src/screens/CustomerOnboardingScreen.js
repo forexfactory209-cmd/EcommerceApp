@@ -107,14 +107,22 @@ const CustomerOnboardingScreen = ({ navigation }) => {
     }
   };
 
-  const currentSlide = SLIDES[index] || SLIDES[0];
-  const isLast = index === SLIDES.length - 1;
+  // Guard against index going out of bounds so we never read bg on an undefined slide
+  const safeIndex = SLIDES.length > 0
+    ? Math.min(Math.max(index, 0), SLIDES.length - 1)
+    : 0;
+  const currentSlide = SLIDES[safeIndex] || SLIDES[0];
+  const isLast = safeIndex === SLIDES.length - 1;
 
 
 
   return (
     <View style={styles.container}>
-      <ImageBackground source={currentSlide?.bg || OnboardingBgDefault} style={styles.bgImage} resizeMode="cover">
+      <ImageBackground
+        source={currentSlide?.bg || OnboardingBgDefault}
+        style={styles.bgImage}
+        resizeMode="cover"
+      >
         <View style={styles.overlay}>
           <SafeAreaView style={styles.safeArea}>
 
