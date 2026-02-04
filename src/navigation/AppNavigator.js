@@ -155,13 +155,18 @@ const TabNavigator = () => {
       )}
       {userType !== 'brand' && authRole !== 'admin' && (
         <Tab.Screen
-          name="FlashSaleTab"
-          component={FlashSaleScreen}
+          name="Cart"
+          component={CartScreen}
           options={{
             tabBarIcon: ({ focused }) => (
               <View style={styles.iconContainer}>
-                <Zap color="#FFFFFF" size={24} />
+                <ShoppingBag color="#FFFFFF" size={24} />
                 <TabIndicator focused={focused} />
+                {cartItems > 0 && (
+                  <View style={styles.cartBadge}>
+                    <Text style={styles.cartBadgeText}>{cartItems}</Text>
+                  </View>
+                )}
               </View>
             ),
           }}
@@ -181,6 +186,20 @@ const TabNavigator = () => {
                     <Text style={styles.cartBadgeText}>{wishlistCount}</Text>
                   </View>
                 )}
+              </View>
+            ),
+          }}
+        />
+      )}
+      {userType !== 'brand' && authRole !== 'admin' && (
+        <Tab.Screen
+          name="FlashSaleTab"
+          component={FlashSaleScreen}
+          options={{
+            tabBarIcon: ({ focused }) => (
+              <View style={styles.iconContainer}>
+                <Zap color="#FFFFFF" size={24} />
+                <TabIndicator focused={focused} />
               </View>
             ),
           }}
@@ -223,25 +242,6 @@ const TabNavigator = () => {
             }}
           />
         </>
-      )}
-      {userType !== 'brand' && authRole !== 'admin' && (
-        <Tab.Screen
-          name="Cart"
-          component={CartScreen}
-          options={{
-            tabBarIcon: ({ focused }) => (
-              <View style={styles.iconContainer}>
-                <ShoppingBag color="#FFFFFF" size={24} />
-                <TabIndicator focused={focused} />
-                {cartItems > 0 && (
-                  <View style={styles.cartBadge}>
-                    <Text style={styles.cartBadgeText}>{cartItems}</Text>
-                  </View>
-                )}
-              </View>
-            ),
-          }}
-        />
       )}
       <Tab.Screen
         name="Profile"

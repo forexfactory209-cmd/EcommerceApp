@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Switch, ScrollView, Alert, KeyboardAvoidingView, Platform, Animated, Dimensions, StatusBar, Keyboard } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Switch, ScrollView, Alert, KeyboardAvoidingView, Platform, Animated, Dimensions, StatusBar } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { supabase } from '../lib/supabase';
@@ -19,22 +19,20 @@ import {
 const { width } = Dimensions.get('window');
 const BRAND_COLOR = '#090966';
 
-const InputField = React.memo(({ label, icon: Icon, value, onChangeText, placeholder, type, editable = true, onPress, error, focusedInput, setFocusedInput, onFocus, multiline = false, numberOfLines }) => {
-  const pickerField = !!onPress;
-  const isFocused = pickerField && focusedInput === label;
-  const Container = pickerField ? TouchableOpacity : View;
+const InputField = ({ label, icon: Icon, value, onChangeText, placeholder, type, editable = true, onPress, error }) => {
+  const Container = onPress ? TouchableOpacity : View;
 
   return (
     <View style={styles.fieldGroup}>
       <Text style={styles.label}>{label}</Text>
       <Container
-        style={[styles.inputContainer, isFocused && styles.inputFocused, error && styles.inputError]}
+        style={[styles.inputContainer, error && styles.inputError]}
         onPress={onPress}
         activeOpacity={onPress ? 0.7 : 1}
       >
         {Icon && <Icon size={20} color={BRAND_COLOR} style={styles.inputIcon} />}
         
-        {editable && !pickerField ? (
+        {editable ? (
           <TextInput
             style={styles.input}
             placeholder={placeholder}
@@ -45,15 +43,9 @@ const InputField = React.memo(({ label, icon: Icon, value, onChangeText, placeho
             onChangeText={onChangeText}
             autoCapitalize="none"
             editable={editable}
-            multiline={multiline}
-            numberOfLines={numberOfLines}
-            blurOnSubmit={!multiline}
-            onFocus={() => {
-              onFocus && onFocus();
-            }}
           />
         ) : (
-          <Text style={[styles.input, { textAlignVertical: 'center' }]} numberOfLines={1}>
+          <Text style={[styles.input, { textAlignVertical: 'center' }]}>
             {value || placeholder}
           </Text>
         )}
@@ -63,13 +55,12 @@ const InputField = React.memo(({ label, icon: Icon, value, onChangeText, placeho
       {error && <Text style={styles.errorText}>{error}</Text>}
     </View>
   );
-});
+};
 
 const AddAddressScreen = () => {
   const navigation = useNavigation();
   const route = useRoute();
   const editingAddress = route?.params?.address || null;
-  const returnTo = route?.params?.returnTo || null;
   const authUserId = useStore((state) => state.authUserId);
   const userProfile = useStore((state) => state.userProfile);
 
@@ -85,65 +76,16 @@ const AddAddressScreen = () => {
   const [saving, setSaving] = useState(false);
   const [cityDropdownOpen, setCityDropdownOpen] = useState(false);
   const [districtDropdownOpen, setDistrictDropdownOpen] = useState(false);
-  const [focusedInput, setFocusedInput] = useState(null);
-
-  const closeDropdowns = () => {
-    setCityDropdownOpen(false);
-    setDistrictDropdownOpen(false);
-  };
-
-  const closeKeyboardAndDropdowns = () => {
-    Keyboard.dismiss();
-    closeDropdowns();
-  };
-
-  // Error states
-  const [nameError, setNameError] = useState('');
-  const [cityError, setCityError] = useState('');
-  const [districtError, setDistrictError] = useState('');
-  const [phoneError, setPhoneError] = useState('');
-  const [secondaryPhoneError, setSecondaryPhoneError] = useState('');
-  const [addressError, setAddressError] = useState('');
 
   const fadeAnim = React.useRef(new Animated.Value(0)).current;
 
-  // Updated constants matching SignupScreen
-  const COUNTRY_OPTIONS = [
-    { label: 'Somaliland 🏳️', value: 'Somaliland' },
-    { label: 'Djibouti 🇩🇯', value: 'Djibouti' },
-    { label: 'Somalia 🇸🇴', value: 'Somalia' },
-    { label: 'Ethiopia 🇪🇹', value: 'Ethiopia' },
-    { label: 'Kenya 🇰🇪', value: 'Kenya' },
-  ];
-
-  const CITY_OPTIONS = [
-    'Hargeysa',
-    'Burco',
-    'Boorama',
-    'Berbera',
-    'Gabiley',
-    'Ceerigaabo',
-    'Laascaanood',
-    'Saylac',
-    'Sheekh',
-    'Wajaale',
-    'Caynaba',
-    'Baligubadle',
-    'Badhan',
-    'Dhahar',
-  ];
-
-  const DISTRICT_OPTIONS = [
-    'Gacan Libaax',
-    '26 June',
-    'Ibraahin Koodbuur',
-    'Maxamuud Haybe',
-    'Axmed Dhegax',
-    'Gacma Dheere',
-    'Maxamed Mooge',
-    '31 May',
-    'Macalin Haaruun',
-  ];
+  const CITY_OPTIONS = ['Mogadishu', 'Hargeisa', 'Kismayo', 'Baidoa'];
+  const DISTRICT_OPTIONS_BY_CITY = {
+    Mogadishu: ['Hodan', 'Hamar Weyne', 'Wadajir', 'Waberi'],
+    Hargeisa: ['Maroodi Jeex', 'Ibrahim Koodbuur'],
+    Kismayo: ['Farjano', 'Alanley'],
+    Baidoa: ['Isha', 'Howl Wadaag'],
+  };
 
   useEffect(() => {
     Animated.timing(fadeAnim, {
@@ -175,154 +117,23 @@ const AddAddressScreen = () => {
     }
   }, [editingAddress, userProfile]);
 
-  // Phone validation from SignupScreen
-  const validateSomaliaPhone = (number) => {
-    if (!number) return null;
-    const digits = number.replace(/\D/g, '');
-
-    let cleanNumber = '';
-
-    // Handle formats: +2520..., 2520..., +252..., 252..., 0..., or just the 9 digits
-    if (digits.startsWith('252')) {
-      const remaining = digits.slice(3);
-      if (remaining.startsWith('0')) {
-        cleanNumber = remaining.slice(1);
-      } else {
-        cleanNumber = remaining;
-      }
-    } else if (digits.startsWith('0')) {
-      cleanNumber = digits.slice(1);
-    } else {
-      cleanNumber = digits;
-    }
-
-    if (cleanNumber.length !== 9) {
-      return "Use 9 core digits (after prefix/country code)";
-    }
-
-    const allowedPrefixes = ['61', '77', '63', '65', '90', '67'];
-    const prefix = cleanNumber.substring(0, 2);
-
-    if (!allowedPrefixes.includes(prefix)) {
-      return "Invalid prefix. Use Hormuud, Telesom, Somtel, Golis or Soltelco";
-    }
-
-    return null;
-  };
-
-  const normalizePhone = (number) => {
-    if (!number) return '';
-    const digits = number.replace(/\D/g, '');
-    let cleanNumber = '';
-
-    if (digits.startsWith('252')) {
-      const remaining = digits.slice(3);
-      if (remaining.startsWith('0')) {
-        cleanNumber = remaining.slice(1);
-      } else {
-        cleanNumber = remaining;
-      }
-    } else if (digits.startsWith('0')) {
-      cleanNumber = digits.slice(1);
-    } else {
-      cleanNumber = digits;
-    }
-
-    return cleanNumber.length === 9 ? `+252${cleanNumber}` : digits;
-  };
-
-  const handlePhoneChange = (val) => {
-    setPhone(val);
-    const error = validateSomaliaPhone(val);
-    setPhoneError(error || '');
-  };
-
-  const handleSecondaryPhoneChange = (val) => {
-    setSecondaryPhone(val);
-    const error = validateSomaliaPhone(val);
-    setSecondaryPhoneError(error || '');
-  };
-
-  const handleCountrySelect = (option) => {
-    if (option.value !== 'Somaliland') {
-      Alert.alert('Service Unavailable', 'Right now we are available in only Somaliland.');
-      setCountry('Somaliland');
-    } else {
-      setCountry(option.value);
-    }
-    setCityDropdownOpen(false);
-  };
-
-  const validateForm = () => {
-    let isValid = true;
-
-    // Name validation
-    if (!name.trim() || name.trim().length < 2) {
-      setNameError('Please enter a valid name (at least 2 characters)');
-      isValid = false;
-    } else {
-      setNameError('');
-    }
-
-    // City validation
-    if (!city.trim()) {
-      setCityError('Please select your city');
-      isValid = false;
-    } else {
-      setCityError('');
-    }
-
-    // District validation
-    if (!district.trim()) {
-      setDistrictError('Please select your district');
-      isValid = false;
-    } else {
-      setDistrictError('');
-    }
-
-    // Phone validation
-    if (!phone.trim()) {
-      setPhoneError('Please enter your phone number');
-      isValid = false;
-    } else {
-      const phoneErrorMsg = validateSomaliaPhone(phone);
-      if (phoneErrorMsg) {
-        setPhoneError(phoneErrorMsg);
-        isValid = false;
-      } else {
-        setPhoneError('');
-      }
-    }
-
-    // Secondary phone validation (optional)
-    if (secondaryPhone.trim()) {
-      const secondaryPhoneErrorMsg = validateSomaliaPhone(secondaryPhone);
-      if (secondaryPhoneErrorMsg) {
-        setSecondaryPhoneError(secondaryPhoneErrorMsg);
-        isValid = false;
-      } else {
-        setSecondaryPhoneError('');
-      }
-    }
-
-    // Address validation
-    if (!addressLine.trim()) {
-      setAddressError('Please enter your street address');
-      isValid = false;
-    } else {
-      setAddressError('');
-    }
-
-    return isValid;
-  };
-
   const handleSave = async () => {
-    if (!validateForm()) {
-      return;
-    }
+    const trimmedName = name.trim();
+    const trimmedCountry = country.trim();
+    const trimmedCity = city.trim();
+    const trimmedDistrict = district.trim();
+    const trimmedPhone = phone.trim();
+    const trimmedSecondaryPhone = secondaryPhone.trim();
+    const trimmedAddress = addressLine.trim();
+    const trimmedAddressDescr = addressDescr.trim();
 
     if (!authUserId) {
       Alert.alert('Not signed in', 'You need to be logged in to save an address.');
+      return;
+    }
+
+    if (!trimmedName || !trimmedCountry || !trimmedCity || !trimmedAddress) {
+      Alert.alert('Missing details', 'Please fill in name, country, city and address.');
       return;
     }
 
@@ -357,22 +168,19 @@ const AddAddressScreen = () => {
         }
       }
 
-      const normalizedPhone = normalizePhone(phone);
-      const normalizedSecondaryPhone = secondaryPhone ? normalizePhone(secondaryPhone) : null;
-
       let error;
       if (editingAddress) {
         const { error: updError } = await supabase
           .from('customer_addresses')
           .update({
-            name: name.trim(),
-            country: country.trim(),
-            city: city.trim(),
-            district: district.trim(),
-            phone: normalizedPhone,
-            secondary_phone: normalizedSecondaryPhone,
-            address_line: addressLine.trim(),
-            address_descr: addressDescr.trim() || null,
+            name: trimmedName,
+            country: trimmedCountry,
+            city: trimmedCity,
+            district: trimmedDistrict || null,
+            phone: trimmedPhone || null,
+            secondary_phone: trimmedSecondaryPhone || null,
+            address_line: trimmedAddress,
+            address_descr: trimmedAddressDescr || null,
             is_primary: isPrimary,
           })
           .eq('id', editingAddress.id)
@@ -382,14 +190,14 @@ const AddAddressScreen = () => {
         const { error: insError } = await supabase.from('customer_addresses').insert([
           {
             user_id: authUserId,
-            name: name.trim(),
-            country: country.trim(),
-            city: city.trim(),
-            district: district.trim(),
-            phone: normalizedPhone,
-            secondary_phone: normalizedSecondaryPhone,
-            address_line: addressLine.trim(),
-            address_descr: addressDescr.trim() || null,
+            name: trimmedName,
+            country: trimmedCountry,
+            city: trimmedCity,
+            district: trimmedDistrict || null,
+            phone: trimmedPhone || null,
+            secondary_phone: trimmedSecondaryPhone || null,
+            address_line: trimmedAddress,
+            address_descr: trimmedAddressDescr || null,
             is_primary: isPrimary,
           },
         ]);
@@ -402,13 +210,7 @@ const AddAddressScreen = () => {
         return;
       }
 
-      if (returnTo === 'Addresses') {
-        navigation.replace('Addresses');
-      } else if (returnTo) {
-        navigation.goBack();
-      } else {
-        navigation.replace('Addresses');
-      }
+      navigation.replace('Addresses');
     } catch (e) {
       console.warn('AddAddress: unexpected error', e.message || e);
       Alert.alert('Error', 'Something went wrong. Please try again.');
@@ -438,8 +240,6 @@ const AddAddressScreen = () => {
           style={styles.content}
           contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
-          keyboardDismissMode="on-drag"
-          onScrollBeginDrag={closeKeyboardAndDropdowns}
           showsVerticalScrollIndicator={false}
         >
           <Animated.View style={[styles.formCard, { opacity: fadeAnim }]}>
@@ -449,9 +249,6 @@ const AddAddressScreen = () => {
               value={name}
               onChangeText={setName}
               placeholder="Enter your full name"
-              error={nameError}
-              focusedInput={focusedInput}
-              setFocusedInput={setFocusedInput}
             />
 
             <InputField
@@ -461,25 +258,18 @@ const AddAddressScreen = () => {
               onChangeText={setCountry}
               placeholder="Country"
               editable={false}
-              focusedInput={focusedInput}
-              setFocusedInput={setFocusedInput}
             />
 
             <InputField
               label="City"
               icon={Building}
               value={city}
+              onChangeText={setCity}
               placeholder="Select your city"
-              editable={false}
               onPress={() => {
-                Keyboard.dismiss();
-                setFocusedInput('City');
                 setCityDropdownOpen((prev) => !prev);
                 setDistrictDropdownOpen(false);
               }}
-              error={cityError}
-              focusedInput={focusedInput}
-              setFocusedInput={setFocusedInput}
             />
             {cityDropdownOpen && (
               <View style={styles.dropdownMenu}>
@@ -491,8 +281,6 @@ const AddAddressScreen = () => {
                       setCity(option);
                       setDistrict('');
                       setCityDropdownOpen(false);
-                      setCityError('');
-                      setFocusedInput(null);
                     }}
                   >
                     <Text style={styles.dropdownItemText}>{option}</Text>
@@ -506,30 +294,23 @@ const AddAddressScreen = () => {
               label="District"
               icon={Home}
               value={district}
+              onChangeText={setDistrict}
               placeholder={city ? 'Select District' : 'Select City first'}
-              editable={false}
               onPress={() => {
                 if (!city) return;
-                Keyboard.dismiss();
-                setFocusedInput('District');
                 setDistrictDropdownOpen((prev) => !prev);
                 setCityDropdownOpen(false);
               }}
-              error={districtError}
-              focusedInput={focusedInput}
-              setFocusedInput={setFocusedInput}
             />
             {districtDropdownOpen && city && (
               <View style={styles.dropdownMenu}>
-                {DISTRICT_OPTIONS.map((option) => (
+                {(DISTRICT_OPTIONS_BY_CITY[city] || []).map((option) => (
                   <TouchableOpacity
                     key={option}
                     style={styles.dropdownItem}
                     onPress={() => {
                       setDistrict(option);
                       setDistrictDropdownOpen(false);
-                      setDistrictError('');
-                      setFocusedInput(null);
                     }}
                   >
                     <Text style={styles.dropdownItemText}>{option}</Text>
@@ -543,22 +324,18 @@ const AddAddressScreen = () => {
               label="Phone Number"
               icon={Phone}
               value={phone}
-              onChangeText={handlePhoneChange}
+              onChangeText={setPhone}
               placeholder="+252 6X XXX XXXX"
               type="phone-pad"
-              error={phoneError}
-              onFocus={closeDropdowns}
             />
 
             <InputField
               label="Second Phone (Optional)"
               icon={Phone}
               value={secondaryPhone}
-              onChangeText={handleSecondaryPhoneChange}
+              onChangeText={setSecondaryPhone}
               placeholder="+252 6X XXX XXXX"
               type="phone-pad"
-              error={secondaryPhoneError}
-              onFocus={closeDropdowns}
             />
 
             <InputField
@@ -568,9 +345,6 @@ const AddAddressScreen = () => {
               onChangeText={setAddressLine}
               placeholder="Street, building, apartment, etc."
               multiline
-              numberOfLines={2}
-              error={addressError}
-              onFocus={closeDropdowns}
             />
 
             <InputField
@@ -580,8 +354,6 @@ const AddAddressScreen = () => {
               onChangeText={setAddressDescr}
               placeholder="Near landmark, floor, special instructions"
               multiline
-              numberOfLines={2}
-              onFocus={closeDropdowns}
             />
 
             <View style={styles.switchContainer}>
@@ -678,14 +450,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
   },
-  inputFocused: {
-    borderColor: BRAND_COLOR,
-    backgroundColor: '#FFFFFF',
-    shadowColor: BRAND_COLOR,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 1,
+  inputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 12,
+    backgroundColor: '#F9FAFB',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
   },
   inputError: {
     borderColor: '#EF4444',

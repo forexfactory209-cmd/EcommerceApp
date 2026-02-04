@@ -9,96 +9,51 @@ import {
   ScrollView,
   Animated,
   Easing,
+  StatusBar,
+  Dimensions,
+  TextInput,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { supabase } from '../lib/supabase';
 import { useStore } from '../store/store';
+import {
+  Package,
+  Truck,
+  CheckCircle,
+  Clock,
+  AlertCircle,
+  ChevronLeft,
+  Calendar,
+  DollarSign,
+  Search,
+  Filter,
+  ShoppingBag,
+  MoreVertical,
+  X,
+  TrendingUp,
+} from 'lucide-react-native';
 
-const COLORS = {
-  light: {
-    background: '#FFFFFF',
-    card: '#FFFFFF',
-    border: '#E5E7EB',
-    textPrimary: '#111827',
-    textSecondary: '#6B7280',
-    textMuted: '#9CA3AF',
-  },
-  // Stylish order list rows (used as styles, not theme)
-  orderListRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 14,
-    paddingHorizontal: 14,
-    marginBottom: 10,
-    borderRadius: 18,
-    borderWidth: 1,
-    backgroundColor: '#FFFFFF',
-    shadowColor: '#000',
-    shadowOpacity: 0.03,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 2,
-    
-  },
-  orderListTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  orderListMeta: {
-    fontSize: 12,
-    marginTop: 2,
-  },
-  orderListHint: {
-    fontSize: 11,
-    marginTop: 4,
-    color: '#9CA3AF',
-  },
-  orderListStatusPill: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 999,
-    marginBottom: 4,
-  },
-  orderListStatusText: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: '#FFFFFF',
-    textTransform: 'capitalize',
-  },
-  orderListAmount: {
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  primary: '#090966',
-  status: {
-    Delivered: ['#22C55E', '#16A34A'],
-    'Out for Delivery': ['#090966', '#090966'],
-    Shipped: ['#3B82F6', '#1D4ED8'],
-    Pending: ['#FACC15', '#EAB308'],
-    Canceled: ['#F97373', '#EF4444'],
-  },
-};
-
-const mapStatusToPill = (status) => {
-  const key = status || 'Pending';
-  const gradient = COLORS.status[key] || COLORS.status.Pending;
-  return { label: key, gradient };
-};
+const { width } = Dimensions.get('window');
+const BRAND_COLOR = '#090966';
+const ACCENT_COLOR = '#FBBF24';
+const SUCCESS_COLOR = '#10B981';
+const WARNING_COLOR = '#F59E0B';
+const ERROR_COLOR = '#EF4444';
+const INFO_COLOR = '#3B82F6';
 
 const TrackOrderScreen = () => {
   const navigation = useNavigation();
   const authUserId = useStore((state) => state.authUserId);
 
-  const palette = COLORS.light;
-
   const [ordersList, setOrdersList] = useState([]);
   const [ordersListLoading, setOrdersListLoading] = useState(false);
-  const [statusFilter, setStatusFilter] = useState('Delivered');
-  const [selectedOrderId, setSelectedOrderId] = useState(null);
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [showFilters, setShowFilters] = useState(true);
 
-  const headerAnim = useRef(new Animated.Value(0)).current;
+  const fadeAnim = useRef(new Animated.Value(0)).current;
 
   const loadOrdersList = useCallback(async () => {
     if (!authUserId) return;
@@ -120,12 +75,22 @@ const TrackOrderScreen = () => {
         ? data.map((row) => {
             const raw = (row.status || 'pending').toLowerCase();
 
-            // Normalize backend statuses into the three buckets used by the UI
-            let normalizedStatus = 'Pending';
+            let normalizedStatus = 'pending';
+            let statusColor = WARNING_COLOR;
+            let statusIcon = <Clock size={16} color={WARNING_COLOR} />;
+            
             if (raw === 'delivered' || raw === 'customer_confirmed') {
-              normalizedStatus = 'Delivered';
+              normalizedStatus = 'delivered';
+              statusColor = SUCCESS_COLOR;
+              statusIcon = <CheckCircle size={16} color={SUCCESS_COLOR} />;
             } else if (raw === 'declined' || raw === 'canceled' || raw === 'cancelled') {
-              normalizedStatus = 'Canceled';
+              normalizedStatus = 'canceled';
+              statusColor = ERROR_COLOR;
+              statusIcon = <AlertCircle size={16} color={ERROR_COLOR} />;
+            } else if (raw === 'shipped' || raw === 'on_the_way') {
+              normalizedStatus = 'shipped';
+              statusColor = INFO_COLOR;
+              statusIcon = <Truck size={16} color={INFO_COLOR} />;
             }
 
             return {
@@ -134,10 +99,11 @@ const TrackOrderScreen = () => {
               rawStatus: raw,
               total: Number(row.total) || 0,
               placedAt: row.placed_at ? new Date(row.placed_at).toLocaleDateString() : '',
+              placedAtFull: row.placed_at ? new Date(row.placed_at) : null,
               items: Array.isArray(row.items) ? row.items : [],
-              trackingNumber: null,
-              sellerName: null,
               shippingMethod: row.shipping_method || null,
+              statusColor,
+              statusIcon,
             };
           })
         : [];
@@ -158,381 +124,236 @@ const TrackOrderScreen = () => {
   );
 
   useEffect(() => {
-    Animated.timing(headerAnim, {
+    Animated.timing(fadeAnim, {
       toValue: 1,
-      duration: 260,
+      duration: 600,
       easing: Easing.out(Easing.ease),
       useNativeDriver: true,
     }).start();
-  }, [headerAnim]);
+  }, []);
 
   const filteredOrders = useMemo(() => {
     if (!Array.isArray(ordersList) || ordersList.length === 0) return [];
 
-    if (statusFilter === 'Pending') {
-      // Treat anything that is not Delivered or Canceled as pending / in-progress
-      return ordersList.filter(
-        (o) => o.status !== 'Delivered' && o.status !== 'Canceled',
+    let filtered = ordersList;
+
+    if (statusFilter !== 'all') {
+      filtered = filtered.filter((o) => o.status === statusFilter);
+    }
+
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter((o) => 
+        o.id.toString().includes(query) ||
+        o.items.some(item => item.name?.toLowerCase().includes(query))
       );
     }
 
-    return ordersList.filter((o) => (o.status || 'Pending') === statusFilter);
-  }, [ordersList, statusFilter]);
+    return filtered;
+  }, [ordersList, statusFilter, searchQuery]);
 
-  const mostRecentOrderId = useMemo(() => {
-    if (!Array.isArray(ordersList) || ordersList.length === 0) return null;
-    // ordersList is already sorted with most recent first from Supabase
-    return ordersList[0]?.id ?? null;
-  }, [ordersList]);
-
-  const renderOrderListRow = ({ item }) => {
-    // Use normalized status for grouping, but refine the label for in-progress states
-    let visibleStatus = item.status || 'Pending';
-    if (item.rawStatus === 'on_the_way') {
-      // Keep it under the Pending tab but show a clearer label to the customer
-      visibleStatus = 'On the way';
-    }
-
-    const pill = mapStatusToPill(visibleStatus);
+  const renderOrderCard = ({ item }) => {
     const itemCount = Array.isArray(item.items) ? item.items.length : 0;
-    const firstItems = Array.isArray(item.items) ? item.items.slice(0, 2) : [];
-    const isMostRecent = item.id === mostRecentOrderId;
-    const isSelected = item.id === selectedOrderId;
-    const highlight = isMostRecent || isSelected;
+    const firstItem = Array.isArray(item.items) && item.items.length > 0 ? item.items[0] : null;
 
     return (
-      <TouchableOpacity
-        style={[
-          styles.orderListRow,
-          {
-            borderColor: COLORS.primary + '15',
-            backgroundColor: highlight ? '#EEF2FF' : '#FFFFFF',
-          },
-        ]}
-        activeOpacity={0.8}
-        onPress={() => {
-          setSelectedOrderId(item.id);
-          navigation.navigate('SimpleOrderTracking', { orderId: item.id });
-        }}
-      >
-        <View style={styles.orderListLeft}>
-          <Text style={[styles.orderListTitle, { color: palette.textPrimary }]}>Order #{item.id}</Text>
-          <Text style={[styles.orderListMeta, { color: palette.textMuted }]}>{item.placedAt}</Text>
+      <Animated.View style={[styles.orderCard, { opacity: fadeAnim }]}>
+        <TouchableOpacity
+          style={styles.orderCardContent}
+          activeOpacity={0.8}
+          onPress={() => navigation.navigate('SimpleOrderTracking', { orderId: item.id })}
+        >
+          {/* Header */}
+          <View style={styles.orderHeader}>
+            <View style={styles.orderHeaderLeft}>
+              <Text style={styles.orderNumber}>#{item.id}</Text>
+              <Text style={styles.orderDate}>{item.placedAt}</Text>
+            </View>
+            <View style={styles.orderHeaderRight}>
+              {item.statusIcon}
+              <Text style={[styles.orderStatus, { color: item.statusColor }]}>
+                {item.status.charAt(0).toUpperCase() + item.status.slice(1)}
+              </Text>
+            </View>
+          </View>
 
-          {/* Items preview */}
-          {firstItems.length > 0 && (
-            <View style={styles.orderItemsList}>
-              {firstItems.map((prod, idx) => (
-                <Text key={idx} style={styles.orderItemLine}>
-                  {prod.quantity || 1}x {prod.name || 'Item'}
+          {/* Content */}
+          <View style={styles.orderContent}>
+            {firstItem && (
+              <View style={styles.itemRow}>
+                <ShoppingBag size={16} color="#6B7280" />
+                <Text style={styles.itemName} numberOfLines={1}>
+                  {firstItem.name || 'Item'}
                 </Text>
-              ))}
-              {itemCount > 2 && (
-                <Text style={styles.orderItemMore}>+{itemCount - 2} more</Text>
+                {itemCount > 1 && (
+                  <Text style={styles.moreItemsText}>+{itemCount - 1} more</Text>
+                )}
+              </View>
+            )}
+
+            {/* Footer */}
+            <View style={styles.orderFooter}>
+              <View style={styles.priceContainer}>
+                <DollarSign size={16} color={BRAND_COLOR} />
+                <Text style={styles.totalAmount}>{item.total.toFixed(2)}</Text>
+              </View>
+              {item.shippingMethod && (
+                <View style={styles.shippingContainer}>
+                  <Truck size={14} color="#6B7280" />
+                  <Text style={styles.shippingText}>{item.shippingMethod}</Text>
+                </View>
               )}
             </View>
-          )}
-
-          {/* Seller & shipping */}
-          {item.sellerName && (
-            <Text style={[styles.orderListMeta, { color: palette.textSecondary }]}>
-              Seller: {item.sellerName}
-            </Text>
-          )}
-          {item.shippingMethod && (
-            <Text style={[styles.orderListHint, { color: palette.textMuted }]}>
-              {item.shippingMethod}
-            </Text>
-          )}
-
-          {/* Tracking */}
-          {item.trackingNumber ? (
-            <Text style={[styles.orderListHint, { color: COLORS.primary }]}>
-              Tracking: {item.trackingNumber}
-            </Text>
-          ) : (
-            <Text style={styles.orderListHint}>Tap to see tracking</Text>
-          )}
-        </View>
-
-        <View style={styles.orderListRight}>
-          <View
-            style={[styles.orderListStatusPill, { backgroundColor: pill.gradient[0] }]}
-          >
-            <Text style={styles.orderListStatusText}>{pill.label}</Text>
           </View>
-          <Text style={[styles.orderListAmount, { color: palette.textPrimary }]}>${item.total.toFixed(2)}</Text>
-        </View>
-      </TouchableOpacity>
+        </TouchableOpacity>
+      </Animated.View>
     );
   };
 
-  const renderTimelineStep = ({ item, index }) => {
-    const isCompleted = item.isCompleted;
-    const isCurrent = item.isCurrent;
-    const isLast = index === timelineData.length - 1;
+  const orderStats = useMemo(() => {
+    const total = ordersList.length;
+    const delivered = ordersList.filter(o => o.status === 'delivered').length;
+    const totalSpent = ordersList.reduce((sum, o) => sum + o.total, 0);
 
-    const circleStyle = [
-      styles.timelineCircle,
-      {
-        borderColor: isCompleted || isCurrent ? COLORS.primary : palette.border,
-        backgroundColor: isCompleted ? COLORS.primary : isCurrent ? '#EEF2FF' : palette.card,
-      },
-    ];
+    return { total, delivered, totalSpent };
+  }, [ordersList]);
 
-    const circleContent = (
-      <View style={circleStyle}>
-        <View
-          style={{
-            width: 10,
-            height: 10,
-            borderRadius: 5,
-            backgroundColor: isCompleted ? '#FFFFFF' : isCurrent ? COLORS.primary : palette.border,
-          }}
-        />
-      </View>
-    );
-
-    return (
-      <TouchableOpacity
-        activeOpacity={0.8}
-        style={styles.timelineRow}
-        onPress={() => {
-          // Placeholder for expanding with more details (driver, notes, etc.)
-        }}
-      >
-        <View style={styles.timelineLeftColumn}>
-          {isCurrent ? (
-            <Animated.View style={{ transform: [{ scale: currentStepPulse }] }}>
-              {circleContent}
-            </Animated.View>
-          ) : (
-            circleContent
-          )}
-          {!isLast && (
-            <View
-              style={[
-                styles.timelineConnector,
-                {
-                  backgroundColor: isCompleted ? COLORS.primary : palette.border,
-                },
-              ]}
-            />
-          )}
-        </View>
-        <View style={styles.timelineContent}>
-          <Text
-            style={[
-              styles.timelineTitle,
-              { color: isCompleted || isCurrent ? palette.textPrimary : palette.textSecondary },
-            ]}
-          >
-            {item.label}
-          </Text>
-          <Text style={[styles.timelineTimestamp, { color: palette.textMuted }]}>
-            {item.timestamp}
-          </Text>
-        </View>
-      </TouchableOpacity>
-    );
-  };
-
-  const Header = () => (
-    <Animated.View
-      style={[
-        styles.headerRow,
-        {
-          backgroundColor: palette.background,
-          shadowColor: '#000',
-          opacity: headerAnim,
-          transform: [
-            {
-              translateY: headerAnim.interpolate({
-                inputRange: [0, 1],
-                outputRange: [10, 0],
-              }),
-            },
-          ],
-        },
-      ]}
-    >
-      <TouchableOpacity
-        style={[styles.backButton, { backgroundColor: '#E5E7EB' }]}
-        onPress={() => navigation.navigate('Main', { screen: 'Profile' })}
-      >
-        <Text style={[styles.backIcon, { color: '#111827' }]}>←</Text>
-        <Text style={[styles.backText, { color: '#111827' }]}>Profile</Text>
-      </TouchableOpacity>
-      <Text style={[styles.headerTitle, { color: palette.textPrimary }]}>Track Orders</Text>
-    </Animated.View>
-  );
-
-  const SummaryCard = () => (
-    <View style={[styles.summaryCard, { backgroundColor: palette.card, borderColor: palette.border }]}
-    >
-      <View style={styles.summaryLeft}>
-        <Text style={[styles.summaryLabel, { color: palette.textSecondary }]}>Order ID</Text>
-        <Text style={[styles.summaryValue, { color: palette.textPrimary }]}>#{order?.code}</Text>
-        <Text style={[styles.summaryMeta, { color: palette.textMuted }]}>
-          Placed {order?.placedAt ? order.placedAt.toLocaleString() : '—'}
-        </Text>
-      </View>
-      <View style={styles.summaryRight}>
-        <View
-          style={[
-            styles.statusPillContainer,
-            {
-              backgroundColor: statusPill.gradient[0],
-            },
-          ]}
-        >
-          <Text style={styles.statusPillText}>{statusPill.label}</Text>
-        </View>
-        <Text style={[styles.summaryAmountLabel, { color: palette.textSecondary }]}>Total</Text>
-        <Text style={[styles.summaryAmountValue, { color: palette.textPrimary }]}>${order?.total.toFixed(2)}</Text>
-      </View>
-    </View>
-  );
-
-  const ShippingCard = () => (
-    <View style={[styles.infoCard, { backgroundColor: palette.card, borderColor: palette.border }]}
-    >
-      <View style={styles.infoColumn}>
-        <Text style={[styles.infoLabel, { color: palette.textSecondary }]}>Tracking No.</Text>
-        <Text style={[styles.infoValue, { color: palette.textPrimary }]}>{order?.trackingNumber}</Text>
-      </View>
-      <View style={styles.infoColumn}>
-        <Text style={[styles.infoLabel, { color: palette.textSecondary }]}>Shipping Method</Text>
-        <Text style={[styles.infoValue, { color: palette.textPrimary }]}>
-          {order?.shippingMethod}
-        </Text>
-      </View>
-      <View style={styles.infoColumn}>
-        <Text style={[styles.infoLabel, { color: palette.textSecondary }]}>Package</Text>
-        <Text style={[styles.infoValue, { color: palette.textPrimary }]}>
-          {order?.packageWeight}
-        </Text>
-      </View>
-    </View>
-  );
-
-  const PartiesCard = () => (
-    <View style={[styles.infoCard, { backgroundColor: palette.card, borderColor: palette.border }]}
-    >
-      <View style={styles.infoColumnFull}>
-        <Text style={[styles.infoLabel, { color: palette.textSecondary }]}>Courier</Text>
-        <Text style={[styles.infoValue, { color: palette.textPrimary }]}>{order?.courier}</Text>
-      </View>
-      {order?.sellerName ? (
-        <View style={styles.infoColumnFull}>
-          <Text style={[styles.infoLabel, { color: palette.textSecondary }]}>Seller</Text>
-          <Text style={[styles.infoValue, { color: palette.textPrimary }]}>
-            {order.sellerName}
-          </Text>
-        </View>
-      ) : null}
-      {order?.deliveryAddress ? (
-        <View style={styles.infoColumnFull}>
-          <Text style={[styles.infoLabel, { color: palette.textSecondary }]}>Delivery Address</Text>
-          <Text
-            style={[styles.infoValue, { color: palette.textPrimary }]}
-            numberOfLines={2}
-          >
-            {order.deliveryAddress}
-          </Text>
-        </View>
-      ) : null}
-    </View>
-  );
-
-  const MapCard = () => (
-    <View style={[styles.mapCard, { backgroundColor: palette.card, borderColor: palette.border }]}
-    >
-      <View style={styles.mapHeaderRow}>
-        <Text style={[styles.mapTitle, { color: palette.textPrimary }]}>Live Tracking</Text>
-        <Text style={[styles.mapSubtitle, { color: palette.textMuted }]}>Map coming soon</Text>
-      </View>
-      <View style={styles.mapPlaceholder}>
-        <Text style={{ color: palette.textMuted }}>Map integration placeholder</Text>
-      </View>
-    </View>
-  );
-
-  const ActionsBar = () => (
-    <View style={styles.actionsRow}>
-      <TouchableOpacity
-        style={[styles.actionButton, styles.actionButtonSecondary]}
-        onPress={() => {}}
-      >
-        <Text style={styles.actionButtonSecondaryText}>Contact Support</Text>
-      </TouchableOpacity>
-      <TouchableOpacity
-        style={[styles.actionButton, styles.actionButtonPrimary]}
-        onPress={() => {}}
-      >
-        <Text style={styles.actionButtonPrimaryText}>Download Invoice</Text>
-      </TouchableOpacity>
-    </View>
-  );
+  // Fixed background colors for each status chip.
+  const filterOptions = [
+    { id: 'all',       label: 'All',       color: '#FFFFFF', icon: <Package size={16} color="#111827" /> },
+    { id: 'pending',   label: 'Pending',   color: '#06B6D4', icon: <Clock size={16} color="#FFFFFF" /> }, // cyan
+    { id: 'shipped',   label: 'Shipped',   color: ACCENT_COLOR, icon: <Truck size={16} color="#FFFFFF" /> }, // secondary yellow
+    { id: 'delivered', label: 'Delivered', color: '#10B981', icon: <CheckCircle size={16} color="#FFFFFF" /> }, // green
+    { id: 'canceled',  label: 'Canceled',  color: '#EF4444', icon: <AlertCircle size={16} color="#FFFFFF" /> }, // red
+  ];
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: palette.background }]}
-    >
-      <Header />
-      <ScrollView
-        style={{ flex: 1 }}
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
-        <View style={styles.sectionBlock}>
-          <Text style={[styles.sectionTitle, { color: palette.textPrimary }]}>My Orders</Text>
+    <SafeAreaView style={styles.container}>
+      <StatusBar barStyle="light-content" backgroundColor={BRAND_COLOR} />
+      
+      {/* Header */}
+      <View style={styles.header}>
+        <TouchableOpacity style={styles.backButton} onPress={() => navigation.navigate('Main', { screen: 'Profile' })}>
+          <ChevronLeft size={24} color="#FFFFFF" />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>My Orders</Text>
+        <View style={styles.placeholder} />
+      </View>
 
-          <View style={styles.statusTabsRow}>
-            {[
-              { id: 'Delivered', label: 'Delivered' },
-              { id: 'Pending', label: 'Pending' },
-              { id: 'Canceled', label: 'Cancelled' },
-            ].map((tab) => {
-              const active = statusFilter === tab.id;
+      {/* Stats */}
+      <View style={styles.statsContainer}>
+        <View style={styles.statItem}>
+          <Package size={20} color={BRAND_COLOR} />
+          <Text style={styles.statValue}>{orderStats.total}</Text>
+          <Text style={styles.statLabel}>Total</Text>
+        </View>
+        <View style={styles.statItem}>
+          <CheckCircle size={20} color={SUCCESS_COLOR} />
+          <Text style={styles.statValue}>{orderStats.delivered}</Text>
+          <Text style={styles.statLabel}>Delivered</Text>
+        </View>
+        <View style={styles.statItem}>
+          <TrendingUp size={20} color={BRAND_COLOR} />
+          <Text style={styles.statValue}>${orderStats.totalSpent.toFixed(0)}</Text>
+          <Text style={styles.statLabel}>Spent</Text>
+        </View>
+      </View>
+
+      {/* Search and Filter */}
+      <View style={styles.searchContainer}>
+        <View style={styles.searchBar}>
+          <Search size={20} color="#6B7280" style={{ marginRight: 12 }} />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Search orders..."
+            placeholderTextColor="#9CA3AF"
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+          />
+          {searchQuery.length > 0 && (
+            <TouchableOpacity onPress={() => setSearchQuery('')}>
+              <X size={20} color="#6B7280" />
+            </TouchableOpacity>
+          )}
+        </View>
+        <TouchableOpacity 
+          style={[styles.filterButton, showFilters && styles.filterButtonActive]}
+          onPress={() => setShowFilters(!showFilters)}
+        >
+          <Filter size={20} color={showFilters ? "#FFFFFF" : BRAND_COLOR} />
+        </TouchableOpacity>
+      </View>
+
+      {/* Filter Categories - Visible by Default */}
+      {showFilters && (
+        <View style={styles.filterContainer}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+            {filterOptions.map((option) => {
+              const isActive = statusFilter === option.id;
               return (
                 <TouchableOpacity
-                  key={tab.id}
+                  key={option.id}
                   style={[
-                    styles.statusTabButton,
+                    styles.filterChip,
                     {
-                      backgroundColor: active ? COLORS.primary : '#F3F4F6',
+                      // Selected tab = primary dark blue, others keep their own bg
+                      backgroundColor: isActive ? BRAND_COLOR : option.color,
+                      borderColor: isActive ? BRAND_COLOR : option.color,
+                      borderWidth: 1,
                     },
                   ]}
-                  onPress={() => setStatusFilter(tab.id)}
-                  activeOpacity={0.9}
+                  onPress={() => setStatusFilter(option.id)}
                 >
+                  {option.icon}
                   <Text
                     style={[
-                      styles.statusTabLabel,
-                      { color: active ? '#FFFFFF' : '#6B7280' },
+                      styles.filterChipText,
+                      {
+                        color:
+                          isActive
+                            ? '#FFFFFF'
+                            : option.id === 'all'
+                            ? '#111827'
+                            : '#FFFFFF',
+                      },
                     ]}
-                    numberOfLines={1}
                   >
-                    {tab.label}
+                    {option.label}
                   </Text>
                 </TouchableOpacity>
               );
             })}
-          </View>
-
-          {ordersListLoading && ordersList.length === 0 ? (
-            <ActivityIndicator size="small" color={COLORS.primary} />
-          ) : filteredOrders.length === 0 ? (
-            <Text style={{ color: palette.textMuted, fontSize: 13 }}>No orders in this status yet.</Text>
-          ) : (
-            <FlatList
-              data={filteredOrders}
-              keyExtractor={(item) => item.id.toString()}
-              renderItem={renderOrderListRow}
-              scrollEnabled={false}
-            />
-          )}
+          </ScrollView>
         </View>
+      )}
+
+      {/* Orders List */}
+      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+        {ordersListLoading && ordersList.length === 0 ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color={BRAND_COLOR} />
+            <Text style={styles.loadingText}>Loading orders...</Text>
+          </View>
+        ) : filteredOrders.length === 0 ? (
+          <View style={styles.emptyContainer}>
+            <Package size={48} color="#D1D5DB" />
+            <Text style={styles.emptyTitle}>No orders found</Text>
+            <Text style={styles.emptySubtitle}>
+              {searchQuery || statusFilter !== 'all' 
+                ? 'Try adjusting your search or filters' 
+                : 'Start shopping to see your orders here'
+              }
+            </Text>
+          </View>
+        ) : (
+          <View style={styles.ordersList}>
+            {filteredOrders.map((item) => (
+              <View key={item.id} style={{ marginBottom: 12 }}>
+                {renderOrderCard({ item })}
+              </View>
+            ))}
+          </View>
+        )}
       </ScrollView>
     </SafeAreaView>
   );
@@ -543,319 +364,227 @@ export default TrackOrderScreen;
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    paddingHorizontal: 16,
+    backgroundColor: '#F8FAFC',
   },
-  scrollContent: {
-    paddingBottom: 24,
-  },
-  headerRow: {
+  header: {
+    backgroundColor: BRAND_COLOR,
+    paddingTop: Platform.OS === 'android' ? 50 : 20,
+    paddingBottom: 20,
+    paddingHorizontal: 20,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingTop: 8,
-    paddingBottom: 12,
-    backgroundColor: '#F9FBFF',
-    shadowColor: '#000',
-    shadowOpacity: 0.04,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 3,
-    zIndex: 10,
   },
   backButton: {
-    flexDirection: 'row',
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     alignItems: 'center',
-    paddingVertical: 6,
-    paddingHorizontal: 10,
-    borderRadius: 999,
-  },
-  backIcon: {
-    fontSize: 16,
-    marginRight: 4,
-  },
-  backText: {
-    fontSize: 14,
-    fontWeight: '600',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
   },
   headerTitle: {
     fontSize: 18,
     fontWeight: '700',
-  },
-  loadingWrapperFull: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  summaryCard: {
-    borderRadius: 20,
-    padding: 16,
-    marginTop: 12,
-    marginBottom: 10,
-    borderWidth: 1,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  summaryLeft: {
-    flex: 1,
-  },
-  summaryRight: {
-    alignItems: 'flex-end',
-  },
-  summaryLabel: {
-    fontSize: 12,
-    fontWeight: '500',
-  },
-  summaryValue: {
-    fontSize: 18,
-    fontWeight: '700',
-    marginTop: 4,
-  },
-  summaryMeta: {
-    fontSize: 12,
-    marginTop: 4,
-  },
-  statusPillContainer: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 999,
-    marginBottom: 8,
-  },
-  statusPillText: {
-    fontSize: 11,
-    fontWeight: '700',
     color: '#FFFFFF',
-    textTransform: 'capitalize',
   },
-  summaryAmountLabel: {
-    fontSize: 11,
+  placeholder: {
+    width: 40,
   },
-  summaryAmountValue: {
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  infoCard: {
-    borderRadius: 16,
-    padding: 14,
-    marginBottom: 10,
-    borderWidth: 1,
+  statsContainer: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
+    backgroundColor: '#FFFFFF',
+    marginHorizontal: 20,
+    marginTop: 20,
+    borderRadius: 12,
+    padding: 16,
   },
-  infoColumn: {
-    width: '33%',
-    marginBottom: 8,
-  },
-  infoColumnFull: {
-    width: '100%',
-    marginBottom: 8,
-  },
-  infoLabel: {
-    fontSize: 11,
-    fontWeight: '500',
-  },
-  infoValue: {
-    fontSize: 13,
-    fontWeight: '600',
-    marginTop: 2,
-  },
-  mapCard: {
-    borderRadius: 18,
-    padding: 14,
-    marginBottom: 12,
-    borderWidth: 1,
-  },
-  mapHeaderRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 10,
-  },
-  mapTitle: {
-    fontSize: 15,
-    fontWeight: '700',
-  },
-  mapSubtitle: {
-    fontSize: 12,
-  },
-  mapPlaceholder: {
-    height: 140,
-    borderRadius: 14,
-    backgroundColor: '#E5E7EB33',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  sectionBlock: {
-    marginTop: 18,
-  },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    marginBottom: 8,
-  },
-  statusTabsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 8,
-    marginBottom: 16,
-  },
-  statusTabButton: {
+  statItem: {
     flex: 1,
-    paddingVertical: 8,
-    marginRight: 8,
-    borderRadius: 999,
-    backgroundColor: '#F3F4F6',
     alignItems: 'center',
-    justifyContent: 'center',
   },
-  statusTabButtonActive: {
-    backgroundColor: COLORS.primary,
+  statValue: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#111827',
+    marginTop: 4,
+    marginBottom: 2,
   },
-  statusTabLabel: {
-    fontSize: 13,
-    fontWeight: '600',
+  statLabel: {
+    fontSize: 12,
     color: '#6B7280',
   },
-  statusTabLabelActive: {
-    color: '#FFFFFF',
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    marginTop: 20,
+  },
+  searchBar: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderWidth: 1,
+    borderColor: BRAND_COLOR,
+    marginRight: 12,
+    height: 48,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 15,
+    color: '#111827',
+  },
+  filterButton: {
+    width: 48,
+    height: 48,
+    borderRadius: 8,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: BRAND_COLOR,
+    flexShrink: 0,
+  },
+  filterButtonActive: {
+    backgroundColor: BRAND_COLOR,
+  },
+  filterContainer: {
+    paddingHorizontal: 20,
+    marginTop: 16,
+  },
+  filterChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    marginRight: 8,
+    gap: 6,
+  },
+  filterChipText: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  content: {
+    flex: 1,
+    paddingHorizontal: 20,
+    marginTop: 20,
+  },
+  ordersList: {
+    paddingBottom: 20,
+  },
+  orderCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  orderCardContent: {
+    padding: 16,
+  },
+  orderHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 12,
+  },
+  orderHeaderLeft: {
+    flex: 1,
+  },
+  orderNumber: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#111827',
+    marginBottom: 2,
+  },
+  orderDate: {
+    fontSize: 13,
+    color: '#6B7280',
+  },
+  orderHeaderRight: {
+    alignItems: 'center',
+    gap: 4,
+  },
+  orderStatus: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  orderContent: {
+    gap: 12,
   },
   itemRow: {
     flexDirection: 'row',
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-  },
-  timelineRow: {
-    flexDirection: 'row',
-    marginBottom: 10,
-  },
-  timelineLeftColumn: {
-    width: 30,
     alignItems: 'center',
+    gap: 8,
   },
-  timelineCircle: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    borderWidth: 2,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  timelineConnector: {
-    width: 2,
+  itemName: {
     flex: 1,
-    marginTop: 2,
-  },
-  timelineContent: {
-    flex: 1,
-    paddingLeft: 8,
-    paddingBottom: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB33',
-  },
-  timelineTitle: {
     fontSize: 14,
-    fontWeight: '600',
+    color: '#374151',
   },
-  timelineTimestamp: {
+  moreItemsText: {
     fontSize: 12,
-    marginTop: 2,
+    color: '#6B7280',
   },
-  actionsRow: {
+  orderFooter: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginTop: 20,
+    alignItems: 'center',
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#F3F4F6',
+  },
+  priceContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  totalAmount: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: BRAND_COLOR,
+  },
+  shippingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  shippingText: {
+    fontSize: 12,
+    color: '#6B7280',
+  },
+  loadingContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 60,
+  },
+  loadingText: {
+    fontSize: 14,
+    color: '#6B7280',
+    marginTop: 12,
+  },
+  emptyContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 60,
+  },
+  emptyTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#374151',
+    marginTop: 16,
     marginBottom: 8,
   },
-  actionButton: {
-    flex: 1,
-    paddingVertical: 12,
-    borderRadius: 999,
-    alignItems: 'center',
-  },
-  actionButtonSecondary: {
-    marginRight: 8,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    backgroundColor: '#FFFFFF',
-  },
-  actionButtonPrimary: {
-    marginLeft: 8,
-    backgroundColor: COLORS.primary,
-  },
-  actionButtonSecondaryText: {
+  emptySubtitle: {
     fontSize: 14,
-    fontWeight: '600',
-    color: '#111827',
-  },
-  actionButtonPrimaryText: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
-  orderListRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 14,
-    paddingHorizontal: 14,
-    marginBottom: 10,
-    borderRadius: 18,
-    borderWidth: 1,
-    backgroundColor: '#FFFFFF',
-    shadowColor: '#000',
-    shadowOpacity: 0.03,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 3 },
-    elevation: 2,
-  },
-  orderListLeft: {
-    flex: 1,
-  },
-  orderListRight: {
-    alignItems: 'flex-end',
-    justifyContent: 'center',
-    marginLeft: 12,
-  },
-  orderListTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  orderListMeta: {
-    fontSize: 12,
-    marginTop: 2,
-  },
-  orderListStatusPill: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 999,
-    marginBottom: 4,
-  },
-  orderListStatusText: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: '#FFFFFF',
-    textTransform: 'capitalize',
-  },
-  orderListAmount: {
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  orderListChevron: {
-    fontSize: 16,
-    marginTop: 4,
-    color: '#9CA3AF',
-  },
-  orderItemsList: {
-    marginTop: 8,
-  },
-  orderItemLine: {
-    fontSize: 13,
-    color: '#4B5563',
-  },
-  orderItemMore: {
-    fontSize: 12,
-    color: '#9CA3AF',
-    marginTop: 2,
+    color: '#6B7280',
+    textAlign: 'center',
   },
 });
-

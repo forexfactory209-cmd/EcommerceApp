@@ -107,14 +107,14 @@ const CustomerOnboardingScreen = ({ navigation }) => {
     }
   };
 
-  const currentSlide = SLIDES[index];
+  const currentSlide = SLIDES[index] || SLIDES[0];
   const isLast = index === SLIDES.length - 1;
 
 
 
   return (
     <View style={styles.container}>
-      <ImageBackground source={currentSlide.bg} style={styles.bgImage} resizeMode="cover">
+      <ImageBackground source={currentSlide?.bg || OnboardingBgDefault} style={styles.bgImage} resizeMode="cover">
         <View style={styles.overlay}>
           <SafeAreaView style={styles.safeArea}>
 
