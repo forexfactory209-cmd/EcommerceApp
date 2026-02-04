@@ -284,7 +284,7 @@ const BillingScreen = ({ navigation }) => {
             .from('orders')
             .select('id, total, status, placed_at')
             .eq('customer_user_id', authUserId)
-            .eq('status', 'Pending')
+            .eq('status', 'pending')
             .gte('placed_at', since)
             .limit(1);
 

@@ -10,63 +10,29 @@ import { useStore } from '../store/store';
 const AllBrandsScreen = ({ navigation, route }) => {
   const [brands, setBrands] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [refreshing, setRefreshing] = useState(false);
-  const [isLoadingMore, setIsLoadingMore] = useState(false);
-  const [page, setPage] = useState(1);
-  const [hasMore, setHasMore] = useState(true);
   const [selectedAudience, setSelectedAudience] = useState('all');
   const [sortMode, setSortMode] = useState('popular');
 
   const followedBrandIds = useStore((state) => state.followedBrandIds || []);
   const toggleFollowBrand = useStore((state) => state.toggleFollowBrand);
 
-  const loadBrands = useCallback(async ({ reset = false } = {}) => {
+  const loadBrands = useCallback(async () => {
     try {
-      const targetPage = reset ? 1 : page;
-
-      if (!reset && targetPage > 1) {
-        if (!hasMore || isLoadingMore) return;
-        setIsLoadingMore(true);
-      } else if (reset) {
-        setRefreshing(true);
-        setHasMore(true);
-      } else {
-        setLoading(true);
-      }
-
-      const data = await fetchApprovedBrandsPageFromSupabase({ page: targetPage, pageSize: 20 });
+      setLoading(true);
+      const data = await fetchApprovedBrandsPageFromSupabase({ page: 1, pageSize: 100 });
       const rows = Array.isArray(data) ? data : [];
-
-      if (reset || targetPage === 1) {
-        setBrands(rows);
-      } else if (rows.length) {
-        const current = brands || [];
-        const merged = [
-          ...current,
-          ...rows.filter((b) => !current.some((existing) => existing.id === b.id)),
-        ];
-        setBrands(merged);
-      }
-
-      if (rows.length < 20) {
-        setHasMore(false);
-      }
+      setBrands(rows);
     } catch (e) {
       console.warn('AllBrands: failed to load brands', e.message || e);
-      if (reset) {
-        setBrands([]);
-      }
+      setBrands([]);
     } finally {
       setLoading(false);
-      setRefreshing(false);
-      setIsLoadingMore(false);
-      setPage((prev) => (reset ? 2 : prev + 1));
     }
-  }, [page, hasMore, isLoadingMore, brands]);
+  }, []);
 
   useFocusEffect(
     useCallback(() => {
-      loadBrands({ reset: true });
+      loadBrands();
     }, [loadBrands]),
   );
 
@@ -283,15 +249,7 @@ const AllBrandsScreen = ({ navigation, route }) => {
     }
   }, [selectedAudience]);
 
-  const handleRefresh = useCallback(() => {
-    if (loading) return;
-    loadBrands({ reset: true });
-  }, [loading, loadBrands]);
-
-  const handleLoadMore = useCallback(() => {
-    if (loading || refreshing || isLoadingMore || !hasMore) return;
-    loadBrands({ reset: false });
-  }, [loading, refreshing, isLoadingMore, hasMore, loadBrands]);
+  // No pull-to-refresh or load-more; list is static after each load
 
   return (
     <SafeAreaView style={styles.container}>
@@ -347,16 +305,7 @@ const AllBrandsScreen = ({ navigation, route }) => {
             keyExtractor={(item) => item.id.toString()}
             renderItem={renderItem}
             contentContainerStyle={{ paddingBottom: 24 }}
-            onRefresh={handleRefresh}
-            refreshing={refreshing}
             showsVerticalScrollIndicator={false}
-            onEndReached={handleLoadMore}
-            onEndReachedThreshold={0.5}
-            ListFooterComponent={isLoadingMore ? (
-              <View style={styles.loadingFooter}>
-                <ActivityIndicator size="small" color="#090966" />
-              </View>
-            ) : null}
           />
         </>
       )}

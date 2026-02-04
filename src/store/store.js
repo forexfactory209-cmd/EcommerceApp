@@ -1,6 +1,4 @@
 import { create } from 'zustand';
-import { persist, createJSONStorage } from 'zustand/middleware';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '../lib/supabase';
 
 // --- MOCK DATA ---
@@ -76,8 +74,7 @@ export const PRODUCTS = [
 
 // --- STORE (State Management) ---
 export const useStore = create(
-  persist(
-    (set, get) => ({
+  (set, get) => ({
   // Catalog and orders
   products: PRODUCTS,
   orders: [],
@@ -132,6 +129,37 @@ export const useStore = create(
       seenDeliveredOrdersCount: 0,
       brandLogoUrl: '',
     }),
+
+  // Global notifications count (used for bell badge)
+  unreadNotifications: 0,
+  setUnreadNotifications: (count) =>
+    set({ unreadNotifications: typeof count === 'number' ? Math.max(count, 0) : 0 }),
+  incrementUnreadNotifications: () =>
+    set((state) => ({ unreadNotifications: (state.unreadNotifications || 0) + 1 })),
+  loadUnreadNotifications: async () => {
+    try {
+      const authUserId = get().authUserId;
+      if (!authUserId) {
+        set({ unreadNotifications: 0 });
+        return;
+      }
+
+      const { count, error } = await supabase
+        .from('notifications')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', authUserId)
+        .eq('is_read', false);
+
+      if (error) {
+        console.warn('Failed to load unread notifications count', error.message || error);
+        return;
+      }
+
+      set({ unreadNotifications: count || 0 });
+    } catch (e) {
+      console.warn('Failed to load unread notifications count', e.message || e);
+    }
+  },
 
   // Customer onboarding flag (in-memory)
   hasSeenCustomerOnboarding: false,
@@ -307,6 +335,11 @@ export const useStore = create(
   setSeenDeliveredOrdersCount: (count) =>
     set({ seenDeliveredOrdersCount: typeof count === 'number' ? count : 0 }),
 
+  // Flags for brand realtime data refresh (e.g., disputes)
+  brandDisputesDirty: false,
+  markBrandDisputesDirty: () => set({ brandDisputesDirty: true }),
+  clearBrandDisputesDirty: () => set({ brandDisputesDirty: false }),
+
   // Vendor actions
   addProduct: (product) => set((state) => ({
     products: [product, ...state.products],
@@ -455,25 +488,4 @@ export const useStore = create(
       console.warn('Exception deleting payout method', e.message || e);
     }
   },
-}),
-    {
-      name: 'ecommerce-store',
-      storage: createJSONStorage(() => AsyncStorage),
-      // Only persist cart and wishlist; everything else stays in-memory or Supabase-backed
-      partialize: (state) => ({
-        cart: state.cart,
-        wishlist: state.wishlist,
-        payoutMethods: state.payoutMethods,
-        // Persist basic auth + profile so users stay logged in between app launches
-        authUserId: state.authUserId,
-        authEmail: state.authEmail,
-        authRole: state.authRole,
-        userType: state.userType,
-        userName: state.userName,
-        userEmail: state.userEmail,
-        brandLogoUrl: state.brandLogoUrl,
-        hasSeenCustomerOnboarding: state.hasSeenCustomerOnboarding,
-      }),
-    },
-  ),
-);
+}));

@@ -57,7 +57,7 @@ const ProfileScreen = ({ navigation }) => {
 
         const { data, error } = await supabase
           .from('brands')
-          .select('id,name,logo_url,rating_average,rating_count,created_at')
+          .select('id,name,logo_url,rating_average,rating_count,followers_count,created_at')
           .eq('user_id', authUserId)
           .maybeSingle();
 
@@ -77,6 +77,10 @@ const ProfileScreen = ({ navigation }) => {
             logo_url: data.logo_url || null,
             rating_average: typeof data.rating_average === 'number' ? data.rating_average : null,
             rating_count: typeof data.rating_count === 'number' ? data.rating_count : 0,
+            followers_count:
+              typeof data.followers_count === 'number' && !Number.isNaN(data.followers_count)
+                ? data.followers_count
+                : 0,
             created_at: data.created_at || null,
           });
         } else {
@@ -266,10 +270,10 @@ const ProfileScreen = ({ navigation }) => {
     typeof brandProfile?.rating_count === 'number' && !Number.isNaN(brandProfile.rating_count)
       ? brandProfile.rating_count
       : 0;
-
-  const responsePercent = totalOrders > 0
-    ? Math.round((deliveredCount / totalOrders) * 100)
-    : 0;
+  const followerCount =
+    typeof brandProfile?.followers_count === 'number' && !Number.isNaN(brandProfile.followers_count)
+      ? brandProfile.followers_count
+      : 0;
 
   const brandDisplayName =
     (brandProfile?.name && brandProfile.name.trim()) ||
@@ -619,8 +623,8 @@ const ProfileScreen = ({ navigation }) => {
               </Text>
             </View>
             <View style={styles.brandStatCard}>
-              <Text style={styles.brandStatValue}>{responsePercent}%</Text>
-              <Text style={styles.brandStatLabel}>Response</Text>
+              <Text style={styles.brandStatValue}>{followerCount}</Text>
+              <Text style={styles.brandStatLabel}>Followers</Text>
             </View>
             <View style={styles.brandStatCard}>
               <Text style={styles.brandStatValue}>{totalOrders}</Text>
@@ -734,7 +738,7 @@ const ProfileScreen = ({ navigation }) => {
 
               <TouchableOpacity
                 style={[styles.brandRow, styles.brandRowLast]}
-                onPress={() => navigation.navigate('ReportProblem')}
+                onPress={() => navigation.navigate('BrandDisputes')}
               >
                 <View style={styles.brandRowLeft}>
                   <View style={[styles.brandIconCircle, { backgroundColor: '#FEF2F2' }]}>
@@ -749,7 +753,7 @@ const ProfileScreen = ({ navigation }) => {
           </View>
 
           {/* ACCOUNT & SECURITY */}
-          <View style={styles.brandSectionGroup}>
+          {/* <View style={styles.brandSectionGroup}>
             <Text style={styles.brandSectionLabel}>ACCOUNT & SECURITY</Text>
             <View style={styles.brandSectionCard}>
               <TouchableOpacity
@@ -788,7 +792,7 @@ const ProfileScreen = ({ navigation }) => {
                 </View>
               </TouchableOpacity>
             </View>
-          </View>
+          </View> */}
 
           {/* LEGAL */}
           <View style={styles.brandSectionGroup}>

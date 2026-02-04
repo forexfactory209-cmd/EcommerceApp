@@ -18,7 +18,7 @@ const BrandWalletScreen = ({ navigation }) => {
 
   const [wallet, setWallet] = useState(null);
   const [recentTx, setRecentTx] = useState([]);
-  const [timeFilter, setTimeFilter] = useState('today'); // today | tomorrow | weekly | monthly
+  const [timeFilter, setTimeFilter] = useState('all'); // all | yesterday | today | tomorrow | weekly | monthly
   const [salesStatusFilter, setSalesStatusFilter] = useState('all'); // all | pending | completed
   const [gatewayFilter, setGatewayFilter] = useState('all'); // all | zaad | edahab | cash
 
@@ -187,11 +187,17 @@ const BrandWalletScreen = ({ navigation }) => {
     const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const startOfTomorrow = new Date(startOfToday);
     startOfTomorrow.setDate(startOfToday.getDate() + 1);
+    const startOfYesterday = new Date(startOfToday);
+    startOfYesterday.setDate(startOfToday.getDate() - 1);
     const startOfWeek = new Date(startOfToday);
     startOfWeek.setDate(startOfToday.getDate() - 7);
     const startOfMonth = new Date(startOfToday.getFullYear(), now.getMonth(), 1);
 
+    // When timeFilter === 'all', do not filter by date at all
     if (timeFilter === 'today' && !(created >= startOfToday && created < startOfTomorrow)) {
+      return acc;
+    }
+    if (timeFilter === 'yesterday' && !(created >= startOfYesterday && created < startOfToday)) {
       return acc;
     }
     if (timeFilter === 'tomorrow') {
@@ -258,25 +264,34 @@ const BrandWalletScreen = ({ navigation }) => {
         </View>
 
         <View style={styles.filtersRow}>
-          {[
-            { id: 'today', label: 'Today' },
-            { id: 'tomorrow', label: 'Tomorrow' },
-            { id: 'weekly', label: 'Weekly' },
-            { id: 'monthly', label: 'Monthly' },
-          ].map((f) => {
-            const active = timeFilter === f.id;
-            return (
-              <TouchableOpacity
-                key={f.id}
-                style={[styles.filterChip, active && styles.filterChipActive]}
-                onPress={() => setTimeFilter(f.id)}
-              >
-                <Text style={active ? styles.filterChipTextActive : styles.filterChipText}>
-                  {f.label}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.filtersContent}
+          >
+            {[
+              { id: 'all', label: 'All' },
+              { id: 'yesterday', label: 'Yesterday' },
+              { id: 'today', label: 'Today' },
+              { id: 'tomorrow', label: 'Tomorrow' },
+              { id: 'weekly', label: 'Weekly' },
+              { id: 'monthly', label: 'Monthly' },
+            ].map((f) => {
+              const active = timeFilter === f.id;
+              return (
+                <TouchableOpacity
+                  key={f.id}
+                  style={[styles.filterChip, active && styles.filterChipActive]}
+                  onPress={() => setTimeFilter(f.id)}
+                  activeOpacity={0.9}
+                >
+                  <Text style={active ? styles.filterChipTextActive : styles.filterChipText}>
+                    {f.label}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
         </View>
 
         <View style={styles.sectionHeaderRow}>
@@ -290,9 +305,9 @@ const BrandWalletScreen = ({ navigation }) => {
           {(payoutMethods && payoutMethods.length > 0
             ? payoutMethods
             : [
-                { id: 'zaad', label: 'Zaad Service', phoneNumber: '063-XXXX-XXX' },
-                { id: 'edahab', label: 'Edahab Service', phoneNumber: '065-XXXX-XXX' },
-              ]
+              { id: 'zaad', label: 'Zaad Service', phoneNumber: '063-XXXX-XXX' },
+              { id: 'edahab', label: 'Edahab Service', phoneNumber: '065-XXXX-XXX' },
+            ]
           ).map((m) => {
             const providerId = m.provider || m.id;
             const isZaad = providerId === 'zaad';
@@ -303,7 +318,7 @@ const BrandWalletScreen = ({ navigation }) => {
                   styles.payoutCard,
                   isZaad ? styles.payoutCardZaad : styles.payoutCardEdahab,
                 ]}
-              > 
+              >
                 <Text style={styles.payoutName}>{m.label}</Text>
                 <Text style={styles.payoutDescription}>
                   Linked · {m.phoneNumber || 'Unknown'}
@@ -378,86 +393,87 @@ const BrandWalletScreen = ({ navigation }) => {
 
             return true;
           })
+          .slice(0, 5)
           .map((tx) => {
-          const payment = tx.payments || {};
-          const method = payment.method || payment.provider || 'Wallet';
-          const created = tx.created_at ? new Date(tx.created_at) : null;
-          const meta = created
-            ? created.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
-            : '';
+            const payment = tx.payments || {};
+            const method = payment.method || payment.provider || 'Wallet';
+            const created = tx.created_at ? new Date(tx.created_at) : null;
+            const meta = created
+              ? created.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+              : '';
 
-          const orderLabel = payment.order_id ? `Order #${payment.order_id}` : '';
-          const title = tx.product_name || tx.description || orderLabel || 'Order';
-          const delivery = tx.delivery_type ? tx.delivery_type : null;
-          const orderStatusLabel = tx.order_status_label || null;
-          const bucket = tx.order_status_bucket || 'pending';
-          const subtitleParts = [];
-          if (delivery) subtitleParts.push(delivery);
-          if (method) subtitleParts.push(method);
-          const subtitle = subtitleParts.join(' \u2022 ');
+            const orderLabel = payment.order_id ? `Order #${payment.order_id}` : '';
+            const title = tx.product_name || tx.description || orderLabel || 'Order';
+            const delivery = tx.delivery_type ? tx.delivery_type : null;
+            const orderStatusLabel = tx.order_status_label || null;
+            const bucket = tx.order_status_bucket || 'pending';
+            const subtitleParts = [];
+            if (delivery) subtitleParts.push(delivery);
+            if (method) subtitleParts.push(method);
+            const subtitle = subtitleParts.join(' \u2022 ');
 
-          return (
-            <View key={tx.id} style={styles.txCard}>
-              <View style={styles.txLeft}>
-                {tx.image_url ? (
-                  <Image
-                    source={{ uri: tx.image_url }}
-                    style={styles.txThumbnail}
-                    resizeMode="cover"
-                  />
-                ) : (
-                  <View style={styles.txThumbnail} />
-                )}
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.txTitle} numberOfLines={1}>
-                    {title || 'Wallet transaction'}
-                  </Text>
-                  {subtitle ? (
-                    <Text style={styles.txSubtitle} numberOfLines={1}>
-                      {subtitle}
+            return (
+              <View key={tx.id} style={styles.txCard}>
+                <View style={styles.txLeft}>
+                  {tx.image_url ? (
+                    <Image
+                      source={{ uri: tx.image_url }}
+                      style={styles.txThumbnail}
+                      resizeMode="cover"
+                    />
+                  ) : (
+                    <View style={styles.txThumbnail} />
+                  )}
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.txTitle} numberOfLines={1}>
+                      {title || 'Wallet transaction'}
                     </Text>
-                  ) : null}
-                  {orderStatusLabel ? (
-                    <View
-                      style={[
-                        styles.orderStatusPill,
-                        bucket === 'completed'
-                          ? styles.orderStatusPillCompleted
-                          : styles.orderStatusPillPending,
-                      ]}
-                    >
-                      <Text style={styles.orderStatusPillText}>{orderStatusLabel}</Text>
-                    </View>
-                  ) : null}
-                </View>
-              </View>
-              <View style={styles.txRight}>
-                <View style={{ alignItems: 'flex-end' }}>
-                  <Text style={styles.txAmount}>${Number(tx.amount || 0).toFixed(2)}</Text>
-                  {tx.sale_type && (
-                    <View
-                      style={[
-                        styles.saleBadge,
-                        tx.sale_type === 'flash' ? styles.saleBadgeFlash : styles.saleBadgeDiscount,
-                      ]}
-                    >
-                      <Text style={styles.saleBadgeText}>
-                        {tx.sale_type === 'flash' ? 'Flash sale' : 'Discount'}
+                    {subtitle ? (
+                      <Text style={styles.txSubtitle} numberOfLines={1}>
+                        {subtitle}
                       </Text>
-                    </View>
+                    ) : null}
+                    {orderStatusLabel ? (
+                      <View
+                        style={[
+                          styles.orderStatusPill,
+                          bucket === 'completed'
+                            ? styles.orderStatusPillCompleted
+                            : styles.orderStatusPillPending,
+                        ]}
+                      >
+                        <Text style={styles.orderStatusPillText}>{orderStatusLabel}</Text>
+                      </View>
+                    ) : null}
+                  </View>
+                </View>
+                <View style={styles.txRight}>
+                  <View style={{ alignItems: 'flex-end' }}>
+                    <Text style={styles.txAmount}>${Number(tx.amount || 0).toFixed(2)}</Text>
+                    {tx.sale_type && (
+                      <View
+                        style={[
+                          styles.saleBadge,
+                          tx.sale_type === 'flash' ? styles.saleBadgeFlash : styles.saleBadgeDiscount,
+                        ]}
+                      >
+                        <Text style={styles.saleBadgeText}>
+                          {tx.sale_type === 'flash' ? 'Flash sale' : 'Discount'}
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+                  {tx.original_price && tx.unit_price && tx.original_price > tx.unit_price ? (
+                    <Text style={styles.txMeta}>
+                      ${tx.unit_price.toFixed(2)} · was ${tx.original_price.toFixed(2)}
+                    </Text>
+                  ) : (
+                    meta ? <Text style={styles.txMeta}>{meta}</Text> : null
                   )}
                 </View>
-                {tx.original_price && tx.unit_price && tx.original_price > tx.unit_price ? (
-                  <Text style={styles.txMeta}>
-                    ${tx.unit_price.toFixed(2)} · was ${tx.original_price.toFixed(2)}
-                  </Text>
-                ) : (
-                  meta ? <Text style={styles.txMeta}>{meta}</Text> : null
-                )}
               </View>
-            </View>
-          );
-        })}
+            );
+          })}
       </ScrollView>
     </SafeAreaView>
   );
@@ -532,23 +548,33 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   filtersRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
     marginBottom: 16,
   },
+  filtersContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 4,
+    paddingHorizontal: 2,
+  },
   filterChip: {
-    flex: 1,
+    paddingHorizontal: 14,
     paddingVertical: 8,
     marginRight: 8,
     borderRadius: 999,
     borderWidth: 1,
     borderColor: '#e5e7eb',
-    alignItems: 'center',
     backgroundColor: '#ffffff',
+    shadowColor: '#000',
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 1,
   },
   filterChipActive: {
     backgroundColor: '#11126F',
     borderColor: '#11126F',
+    shadowOpacity: 0.1,
+    elevation: 2,
   },
   filterChipText: {
     fontSize: 12,

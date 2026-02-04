@@ -1,5 +1,5 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
 import { Image } from 'expo-image';
 import { FlashList } from '@shopify/flash-list';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -18,68 +18,30 @@ const BrandScreen = ({ route, navigation }) => {
   const deletedProductIds = useStore((state) => state.deletedProductIds || []);
   const [remoteProducts, setRemoteProducts] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [refreshing, setRefreshing] = useState(false);
-  const [isLoadingMore, setIsLoadingMore] = useState(false);
-  const [page, setPage] = useState(1);
-  const [hasMore, setHasMore] = useState(true);
   const [ratingStats, setRatingStats] = useState({});
   const [fetchedBrand, setFetchedBrand] = useState(null);
   const [brandRatingAvg, setBrandRatingAvg] = useState(null);
   const [brandRatingCount, setBrandRatingCount] = useState(0);
   const [followersCount, setFollowersCount] = useState(0);
 
+  // Simple one-time loader for brand products (no pagination or pull-to-refresh)
+  const loadProducts = useCallback(async () => {
+    try {
+      setLoading(true);
+      const data = await fetchProductsFromSupabase({ page: 1, pageSize: 100 });
+      const rows = Array.isArray(data) ? data : [];
+      setRemoteProducts(rows);
+    } catch (e) {
+      Alert.alert('Supabase error', e.message || 'Failed to load products from Supabase');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  // Initial load once on mount
   useEffect(() => {
-    let isMounted = true;
-
-    const loadProducts = async ({ reset = false } = {}) => {
-      try {
-        const targetPage = reset ? 1 : page;
-
-        if (!reset && targetPage > 1) {
-          if (!hasMore || isLoadingMore) return;
-          setIsLoadingMore(true);
-        } else if (reset) {
-          setRefreshing(true);
-          setHasMore(true);
-        } else {
-          setLoading(true);
-        }
-
-        const data = await fetchProductsFromSupabase({ page: targetPage, pageSize: 20 });
-        if (isMounted && Array.isArray(data) && data.length > 0) {
-          if (reset || targetPage === 1) {
-            setRemoteProducts(data);
-          } else {
-            const current = remoteProducts || [];
-            const merged = [
-              ...current,
-              ...data.filter((p) => !current.some((existing) => existing.id === p.id)),
-            ];
-            setRemoteProducts(merged);
-          }
-        }
-
-        if (!data || data.length < 20) {
-          setHasMore(false);
-        }
-      } catch (e) {
-        Alert.alert('Supabase error', e.message || 'Failed to load products from Supabase');
-      } finally {
-        if (isMounted) {
-          setLoading(false);
-          setRefreshing(false);
-          setIsLoadingMore(false);
-          setPage((prev) => (reset ? 2 : prev + 1));
-        }
-      }
-    };
-
-    loadProducts({ reset: true });
-
-    return () => {
-      isMounted = false;
-    };
-  }, [page, hasMore, isLoadingMore, remoteProducts]);
+    loadProducts();
+  }, [loadProducts]);
 
   const brand = fetchedBrand || routeBrand || null;
 
@@ -164,19 +126,7 @@ const BrandScreen = ({ route, navigation }) => {
     [baseData, brandUserId, brandName],
   );
 
-  const handleRefresh = () => {
-    if (loading) return;
-    // Trigger a fresh load from page 1
-    setPage(1);
-    setHasMore(true);
-    setRefreshing(true);
-  };
-
-  const handleLoadMore = () => {
-    if (loading || refreshing || isLoadingMore || !hasMore) return;
-    // Just rely on effect-driven pagination
-    setPage((prev) => prev + 1);
-  };
+  // No pull-to-refresh or load-more; list is static after initial load
 
   useEffect(() => {
     const logVisit = async () => {
@@ -364,13 +314,22 @@ const BrandScreen = ({ route, navigation }) => {
               );
             }
 
-            const discount = brandDiscount;
+            const productLevelDiscount =
+              typeof item.product_discount_percentage === 'number' &&
+              !Number.isNaN(item.product_discount_percentage)
+                ? item.product_discount_percentage
+                : null;
 
-            if (!discount || currentPrice <= 0) {
+            const isProductDiscounted = !!item.product_discount_active;
+            const effectiveDiscountPct = isProductDiscounted && productLevelDiscount != null
+              ? productLevelDiscount
+              : brandDiscount;
+
+            if (!effectiveDiscountPct || currentPrice <= 0) {
               return <Text style={styles.productPrice}>${currentPrice.toFixed(2)}</Text>;
             }
 
-            const factor = 1 - discount / 100;
+            const factor = 1 - effectiveDiscountPct / 100;
             if (factor <= 0) {
               return <Text style={styles.productPrice}>${currentPrice.toFixed(2)}</Text>;
             }
@@ -522,15 +481,6 @@ const BrandScreen = ({ route, navigation }) => {
           columnWrapperStyle={styles.columnWrapper}
           renderItem={renderItem}
           estimatedItemSize={240}
-          refreshing={refreshing}
-          onRefresh={handleRefresh}
-          onEndReached={handleLoadMore}
-          onEndReachedThreshold={0.5}
-          ListFooterComponent={isLoadingMore ? (
-            <View style={styles.loadingWrapper}>
-              <ActivityIndicator size="small" color="#111827" />
-            </View>
-          ) : null}
         />
       )}
     </SafeAreaView>

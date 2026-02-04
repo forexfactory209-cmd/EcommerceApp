@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import AppNavigator, { navigationRef } from './src/navigation/AppNavigator';
 import { StatusBar } from 'expo-status-bar';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import * as Notifications from 'expo-notifications';
 import { useStore } from './src/store/store';
 import { registerForPushNotificationsAsync, saveDeviceTokenToSupabase } from './src/services/notificationsSetup';
@@ -21,12 +22,6 @@ export default function App() {
 
   useEffect(() => {
     const setupNotifications = async () => {
-      console.log('[Notifications] setupNotifications called with authUserId:', authUserId);
-      if (!authUserId) {
-        console.log('[Notifications] Skipping setup, no authUserId');
-        return;
-      }
-
       try {
         const token = await registerForPushNotificationsAsync();
         console.log('[Notifications] registerForPushNotificationsAsync returned token:', token);
@@ -39,7 +34,12 @@ export default function App() {
       }
     };
 
-    setupNotifications();
+    if (authUserId) {
+      console.log('[Notifications] setupNotifications called with authUserId:', authUserId);
+      setupNotifications();
+    } else {
+      console.log('[Notifications] Skipping setup, no authUserId');
+    }
   }, [authUserId]);
 
   useEffect(() => {
@@ -70,9 +70,9 @@ export default function App() {
   }, []);
 
   return (
-    <>
+    <GestureHandlerRootView style={{ flex: 1 }}>
       <StatusBar style="dark" />
       <AppNavigator />
-    </>
+    </GestureHandlerRootView>
   );
 }

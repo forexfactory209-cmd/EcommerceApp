@@ -173,9 +173,14 @@ const VendorOrdersScreen = ({ navigation, route }) => {
     if (!orderId || !newStatus) return;
 
     try {
+      const payload =
+        newStatus === 'accepted'
+          ? { status: newStatus, brand_accepted_at: new Date().toISOString(), ...extraFields }
+          : { status: newStatus, ...extraFields };
+
       const { error } = await supabase
         .from('orders')
-        .update({ status: newStatus, ...extraFields })
+        .update(payload)
         .eq('id', orderId);
 
       if (error) {

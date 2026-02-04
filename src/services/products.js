@@ -29,6 +29,8 @@ export async function fetchProductsFromSupabase({ page = 1, pageSize = 20 } = {}
         'colors',
         'sizes',
         'delivery_options',
+        'product_discount_percentage',
+        'product_discount_active',
         'created_at',
         'is_deleted',
         'code',

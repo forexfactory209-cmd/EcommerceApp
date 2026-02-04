@@ -324,17 +324,24 @@ const BrandOrdersScreen = ({ navigation, route }) => {
       // Immediately reflect in UI that this order is accepted
       setJustAcceptedId(orderId);
 
-      const acceptedAt = new Date().toISOString();
-      const { error } = await supabase
-        .from('orders')
-        .update({ brand_accepted_at: acceptedAt, status: 'accepted' })
-        .eq('id', orderId);
+      const { data, error } = await supabase.rpc('accept_brand_order', {
+        target_order_id: orderId
+      });
 
       if (error) {
         console.warn('BrandOrdersScreen: accept order error:', error.message || error);
         Alert.alert('Error', error.message || 'Could not accept this order.');
+        setJustAcceptedId(null);
         return;
       }
+
+      if (data && !data.success) {
+        Alert.alert('Error', data.error || 'Could not accept this order.');
+        setJustAcceptedId(null);
+        return;
+      }
+
+      const acceptedAt = data?.timestamp || new Date().toISOString();
 
       // Briefly show the "Accepted" label before animating the card to Packing
       setTimeout(() => {
@@ -342,10 +349,10 @@ const BrandOrdersScreen = ({ navigation, route }) => {
         setOrders((prev) =>
           Array.isArray(prev)
             ? prev.map((o) =>
-                o.id === orderId
-                  ? { ...o, brand_accepted_at: acceptedAt, status: 'accepted' }
-                  : o,
-              )
+              o.id === orderId
+                ? { ...o, brand_accepted_at: acceptedAt, status: 'accepted' }
+                : o,
+            )
             : prev,
         );
         setJustAcceptedId(null);
@@ -353,6 +360,7 @@ const BrandOrdersScreen = ({ navigation, route }) => {
     } catch (e) {
       console.warn('BrandOrdersScreen: exception accepting order:', e.message || e);
       Alert.alert('Error', 'Something went wrong while accepting this order.');
+      setJustAcceptedId(null);
     }
   };
 
@@ -360,14 +368,19 @@ const BrandOrdersScreen = ({ navigation, route }) => {
     if (!orderId) return;
 
     try {
-      const { error } = await supabase
-        .from('orders')
-        .update({ status: 'declined', decline_reason: 'Declined by brand' })
-        .eq('id', orderId);
+      const { data, error } = await supabase.rpc('decline_brand_order', {
+        target_order_id: orderId,
+        reason: 'Declined by brand'
+      });
 
       if (error) {
         console.warn('BrandOrdersScreen: decline order error:', error.message || error);
         Alert.alert('Error', error.message || 'Could not decline this order.');
+        return;
+      }
+
+      if (data && !data.success) {
+        Alert.alert('Error', data.error || 'Could not decline this order.');
         return;
       }
 
@@ -520,8 +533,8 @@ const BrandOrdersScreen = ({ navigation, route }) => {
                 {statusTone === 'packing'
                   ? 'View Label'
                   : statusTone === 'shipped'
-                  ? 'Print Label'
-                  : 'View Details'}
+                    ? 'Print Label'
+                    : 'View Details'}
               </Text>
             </TouchableOpacity>
           )}
@@ -659,7 +672,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#F9FAFB',
-    gap:12,
+    gap: 12,
   },
   headerRow: {
     flexDirection: 'row',
@@ -668,7 +681,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 15,
     // paddingBottom: 5,
-    
+
   },
   headerTitle: {
     fontSize: 24,

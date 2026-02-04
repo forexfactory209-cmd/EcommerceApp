@@ -93,41 +93,36 @@ const BrandOrderDetailsScreen = ({ navigation, route }) => {
     }
   };
 
-  const handleUpdateStatus = async (nextFields, successMessage) => {
-    if (!order?.id || !nextFields) return;
+  // Removed generic handleUpdateStatus in favor of specific RPC calls for robustness
+
+  const handleAccept = async () => {
+    if (!order?.id) return;
 
     try {
       setIsUpdating(true);
-      const { error } = await supabase
-        .from('orders')
-        .update(nextFields)
-        .eq('id', order.id);
+      const { data, error } = await supabase.rpc('accept_brand_order', {
+        target_order_id: order.id
+      });
 
       if (error) {
-        console.warn('BrandOrderDetails: failed to update order', error.message || error);
-        Alert.alert('Error', error.message || 'Could not update this order.');
+        console.warn('BrandOrderDetails: accept order error:', error.message || error);
+        Alert.alert('Error', error.message || 'Could not accept this order.');
         return;
       }
 
-      if (successMessage) {
-        Alert.alert('Success', successMessage);
+      if (data && !data.success) {
+        Alert.alert('Error', data.error || 'Could not accept this order.');
+        return;
       }
 
+      Alert.alert('Success', 'Order accepted.');
       navigation.goBack();
     } catch (e) {
-      console.warn('BrandOrderDetails: exception updating order', e.message || e);
-      Alert.alert('Error', 'Something went wrong while updating this order.');
+      console.warn('BrandOrderDetails: exception accepting order', e.message || e);
+      Alert.alert('Error', 'Something went wrong while accepting this order.');
     } finally {
       setIsUpdating(false);
     }
-  };
-
-  const handleAccept = () => {
-    const now = new Date().toISOString();
-    handleUpdateStatus(
-      { brand_accepted_at: now, status: 'accepted' },
-      'Order accepted.',
-    );
   };
 
   const handleDecline = () => {
@@ -139,11 +134,35 @@ const BrandOrderDetailsScreen = ({ navigation, route }) => {
         {
           text: 'Decline order',
           style: 'destructive',
-          onPress: () =>
-            handleUpdateStatus(
-              { status: 'declined', decline_reason: 'Declined by brand' },
-              'Order declined.',
-            ),
+          onPress: async () => {
+            if (!order?.id) return;
+            try {
+              setIsUpdating(true);
+              const { data, error } = await supabase.rpc('decline_brand_order', {
+                target_order_id: order.id,
+                reason: 'Declined by brand'
+              });
+
+              if (error) {
+                console.warn('BrandOrderDetails: decline order error:', error.message || error);
+                Alert.alert('Error', error.message || 'Could not decline this order.');
+                return;
+              }
+
+              if (data && !data.success) {
+                Alert.alert('Error', data.error || 'Could not decline this order.');
+                return;
+              }
+
+              Alert.alert('Order declined.');
+              navigation.goBack();
+            } catch (e) {
+              console.warn('BrandOrderDetails: exception declining order', e.message || e);
+              Alert.alert('Error', 'Something went wrong while declining this order.');
+            } finally {
+              setIsUpdating(false);
+            }
+          },
         },
       ],
     );
@@ -198,11 +217,20 @@ const BrandOrderDetailsScreen = ({ navigation, route }) => {
   const onTheWayAt = order.on_the_way_at;
   const deliveredAt = order.delivered_at;
 
-  let statusLabel = 'Pending';
+  let statusLabel = 'New';
   const rawStatus = typeof order.status === 'string' ? order.status.toLowerCase().trim() : '';
-  if (rawStatus === 'accepted') statusLabel = 'Accepted';
-  if (rawStatus === 'on_the_way') statusLabel = 'On the way';
-  if (rawStatus === 'delivered') statusLabel = 'Delivered';
+
+  if (brandAcceptedAt && !onTheWayAt && !deliveredAt) {
+    statusLabel = 'Packing';
+  } else if (onTheWayAt && !deliveredAt) {
+    statusLabel = 'Shipped';
+  } else if (deliveredAt) {
+    statusLabel = 'Delivered';
+  } else if (rawStatus === 'declined') {
+    statusLabel = 'Declined';
+  } else if (rawStatus.startsWith('cancel')) {
+    statusLabel = 'Cancelled';
+  }
 
   const isDeclinedOrCancelled =
     rawStatus === 'declined' || (rawStatus && rawStatus.startsWith('cancel'));

@@ -138,42 +138,43 @@ const TrackOrderDetailsScreen = () => {
         sellerPhone: data.seller_phone || null,
       };
 
-  const handleAcceptOrder = async () => {
-    if (!orderId) return;
-    try {
-      await supabase
-        .from('orders')
-        .update({ status: 'accepted' })
-        .eq('id', orderId);
-      setDecisionVisible(false);
-      setDeclineStep(false);
-      setDeclineReason('');
-      await loadOrder();
-    } catch (e) {
-      console.warn('TrackOrderDetails: failed to accept order', e.message || e);
-    }
-  };
+      const handleAcceptOrder = async () => {
+        if (!orderId) return;
+        try {
+          const now = new Date().toISOString();
+          await supabase
+            .from('orders')
+            .update({ status: 'accepted', brand_accepted_at: now })
+            .eq('id', orderId);
+          setDecisionVisible(false);
+          setDeclineStep(false);
+          setDeclineReason('');
+          await loadOrder();
+        } catch (e) {
+          console.warn('TrackOrderDetails: failed to accept order', e.message || e);
+        }
+      };
 
-  const handleSelectDecline = () => {
-    setDeclineStep(true);
-  };
+      const handleSelectDecline = () => {
+        setDeclineStep(true);
+      };
 
-  const handleDeclineWithReason = async (reason) => {
-    if (!orderId) return;
-    try {
-      await supabase
-        .from('orders')
-        .update({ status: 'declined', decline_reason: reason })
-        .eq('id', orderId);
-      setDeclineReason(reason);
-      setDecisionVisible(false);
-      setDeclineStep(false);
-      // Simple thank-you message via navigation param or alert; here we just reload order
-      await loadOrder();
-    } catch (e) {
-      console.warn('TrackOrderDetails: failed to decline order', e.message || e);
-    }
-  };
+      const handleDeclineWithReason = async (reason) => {
+        if (!orderId) return;
+        try {
+          await supabase
+            .from('orders')
+            .update({ status: 'declined', decline_reason: reason })
+            .eq('id', orderId);
+          setDeclineReason(reason);
+          setDecisionVisible(false);
+          setDeclineStep(false);
+          // Simple thank-you message via navigation param or alert; here we just reload order
+          await loadOrder();
+        } catch (e) {
+          console.warn('TrackOrderDetails: failed to decline order', e.message || e);
+        }
+      };
 
       setOrder(mapped);
     } catch (e) {
@@ -398,7 +399,7 @@ const TrackOrderDetailsScreen = () => {
       <TouchableOpacity
         activeOpacity={0.8}
         style={styles.timelineRow}
-        onPress={() => {}}
+        onPress={() => { }}
       >
         <View style={styles.timelineLeftColumn}>
           {isCurrent ? (
@@ -462,14 +463,14 @@ const TrackOrderDetailsScreen = () => {
   const handleCallSeller = () => {
     if (!order?.sellerPhone) return;
     const phone = String(order.sellerPhone).replace(/\s+/g, '');
-    Linking.openURL(`tel:${phone}`).catch(() => {});
+    Linking.openURL(`tel:${phone}`).catch(() => { });
   };
 
   const handleEmailSeller = () => {
     if (!order?.sellerEmail) return;
     const subject = encodeURIComponent(`Order #${order.code} support`);
     const body = encodeURIComponent('Hi, I need help with my order.');
-    Linking.openURL(`mailto:${order.sellerEmail}?subject=${subject}&body=${body}`).catch(() => {});
+    Linking.openURL(`mailto:${order.sellerEmail}?subject=${subject}&body=${body}`).catch(() => { });
   };
 
   const handleDownloadInvoice = async () => {
@@ -478,12 +479,12 @@ const TrackOrderDetailsScreen = () => {
     try {
       const itemsRows = Array.isArray(order.items)
         ? order.items
-            .map((item, index) => {
-              const name = item.name || `Item ${index + 1}`;
-              const qty = item.quantity || 1;
-              const price = Number(item.price) || 0;
-              const lineTotal = price * qty;
-              return `
+          .map((item, index) => {
+            const name = item.name || `Item ${index + 1}`;
+            const qty = item.quantity || 1;
+            const price = Number(item.price) || 0;
+            const lineTotal = price * qty;
+            return `
                 <tr>
                   <td style="padding: 4px 8px; border-bottom: 1px solid #E5E7EB;">${name}</td>
                   <td style="padding: 4px 8px; border-bottom: 1px solid #E5E7EB; text-align: center;">${qty}</td>
@@ -491,8 +492,8 @@ const TrackOrderDetailsScreen = () => {
                   <td style="padding: 4px 8px; border-bottom: 1px solid #E5E7EB; text-align: right;">${lineTotal ? `$${lineTotal.toFixed(2)}` : '-'}</td>
                 </tr>
               `;
-            })
-            .join('')
+          })
+          .join('')
         : '';
 
       const placedAtText = order.placedAt ? order.placedAt.toLocaleString() : '';
@@ -631,11 +632,10 @@ const TrackOrderDetailsScreen = () => {
                   <span class="meta-label">Order ID</span>
                   <span class="meta-value">${order.code}</span>
                 </div>
-                ${
-                  placedAtText
-                    ? `<div class="meta-row"><span class="meta-label">Date</span><span class="meta-value">${placedAtText}</span></div>`
-                    : ''
-                }
+                ${placedAtText
+          ? `<div class="meta-row"><span class="meta-label">Date</span><span class="meta-value">${placedAtText}</span></div>`
+          : ''
+        }
                 <div class="meta-row" style="margin-top:4px;">
                   <span class="meta-label">Status</span>
                   <span class="status-pill">${order.status}</span>
@@ -689,9 +689,8 @@ const TrackOrderDetailsScreen = () => {
                 </div>
               </div>
 
-              ${
-                order.sellerName || order.sellerEmail || order.sellerPhone
-                  ? `
+              ${order.sellerName || order.sellerEmail || order.sellerPhone
+          ? `
                     <div class="section-card">
                       <p class="section-title">Seller</p>
                       ${order.sellerName ? `<p><strong>Name:</strong> ${order.sellerName}</p>` : ''}
@@ -699,8 +698,8 @@ const TrackOrderDetailsScreen = () => {
                       ${order.sellerPhone ? `<p><strong>Phone:</strong> ${order.sellerPhone}</p>` : ''}
                     </div>
                   `
-                  : ''
-              }
+          : ''
+        }
             </div>
           </body>
         </html>

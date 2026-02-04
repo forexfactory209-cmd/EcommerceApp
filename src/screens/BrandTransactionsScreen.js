@@ -11,7 +11,7 @@ const BrandTransactionsScreen = ({ navigation }) => {
   const authUserId = useStore((state) => state.authUserId);
 
   const [transactions, setTransactions] = useState([]);
-  const [timeFilter, setTimeFilter] = useState('today');
+  const [timeFilter, setTimeFilter] = useState('today'); // all | today | yesterday | weekly | monthly
   const [gatewayFilter, setGatewayFilter] = useState('all');
 
   useFocusEffect(
@@ -160,6 +160,7 @@ const BrandTransactionsScreen = ({ navigation }) => {
       const created = tx.created_at ? new Date(tx.created_at) : null;
       if (!created) return false;
 
+      // When timeFilter === 'all', do not filter by date at all
       if (timeFilter === 'today' && !(created >= startOfToday)) return false;
       if (timeFilter === 'yesterday' && !(created >= startOfYesterday && created < startOfToday)) return false;
       if (timeFilter === 'weekly' && !(created >= startOfWeek)) return false;
@@ -209,6 +210,7 @@ const BrandTransactionsScreen = ({ navigation }) => {
 
         <View style={styles.filtersRow}>
           {[
+            { id: 'all', label: 'All' },
             { id: 'today', label: 'Today' },
             { id: 'yesterday', label: 'Yesterday' },
             { id: 'weekly', label: 'Weekly' },

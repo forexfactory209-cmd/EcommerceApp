@@ -21,7 +21,7 @@ const AdminSupportTicketsScreen = ({ navigation }) => {
 
       const { data, error } = await supabase
         .from('support_tickets')
-        .select('id, user_id, ticket_type, order_id_text, description, screenshot_url, status, created_at')
+        .select('id, user_id, ticket_type, order_id_text, description, screenshot_url, status, created_at, order_issue_reason')
         .order('created_at', { ascending: false });
 
       if (error) {
@@ -30,7 +30,7 @@ const AdminSupportTicketsScreen = ({ navigation }) => {
         return;
       }
 
-      const mapped = Array.isArray(data)
+      let mapped = Array.isArray(data)
         ? data.map((t) => {
             const created = t.created_at ? new Date(t.created_at) : null;
             return {
@@ -43,9 +43,45 @@ const AdminSupportTicketsScreen = ({ navigation }) => {
               status: t.status || 'open',
               createdAt: created,
               createdAtLabel: created ? created.toLocaleString() : 'Unknown',
+              orderIssueReason: t.order_issue_reason || null,
+              productName: null,
+              productImageUrl: null,
             };
           })
         : [];
+
+      const orderIds = mapped
+        .map((t) => (t.orderIdText ? Number(t.orderIdText) : null))
+        .filter((id) => Number.isFinite(id));
+
+      if (orderIds.length > 0) {
+        const { data: itemsData, error: itemsError } = await supabase
+          .from('order_items')
+          .select('order_id, name, image_url')
+          .in('order_id', orderIds);
+
+        if (!itemsError && Array.isArray(itemsData)) {
+          const byOrderId = new Map();
+          itemsData.forEach((row) => {
+            if (!row || !Number.isFinite(row.order_id)) return;
+            if (!byOrderId.has(row.order_id)) {
+              byOrderId.set(row.order_id, row);
+            }
+          });
+
+          mapped = mapped.map((ticket) => {
+            const orderId = ticket.orderIdText ? Number(ticket.orderIdText) : null;
+            const item = orderId && byOrderId.get(orderId);
+            return item
+              ? {
+                  ...ticket,
+                  productName: item.name || ticket.productName,
+                  productImageUrl: item.image_url || ticket.productImageUrl,
+                }
+              : ticket;
+          });
+        }
+      }
 
       setTickets(mapped);
     } catch (e) {
@@ -105,6 +141,16 @@ const AdminSupportTicketsScreen = ({ navigation }) => {
               <Text style={styles.ticketMetaText} numberOfLines={1}>
                 ID: {item.id} · User: {item.userId}
               </Text>
+              {item.type === 'order_issue' && item.orderIssueReason ? (
+                <Text style={styles.ticketMetaText} numberOfLines={1}>
+                  Issue: {item.orderIssueReason}
+                </Text>
+              ) : null}
+              {item.productName ? (
+                <Text style={styles.ticketMetaText} numberOfLines={1}>
+                  Item: {item.productName}
+                </Text>
+              ) : null}
             </View>
           </View>
           <View style={styles.statusPillWrapper}>

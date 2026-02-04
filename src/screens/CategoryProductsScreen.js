@@ -99,6 +99,18 @@ const CategoryProductsScreen = ({ navigation, route }) => {
     const { currentPrice, flashPrice, isFlashActive } = getFlashSaleState(item);
     const isOutOfStock = (item.quantity ?? 0) === 0;
 
+    const productLevelDiscount =
+      typeof item.product_discount_percentage === 'number' &&
+      !Number.isNaN(item.product_discount_percentage)
+        ? item.product_discount_percentage
+        : null;
+    const isProductDiscounted = !!item.product_discount_active;
+    const effectiveDiscountPct = isProductDiscounted ? productLevelDiscount : null;
+    const discountedPrice =
+      effectiveDiscountPct != null
+        ? Number((currentPrice * (1 - effectiveDiscountPct / 100)).toFixed(2))
+        : null;
+
     return (
       <TouchableOpacity
         style={styles.productCard}
@@ -144,8 +156,27 @@ const CategoryProductsScreen = ({ navigation, route }) => {
         <Text style={styles.productName} numberOfLines={1}>{item.name}</Text>
         {isFlashActive && flashPrice != null && flashPrice > 0 ? (
           <View>
-            <Text style={[styles.productPrice, { textDecorationLine: 'line-through', color: '#9ca3af', fontSize: 12 }]}>${currentPrice.toFixed(2)}</Text>
+            <Text
+              style={[
+                styles.productPrice,
+                { textDecorationLine: 'line-through', color: '#9ca3af', fontSize: 12 },
+              ]}
+            >
+              ${currentPrice.toFixed(2)}
+            </Text>
             <Text style={[styles.productPrice, { marginTop: 2 }]}>${flashPrice.toFixed(2)}</Text>
+          </View>
+        ) : isProductDiscounted && discountedPrice != null ? (
+          <View>
+            <Text
+              style={[
+                styles.productPrice,
+                { textDecorationLine: 'line-through', color: '#9ca3af', fontSize: 12 },
+              ]}
+            >
+              ${currentPrice.toFixed(2)}
+            </Text>
+            <Text style={[styles.productPrice, { marginTop: 2 }]}>${discountedPrice.toFixed(2)}</Text>
           </View>
         ) : (
           <Text style={styles.productPrice}>${currentPrice.toFixed(2)}</Text>
